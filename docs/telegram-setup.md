@@ -1,26 +1,26 @@
-# Telegram Bot 配置教程
+# Telegram Bot setup
 
-## 前置条件
+## Prerequisites
 
-- Telegram 账号
-- maven 已编译（`make build`）
+- A Telegram account
+- `maven` built (`make build`)
 
-## 第一步：创建 Telegram Bot
+## Step 1: Create a Telegram bot
 
-1. 在 Telegram 中搜索 **@BotFather**，发送 `/newbot`
-2. 按提示输入 Bot 名称（如 `My Claw Assistant`）
-3. 输入 Bot 用户名（必须以 `bot` 结尾，如 `maven_bot`）
-4. BotFather 会返回一个 **Bot Token**，格式如：
+1. In Telegram, search for **@BotFather** and send `/newbot`
+2. When prompted, enter the bot display name (e.g. `My Claw Assistant`)
+3. Enter the bot username (must end with `bot`, e.g. `maven_bot`)
+4. BotFather returns a **bot token**, for example:
    ```
    1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
    ```
-5. 保存此 Token
+5. Save this token
 
-## 第二步：配置 maven
+## Step 2: Configure maven
 
-### 方式一：配置文件
+### Option A: Config file
 
-编辑 `~/.maven/config.json`：
+Edit `~/.maven/config.json`:
 
 ```json
 {
@@ -36,52 +36,53 @@
 }
 ```
 
-### 方式二：环境变量
+### Option B: Environment variable
 
 ```bash
 export MAVEN_TELEGRAM_TOKEN="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 ```
 
-## 第三步：配置参数说明
+## Step 3: Configuration reference
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `enabled` | bool | 是否启用 Telegram 通道 |
-| `token` | string | BotFather 提供的 Bot Token |
-| `allowFrom` | []string | 允许的用户 ID 列表（空 = 允许所有人） |
-| `proxy` | string | 代理地址（如 `socks5://127.0.0.1:1080`），国内网络需要 |
-| `rootDir` | string | Telegram 资源目录，默认是 `<agent.workspace>/.telegram`，其中包含 `slashes/` 和 `handlers/` |
+| Field | Type | Description |
+|------|------|-------------|
+| `enabled` | bool | Whether the Telegram channel is enabled |
+| `token` | string | Bot token from BotFather |
+| `allowFrom` | []string | Allowed user IDs (`[]` = everyone) |
+| `proxy` | string | Proxy URL (e.g. `socks5://127.0.0.1:1080`); required in some regions |
+| `rootDir` | string | Telegram assets directory; default `<agent.workspace>/.telegram` with `slashes/` and `handlers/` |
 
-### 获取你的用户 ID
+### Find your user ID
 
-1. 在 Telegram 中搜索 **@userinfobot**，发送任意消息
-2. 它会返回你的 User ID（纯数字）
-3. 将 ID 添加到 `allowFrom` 限制只有你能使用：
+1. In Telegram, search for **@userinfobot** and send any message
+2. It replies with your numeric user ID
+3. Add the ID to `allowFrom` so only you can use the bot:
    ```json
    "allowFrom": ["123456789"]
    ```
 
-## 第四步：启动并测试
+## Step 4: Run and test
 
 ```bash
-# 启动 gateway
+# Start gateway
 make gateway
 
-# 或直接运行
+# Or run directly
 ./maven gateway
 ```
 
-日志中看到以下内容表示成功：
+Success is indicated by log lines like:
+
 ```
 [telegram] authorized as @maven_bot
 [telegram] polling started
 ```
 
-在 Telegram 中搜索你的 Bot 用户名，发送消息即可测试。
+In Telegram, find your bot by username and send a message to test.
 
-## 代理配置（国内用户）
+## Proxy (regions without direct Telegram API access)
 
-国内无法直接访问 Telegram API，需要配置代理：
+If you cannot reach the Telegram API directly, configure a proxy:
 
 ```json
 {
@@ -95,18 +96,18 @@ make gateway
 }
 ```
 
-支持的代理协议：`socks5://`、`http://`、`https://`
+Supported schemes: `socks5://`, `http://`, `https://`
 
-## 常见问题
+## Troubleshooting
 
-**Q: Bot 没有响应？**
-- 检查日志是否有 `[telegram] authorized as @xxx`
-- 确认 API Key 已配置（`maven status`）
-- 如果在国内，确认代理配置正确
+**Q: The bot does not respond?**
+- Check logs for `[telegram] authorized as @xxx`
+- Confirm the API key is configured (`maven status`)
+- If you are behind a restrictive network, confirm the proxy settings
 
-**Q: 收到 "Sorry, I encountered an error" 回复？**
-- 检查日志中的 `[gateway] agent error` 信息
-- 确认 API 代理/密钥可用
+**Q: You get “Sorry, I encountered an error”?**
+- Check logs for `[gateway] agent error`
+- Confirm the API proxy/key is valid
 
-**Q: 如何限制只有自己能用？**
-- 获取你的 User ID，添加到 `allowFrom` 列表
+**Q: How do I restrict usage to myself?**
+- Get your user ID and add it to `allowFrom`

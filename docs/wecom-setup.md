@@ -1,67 +1,67 @@
-# 企业微信（WeCom）智能机器人接入教程
+# WeCom (WeChat Work) intelligent bot integration
 
-## 前置条件
+## Prerequisites
 
-- 企业微信管理员账号
-- `maven` 已编译（`make build`）
-- 一个可公网访问的回调 URL（生产建议 HTTPS）
+- A WeCom (enterprise WeChat) admin account
+- `maven` built (`make build`)
+- A publicly reachable callback URL (HTTPS recommended in production)
 
-> 说明：maven 只实现渠道协议与业务逻辑；公网入口、证书、域名和反向代理由部署方自行配置。
+> Maven implements the channel protocol and business logic only. Public ingress, TLS certificates, DNS, and reverse proxies are your deployment responsibility.
 
-## 协议说明（当前仅支持这一种）
+## Protocol (single supported mode)
 
-当前 `wecom` 通道只实现 **企业微信智能机器人 API 模式**（不是自建应用回调模式）。
+The `wecom` channel implements **WeCom intelligent bot API mode** only (not custom-app callback mode).
 
-回调特点：
+Callback behavior:
 
-- URL 校验：`GET` + `msg_signature/timestamp/nonce/echostr`
-- 消息推送：`POST`，Body 为 JSON 加密包（`{"encrypt":"..."}`）
-- 入站解密后为 JSON（含 `msgid/from.userid/response_url/msgtype` 等）
-- 出站通过 `response_url` 回发 `markdown` 消息
+- URL verification: `GET` with `msg_signature`, `timestamp`, `nonce`, `echostr`
+- Message push: `POST` with JSON body as encrypted payload (`{"encrypt":"..."}`)
+- After decryption, inbound payload is JSON (includes `msgid`, `from.userid`, `response_url`, `msgtype`, etc.)
+- Outbound replies use `response_url` with `markdown` messages
 
-## 能力边界
+## Supported scope
 
-当前支持：
+Supported today:
 
-- 入站消息解析：`text`、`voice`、`mixed`（仅提取其中 `text` 项）
-- 出站回包：`markdown`（通过 `response_url`）
-- `allowFrom` 白名单控制（未配置或空数组时默认放行）
-- `msgid` 去重
-- 回调签名校验 + 加解密
+- Inbound: `text`, `voice`, `mixed` (only `text` parts are extracted)
+- Outbound: `markdown` via `response_url`
+- `allowFrom` allowlist (if unset or empty, all users are allowed by default)
+- `msgid` deduplication
+- Callback signature verification and encryption/decryption
 
-当前不支持：
+Not supported:
 
-- 模板卡片
-- 流式回复
-- 复杂事件处理
+- Template cards
+- Streaming replies
+- Complex event handling
 
-## 第一步：创建企业微信智能机器人
+## Step 1: Create a WeCom intelligent bot
 
-1. 登录企业微信管理后台
-2. 进入「安全与管理」→「管理工具」→「创建机器人」
-3. 选择 **API 模式创建**
+1. Sign in to the WeCom admin console
+2. Go to **Security & management** → **Admin tools** → **Create bot**
+3. Choose **Create in API mode**
 
    ![74444fff04262489ee33c735877cc976.png](https://i.mji.rip/2026/02/09/74444fff04262489ee33c735877cc976.png)
 
-4. 记录以下字段：
+4. Record:
    - `Token`
    - `EncodingAESKey`
 
-> 可选字段：`ReceiveID`（若你明确知道加解密校验用的接收方 ID，可在 maven 中配置；不配则不做严格 ReceiveID 校验）
+> Optional: `ReceiveID`—if you know the receiver ID used for encrypt/decrypt checks, you can set it in maven; if omitted, strict ReceiveID validation is not enforced.
 
-## 第二步：配置回调 URL
+## Step 2: Configure the callback URL
 
-在企业微信机器人配置页填写：
+In the WeCom bot settings:
 
-- URL：`https://your-domain.com/wecom/bot`
-- Token：与你配置文件一致
-- EncodingAESKey：与你配置文件一致
+- URL: `https://your-domain.com/wecom/bot`
+- Token: must match your config file
+- EncodingAESKey: must match your config file
 
-保存时平台会发起 URL 验证请求，maven 会自动处理。
+Saving triggers URL verification; maven handles it automatically.
 
-## 第三步：配置 maven
+## Step 3: Configure maven
 
-编辑 `~/.maven/config.json`：
+Edit `~/.maven/config.json`:
 
 ```json
 {
@@ -78,18 +78,18 @@
 }
 ```
 
-### 配置项说明
+### Fields
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `enabled` | bool | 是否启用 WeCom 通道 |
-| `token` | string | 回调签名 Token |
-| `encodingAESKey` | string | 回调加解密密钥（43 位） |
-| `receiveId` | string | 可选，启用严格接收方 ID 校验 |
-| `port` | int | 回调服务端口（默认 9886） |
-| `allowFrom` | []string | 可选白名单；未配置或空数组时默认接收所有用户 |
+| Field | Type | Description |
+|------|------|-------------|
+| `enabled` | bool | Enable the WeCom channel |
+| `token` | string | Callback signing token |
+| `encodingAESKey` | string | 43-character encrypt/decrypt key |
+| `receiveId` | string | Optional; enables strict receiver-ID checks |
+| `port` | int | Callback HTTP port (default 9886) |
+| `allowFrom` | []string | Optional allowlist; if unset or empty, all users are accepted |
 
-### 环境变量（可选覆盖）
+### Environment variables (optional overrides)
 
 ```bash
 export MAVEN_WECOM_TOKEN="your-token"
@@ -97,30 +97,30 @@ export MAVEN_WECOM_ENCODING_AES_KEY="your-43-char-encoding-aes-key"
 export MAVEN_WECOM_RECEIVE_ID="optional-receive-id"
 ```
 
-## 第四步：启动并验证
+## Step 4: Run and verify
 
 ```bash
 make gateway
 ```
 
-日志出现如下信息表示通道已启动：
+Healthy startup looks like:
 
 ```text
 [wecom] callback server listening on :9886
 [gateway] channels started: [wecom]
 ```
 
-然后在企业微信里给机器人发一条文本消息，观察网关是否回包。
+Send a text message to the bot in WeCom and confirm the gateway replies.
 
-## 关键限制与风险
+## Limits and risks
 
-- `allowFrom` 行为是“默认放行”：
-  - 未配置或 `[]`：接收所有入站消息
-  - 配置非空列表：仅接收列表中的用户
-  - 注意：若错误配置成 `allowFrom: [""]`，会被视为“启用白名单”，可能导致全部被拒绝
-- 出站依赖临时 `response_url`：
-  - 只有在该会话最近有入站消息且缓存了 `response_url`，maven 才能回消息
-  - `response_url` 基本是单次/短时有效，不要依赖延迟回包或多次发送
-  - `response_url` 过期后，发送会失败并返回错误
-- 出站 `markdown.content` 最长 20480 字节，超过会被截断（不是自动分片）
-- 不要把 `token/encodingAESKey` 提交到仓库
+- `allowFrom` defaults to open:
+  - Unset or `[]`: accept all inbound users
+  - Non-empty list: only listed users
+  - Misconfiguring `allowFrom: [""]` enables an allowlist that can reject everyone
+- Outbound depends on a temporary `response_url`:
+  - Maven can only reply if a recent inbound message cached `response_url`
+  - `response_url` is short-lived; avoid delayed or multi-shot sends
+  - After expiry, sends fail with an error
+- Outbound `markdown.content` is capped at 20480 bytes; excess is truncated (no auto chunking)
+- Never commit `token` / `encodingAESKey` to source control
