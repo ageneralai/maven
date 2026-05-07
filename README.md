@@ -4,7 +4,7 @@
 
 # Maven
 
-Personal AI assistant built on [agentsdk-go](https://github.com/cexll/agentsdk-go).
+Personal AI assistant built on [ageneral-agents-go](https://github.com/ageneralai/ageneral-agents-go).
 
 ## Features
 
@@ -111,14 +111,14 @@ make package-all PLATFORMS="linux/amd64 linux/arm64"
        │          │       │          │           │        │
        ▼          │       ▼          ▼           ▼        │
 ┌──────────────┐  │  ┌─────────────────────────────────┐  │
-│  agentsdk-go │  │  │          Message Bus             │  │
-│   Runtime    │◄─┤  │    Inbound ←── Channels          │  │
-│              │  │  │    Outbound ──► Channels          │  │
+│ ageneral-    │  │  │          Message Bus             │  │
+│ agents-go    │◄─┤  │    Inbound ←── Channels          │  │
+│  Runtime     │  │  │    Outbound ──► Channels          │  │
 └──────────────┘  │  └──────────────┬──────────────────┘  │
                   │                 │                      │
                   │                 ▼                      │
                   │  ┌──────────────────────────────────┐  │
-                  │  │      agentsdk-go Runtime         │  │
+                  │  │   ageneral-agents-go Runtime     │  │
                   │  │   (ReAct loop + tool execution)  │  │
                   │  └──────────────────────────────────┘  │
                   │                                       │
