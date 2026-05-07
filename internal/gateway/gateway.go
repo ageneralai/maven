@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -118,6 +119,7 @@ type Gateway struct {
 	channels   *channel.ChannelManager
 	cron       *cron.Service
 	hb         *heartbeat.Service
+	agentMu    sync.Mutex
 	mem        *memory.MemoryStore
 	skillRegs  []api.SkillRegistration
 	sessions   *session.Router
@@ -182,12 +184,14 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	// Signal channel for testing
 	g.signalChan = opts.SignalChan
 
-	// runAgent helper for cron/heartbeat
+	// runAgent helper for cron/heartbeat (serialized via agentMu; inbound chat uses runAgentResponse directly)
 	runAgent := func(prompt string) (string, error) {
 		return g.runAgent(context.Background(), prompt, "system", nil)
 	}
 
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
+		g.agentMu.Lock()
+		defer g.agentMu.Unlock()
 		result, err := runAgent(job.Payload.Message)
 		if err != nil {
 			return "", err
@@ -202,8 +206,13 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		return result, nil
 	}
 
-	// Heartbeat
-	g.hb = heartbeat.New(cfg.Agent.Workspace, runAgent, 0)
+	g.hb = heartbeat.New(cfg.Agent.Workspace, func(prompt string) (string, error) {
+		if !g.agentMu.TryLock() {
+			return "", nil
+		}
+		defer g.agentMu.Unlock()
+		return runAgent(prompt)
+	}, 0)
 
 	// Channels (with gateway config for WebUI port)
 	chMgr, err := channel.NewChannelManagerWithGateway(cfg.Channels, cfg.Gateway, g.bus)
