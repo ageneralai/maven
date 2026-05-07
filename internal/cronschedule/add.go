@@ -80,6 +80,9 @@ func Add(svc *cron.Service, p AddParams, now time.Time) (*cron.CronJob, error) {
 }
 
 func AddFromToolMap(svc *cron.Service, ctx context.Context, m map[string]interface{}, now time.Time) (*cron.CronJob, error) {
+	if err := validateCronDelivery(ctx, m); err != nil {
+		return nil, err
+	}
 	p := AddParams{
 		Name:    stringFrom(m, "name"),
 		Message: stringFrom(m, "message"),
@@ -103,11 +106,8 @@ func AddFromToolMap(svc *cron.Service, ctx context.Context, m map[string]interfa
 	p.Channel = stringFrom(m, "channel")
 	p.To = stringFrom(m, "to")
 	if p.DeliverToIncomingChat {
-		ch, chOK := inboundctx.Channel(ctx)
-		id, idOK := inboundctx.ChatID(ctx)
-		if !chOK || !idOK {
-			return nil, fmt.Errorf("deliver_to_incoming_chat requires gateway inbound context (missing channel or chat id)")
-		}
+		ch, _ := inboundctx.Channel(ctx)
+		id, _ := inboundctx.ChatID(ctx)
 		p.Channel = ch
 		p.To = id
 	}
