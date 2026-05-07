@@ -12,7 +12,9 @@ import (
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/heartbeat"
+	"github.com/ageneralai/maven/internal/heartbeatsession"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
@@ -779,6 +781,7 @@ func TestGateway_CronOnJob(t *testing.T) {
 		response: &api.Response{
 			Result: &api.Result{Output: "cron result"},
 		},
+		reqCh: make(chan api.Request, 2),
 	}
 
 	g, err := NewWithOptions(cfg, Options{
@@ -804,6 +807,14 @@ func TestGateway_CronOnJob(t *testing.T) {
 	}
 	if result != "cron result" {
 		t.Errorf("result = %q, want 'cron result'", result)
+	}
+	select {
+	case req := <-mockRt.reqCh:
+		if !cronsession.MatchesJob(job.ID, req.SessionID) {
+			t.Fatalf("SessionID = %q, want cron-isolated key for job %q", req.SessionID, job.ID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for runtime request")
 	}
 }
 
@@ -1079,7 +1090,7 @@ func TestGateway_HeartbeatSkipsWhenAutomationLaneBusy(t *testing.T) {
 	}
 }
 
-func TestGateway_HeartbeatAgentTurnUsesAutomationSession(t *testing.T) {
+func TestGateway_HeartbeatAgentTurnUsesHeartbeatSession(t *testing.T) {
 	reqCh := make(chan api.Request, 1)
 	g := &Gateway{
 		runtime: &mockRuntime{
@@ -1096,8 +1107,8 @@ func TestGateway_HeartbeatAgentTurnUsesAutomationSession(t *testing.T) {
 	}
 	select {
 	case req := <-reqCh:
-		if req.SessionID != automationSessionID {
-			t.Fatalf("SessionID = %q, want %q", req.SessionID, automationSessionID)
+		if !heartbeatsession.Matches(req.SessionID) {
+			t.Fatalf("SessionID = %q, want maven:heartbeat-<uuid>", req.SessionID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for runtime request")

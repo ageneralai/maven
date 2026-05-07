@@ -18,7 +18,9 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/cronschedule"
+	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/heartbeat"
+	"github.com/ageneralai/maven/internal/heartbeatsession"
 	"github.com/ageneralai/maven/internal/inboundctx"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/runtimecmd"
@@ -28,9 +30,6 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/cexll/agentsdk-go/pkg/tool"
 )
-
-// automationSessionID is the only session used for cron and heartbeat (single automation lane).
-const automationSessionID = "system"
 
 // heartbeatSkipReasonAutomationLaneBusy is logged when heartbeat yields because cron holds agentMu.
 const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"
@@ -190,16 +189,14 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	// Signal channel for testing
 	g.signalChan = opts.SignalChan
 
-	runAgent := func(prompt string) (string, error) {
-		return g.runAgent(context.Background(), prompt, automationSessionID, nil)
-	}
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
 		if err := job.Payload.Validate(); err != nil {
 			return "", err
 		}
 		g.agentMu.Lock()
 		defer g.agentMu.Unlock()
-		result, err := runAgent(job.Payload.Message)
+		sessionKey := cronsession.SessionKey(job.ID)
+		result, err := g.runAgent(context.Background(), job.Payload.Message, sessionKey, nil)
 		if err != nil {
 			return "", err
 		}
@@ -239,7 +236,8 @@ func (g *Gateway) heartbeatAgentTurn(prompt string) (string, error) {
 		return "", nil
 	}
 	defer g.agentMu.Unlock()
-	return g.runAgent(context.Background(), prompt, automationSessionID, nil)
+	sessionKey := heartbeatsession.SessionKey()
+	return g.runAgent(context.Background(), prompt, sessionKey, nil)
 }
 
 func (g *Gateway) buildSystemPrompt() string {
