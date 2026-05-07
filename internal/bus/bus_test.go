@@ -45,7 +45,7 @@ func TestSubscribeAndDispatch(t *testing.T) {
 	var mu sync.Mutex
 	done := make(chan struct{})
 
-	b.SubscribeOutbound("test-channel", func(msg OutboundMessage) {
+	b.SetOutboundSubscriber("test-channel", func(msg OutboundMessage) {
 		mu.Lock()
 		received = msg
 		mu.Unlock()
@@ -75,6 +75,22 @@ func TestSubscribeAndDispatch(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for dispatch")
+	}
+}
+
+func TestSetOutboundSubscriber_Replaces(t *testing.T) {
+	b := NewMessageBus(10, testLG)
+	var first, second int
+	b.SetOutboundSubscriber("c", func(OutboundMessage) { first++ })
+	b.SetOutboundSubscriber("c", func(OutboundMessage) { second++ })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go b.DispatchOutbound(ctx)
+	b.Outbound <- OutboundMessage{Channel: "c", Content: "x"}
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	if first != 0 || second != 1 {
+		t.Fatalf("first=%d second=%d want 0,1", first, second)
 	}
 }
 

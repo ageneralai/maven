@@ -579,15 +579,20 @@ func TestFeishuChannel_StartStop(t *testing.T) {
 
 func TestChannelManager_FeishuEnabled(t *testing.T) {
 	b := bus.NewMessageBus(10, feishuTestLog)
-	m, err := NewChannelManager(config.ChannelsConfig{
-		Feishu: config.FeishuConfig{
-			Enabled:   true,
-			AppID:     "cli_test",
-			AppSecret: "secret",
+	m := NewChannelManager(b, feishuTestLog)
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workspace: t.TempDir()},
+		Channels: config.ChannelsConfig{
+			Feishu: config.FeishuConfig{
+				Enabled:   true,
+				AppID:     "cli_test",
+				AppSecret: "secret",
+			},
 		},
-	}, "", b, feishuTestLog)
-	if err != nil {
-		t.Fatalf("NewChannelManager error: %v", err)
+		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
+	}
+	if err := m.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply error: %v", err)
 	}
 
 	channels := m.EnabledChannels()
@@ -598,13 +603,18 @@ func TestChannelManager_FeishuEnabled(t *testing.T) {
 
 func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
 	b := bus.NewMessageBus(10, feishuTestLog)
-	_, err := NewChannelManager(config.ChannelsConfig{
-		Feishu: config.FeishuConfig{
-			Enabled: true,
-			// Missing AppID and AppSecret
+	m := NewChannelManager(b, feishuTestLog)
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workspace: t.TempDir()},
+		Channels: config.ChannelsConfig{
+			Feishu: config.FeishuConfig{
+				Enabled: true,
+				// Missing AppID and AppSecret
+			},
 		},
-	}, "", b, feishuTestLog)
-	if err == nil {
+		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
+	}
+	if err := m.Apply(context.Background(), cfg); err == nil {
 		t.Error("expected error for missing feishu config")
 	}
 }

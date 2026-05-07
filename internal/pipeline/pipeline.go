@@ -3,12 +3,14 @@ package pipeline
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/inboundctx"
 	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/ageneralai/maven/internal/stringutil"
 )
 
 const userErrMessage = "Sorry, I encountered an error processing your message."
@@ -18,6 +20,7 @@ type Pipeline struct {
 	Log      mavenlog.PrintLogger
 	Bus      *bus.MessageBus
 	Channels *channel.ChannelManager
+	rtMu     sync.RWMutex
 	Runtime  agent.Runtime
 	Sessions *agent.SessionResolver
 	Posts    *agent.PostActionHandler
@@ -27,6 +30,21 @@ type Pipeline struct {
 // are left zero until wired by the gateway.
 func New(log mavenlog.PrintLogger, b *bus.MessageBus, rt agent.Runtime, sessions *agent.SessionResolver, posts *agent.PostActionHandler) *Pipeline {
 	return &Pipeline{Log: log, Bus: b, Runtime: rt, Sessions: sessions, Posts: posts}
+}
+
+// SetRuntime swaps the agent runtime used for subsequent turns (e.g. gateway reload).
+func (p *Pipeline) SetRuntime(rt agent.Runtime) {
+	p.rtMu.Lock()
+	defer p.rtMu.Unlock()
+	p.Runtime = rt
+}
+
+// CurrentRuntime returns the runtime used for agent turns. The pipeline owns this value;
+// gateway reload swaps it with SetRuntime.
+func (p *Pipeline) CurrentRuntime() agent.Runtime {
+	p.rtMu.RLock()
+	defer p.rtMu.RUnlock()
+	return p.Runtime
 }
 
 func cloneTransportMeta(meta map[string]any) map[string]any {
@@ -62,7 +80,7 @@ func (p *Pipeline) sendError(chName, chatID, userMsg string, err error) {
 }
 
 func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
-	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, truncate(msg.Content, 80))
+	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, stringutil.Truncate(msg.Content, 80))
 	if handled, err := p.Posts.HandleBuiltin(msg); handled {
 		if err != nil {
 			p.sendError(msg.Channel, msg.ChatID, userErrCommand, err)
@@ -91,7 +109,8 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
-			events, err := agent.RunStream(msgCtx, p.Runtime, msg.Content, sessionKey, msg.ContentBlocks)
+			rt := p.CurrentRuntime()
+			events, err := agent.RunStream(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks)
 			if err != nil {
 				p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
 				return
@@ -104,7 +123,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			return
 		}
 	}
-	resp, err := agent.RunResponse(msgCtx, p.Runtime, msg.Content, sessionKey, msg.ContentBlocks)
+	resp, err := agent.RunResponse(msgCtx, p.CurrentRuntime(), msg.Content, sessionKey, msg.ContentBlocks)
 	if err != nil {
 		p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
 		return
@@ -128,11 +147,4 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			Metadata: cloneTransportMeta(msg.TransportMeta),
 		}
 	}
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

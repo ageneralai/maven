@@ -160,18 +160,23 @@ func TestGateway_Shutdown(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, tmpDir, msgBus, testLG)
+	chMgr := channel.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), testLG)
 	mockRt := &mockRuntime{}
+	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
+	if rerr != nil {
+		t.Fatalf("session.New: %v", rerr)
+	}
+	pipe := testPipeline(msgBus, mockRt, router, tmpDir)
 
 	g := &Gateway{
 		cfg:      cfg,
 		bus:      msgBus,
+		pipe:     pipe,
 		channels: chMgr,
 		cron:     cronSvc,
 		hb:       heartbeat.New(tmpDir, nil, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
-		rt:       mockRt,
 		logger:   testLG,
 	}
 
@@ -250,7 +255,6 @@ func TestGateway_ProcessLoop(t *testing.T) {
 		cfg:  cfg,
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -313,7 +317,6 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 		cfg:  cfg,
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -411,7 +414,6 @@ func TestGateway_ProcessLoop_AgentError(t *testing.T) {
 		cfg:  cfg,
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -460,7 +462,6 @@ func TestGateway_ProcessLoop_EmptyResult(t *testing.T) {
 		cfg:  cfg,
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -504,7 +505,6 @@ func TestGateway_ProcessLoop_ContextCancelled(t *testing.T) {
 		cfg:  cfg,
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -535,17 +535,22 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, tmpDir, msgBus, testLG)
+	chMgr := channel.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), testLG)
+	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
+	if rerr != nil {
+		t.Fatalf("session.New: %v", rerr)
+	}
+	pipe := testPipeline(msgBus, nil, router, tmpDir)
 
 	g := &Gateway{
 		cfg:      cfg,
 		bus:      msgBus,
+		pipe:     pipe,
 		channels: chMgr,
 		cron:     cronSvc,
 		hb:       heartbeat.New(tmpDir, nil, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
-		rt:       nil,
 		logger:   testLG,
 	}
 
@@ -971,7 +976,6 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 		cfg:  &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1030,7 +1034,6 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 		cfg:  &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
 		bus:  msgBus,
 		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
-		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

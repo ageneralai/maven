@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/cexll/agentsdk-go/pkg/api"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
-	mavenlog "github.com/ageneralai/maven/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -95,7 +95,7 @@ func parseSkillFile(path string, lg mavenlog.PrintLogger) (api.SkillRegistration
 		Name:        strings.TrimSpace(meta.Name),
 		Description: strings.TrimSpace(meta.Description),
 	}
-	keywords := sanitizeKeywords(meta.Keywords)
+	keywords := normalizeAndSortKeywords(meta.Keywords)
 	if len(keywords) > 0 {
 		def.Matchers = []runtimeskills.Matcher{
 			runtimeskills.KeywordMatcher{Any: keywords},
@@ -139,7 +139,9 @@ func parseFrontmatter(content []byte) (skillFrontmatter, string, error) {
 	return meta, body, nil
 }
 
-func sanitizeKeywords(keywords []string) []string {
+// normalizeAndSortKeywords lowercases, trims, deduplicates, then sorts keywords
+// (order from the file is not preserved).
+func normalizeAndSortKeywords(keywords []string) []string {
 	if len(keywords) == 0 {
 		return nil
 	}

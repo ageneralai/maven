@@ -318,3 +318,26 @@ func TestLoadConfig_WeComEnvOverrides(t *testing.T) {
 		t.Errorf("wecom receiveId = %q, want wecom-receive-id", cfg.Channels.WeCom.ReceiveID)
 	}
 }
+
+func validTestConfig() *Config {
+	cfg := DefaultConfig()
+	cfg.Provider.APIKey = "test-api-key"
+	return cfg
+}
+
+func TestConfig_Validate_GatewayPort(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Gateway.Port = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for gateway.port 0")
+	}
+}
+
+func TestConfig_Validate_AutoCompactThreshold(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.AutoCompact.Enabled = true
+	cfg.AutoCompact.Threshold = 1.5
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for autoCompact.threshold > 1")
+	}
+}

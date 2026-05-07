@@ -7,24 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
-	"github.com/cexll/agentsdk-go/pkg/message"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
+	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/cexll/agentsdk-go/pkg/message"
 )
 
-// PostActionHandler applies gateway post-turn effects.
-//
-// Design debt: HandlePostResponse keys off CommandResults metadata
-// (maven.post_action / maven.response_mode) from agentsdk instead of a typed
-// post-turn action on the response. Target shape: first-class PostAction (or
-// equivalent) on api.Response once the SDK contract can change; pipeline then
-// switches on that type and this package drops responseMetadata scraping.
-//
-// TODO(typed-post-action): when agentsdk exposes structured post-actions,
-// replace metadata keys (MetaPostAction/MetaResponse) with the new field and
-// delete responseMetadata + stringly-typed switch in HandlePostResponse.
+// PostActionHandler applies gateway post-turn effects. HandlePostResponse reads
+// maven.post_action and maven.response_mode from CommandResults metadata;
+// when agentsdk adds a typed post-action on api.Response, switch to that field and drop metadata scraping.
 type PostActionHandler struct {
 	Sessions  *session.Router
 	Workspace string

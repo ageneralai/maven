@@ -24,6 +24,11 @@ func (m *InboundMessage) StableRouteKey() string {
 	return m.Channel + ":" + m.ChatID
 }
 
+// OutboundMessage is queued for MessageBus.DispatchOutbound. Delivery is
+// best-effort: subscribers invoke channel Send and log failures; there is no
+// ack or retry path on the bus today. Evolving this should use a structured
+// outbound result (errors, dead-letter, or user-visible fallback) instead of
+// growing ad-hoc logging alone.
 type OutboundMessage struct {
 	Channel       string
 	ChatID        string

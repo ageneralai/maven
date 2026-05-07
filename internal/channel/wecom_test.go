@@ -351,26 +351,36 @@ func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
 
 func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
 	b := bus.NewMessageBus(10, wecomTestLog)
-	_, err := NewChannelManager(config.ChannelsConfig{
-		WeCom: config.WeComConfig{Enabled: true},
-	}, "", b, wecomTestLog)
-	if err == nil {
+	m := NewChannelManager(b, wecomTestLog)
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workspace: t.TempDir()},
+		Channels: config.ChannelsConfig{
+			WeCom: config.WeComConfig{Enabled: true},
+		},
+		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
+	}
+	if err := m.Apply(context.Background(), cfg); err == nil {
 		t.Fatal("expected error for missing wecom required config")
 	}
 }
 
 func TestChannelManager_WeComEnabled(t *testing.T) {
 	b := bus.NewMessageBus(10, wecomTestLog)
-	m, err := NewChannelManager(config.ChannelsConfig{
-		WeCom: config.WeComConfig{
-			Enabled:        true,
-			Token:          "verify-token",
-			EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-			AllowFrom:      []string{"zhangsan"},
+	m := NewChannelManager(b, wecomTestLog)
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workspace: t.TempDir()},
+		Channels: config.ChannelsConfig{
+			WeCom: config.WeComConfig{
+				Enabled:        true,
+				Token:          "verify-token",
+				EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
+				AllowFrom:      []string{"zhangsan"},
+			},
 		},
-	}, "", b, wecomTestLog)
-	if err != nil {
-		t.Fatalf("new channel manager error: %v", err)
+		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
+	}
+	if err := m.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply error: %v", err)
 	}
 
 	found := false

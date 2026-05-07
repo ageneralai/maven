@@ -20,10 +20,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/cexll/agentsdk-go/pkg/model"
 )
 
 const wecomChannelName = "wecom"
@@ -329,6 +329,8 @@ func (c *weComReplyCache) gcLocked(now time.Time) {
 	}
 }
 
+// WeComChannel runs the WeCom webhook server. Outbound Send is reactive only
+// (passive reply URLs from inbound traffic); proactive outbound is not supported.
 type WeComChannel struct {
 	BaseChannel
 	cfg              config.WeComConfig
@@ -442,7 +444,7 @@ func (w *WeComChannel) Send(ctx context.Context, msg bus.OutboundMessage) error 
 }
 
 func (w *WeComChannel) Capabilities() CapabilitySet {
-	return CapabilitySet{FileUpload: true}
+	return CapabilitySet{FileUpload: true, ReactiveOnly: true}
 }
 
 type weComEncryptedEnvelope struct {

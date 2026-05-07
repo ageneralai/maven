@@ -20,15 +20,20 @@ var waTestLog = mavenlog.Std()
 
 func TestNewWhatsApp_Disabled(t *testing.T) {
 	b := bus.NewMessageBus(10, waTestLog)
-
-	m, err := NewChannelManager(config.ChannelsConfig{
-		WhatsApp: config.WhatsAppConfig{
-			Enabled:   false,
-			StorePath: filepath.Join("/dev/null", "whatsapp-store.db"),
+	dir := t.TempDir()
+	m := NewChannelManager(b, waTestLog)
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workspace: dir},
+		Channels: config.ChannelsConfig{
+			WhatsApp: config.WhatsAppConfig{
+				Enabled:   false,
+				StorePath: filepath.Join("/dev/null", "whatsapp-store.db"),
+			},
 		},
-	}, "", b, waTestLog)
-	if err != nil {
-		t.Fatalf("NewChannelManager error: %v", err)
+		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
+	}
+	if err := m.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply error: %v", err)
 	}
 
 	for _, name := range m.EnabledChannels() {

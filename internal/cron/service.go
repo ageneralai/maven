@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	rcron "github.com/robfig/cron/v3"
 	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/ageneralai/maven/internal/stringutil"
+	rcron "github.com/robfig/cron/v3"
 )
 
 type Service struct {
@@ -121,7 +122,7 @@ func (s *Service) executeJob(job CronJob) {
 		} else {
 			s.jobs[i].State.LastStatus = "ok"
 			s.jobs[i].State.LastError = ""
-			s.log.Printf("[cron] job %s result: %s", job.Name, truncate(result, 100))
+			s.log.Printf("[cron] job %s result: %s", job.Name, stringutil.Truncate(result, 100))
 		}
 		if s.jobs[i].DeleteAfterRun {
 			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
@@ -365,11 +366,4 @@ func (s *Service) save() error {
 		return err
 	}
 	return os.WriteFile(s.storePath, data, 0644)
-}
-
-func truncate(str string, n int) string {
-	if len(str) <= n {
-		return str
-	}
-	return str[:n] + "..."
 }

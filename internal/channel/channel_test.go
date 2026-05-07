@@ -215,10 +215,7 @@ func TestToTelegramHTML_CodeBlocks(t *testing.T) {
 // === Channel Manager Tests ===
 func TestChannelManager_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, channelTestLog)
-	m, err := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
-	if err != nil {
-		t.Fatalf("NewChannelManager error: %v", err)
-	}
+	m := NewChannelManager(b, channelTestLog)
 	if len(m.EnabledChannels()) != 0 {
 		t.Errorf("expected 0 enabled channels, got %d", len(m.EnabledChannels()))
 	}
@@ -280,7 +277,7 @@ func TestChannelManager_WithMockChannel(t *testing.T) {
 }
 func TestChannelManager_StartAll_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, channelTestLog)
-	m, _ := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
+	m := NewChannelManager(b, channelTestLog)
 	ctx := context.Background()
 	if err := m.StartAll(ctx); err != nil {
 		t.Errorf("StartAll error: %v", err)
@@ -288,7 +285,7 @@ func TestChannelManager_StartAll_Empty(t *testing.T) {
 }
 func TestChannelManager_StopAll_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, channelTestLog)
-	m, _ := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
+	m := NewChannelManager(b, channelTestLog)
 	if err := m.StopAll(); err != nil {
 		t.Errorf("StopAll error: %v", err)
 	}

@@ -21,6 +21,7 @@ Personal AI assistant built on [agentsdk-go](https://github.com/cexll/agentsdk-g
 - **Heartbeat** - Periodic tasks from HEARTBEAT.md
 - **Memory** - Long-term (MEMORY.md) + daily memories
 - **Skills** - Custom skill loading from workspace
+- **Gateway config hot reload** - Optional watch on `~/.maven/config.json` (`gateway.hotReload`) to reload channels and runtime without restarting the process
 
 ## Quick Start
 
@@ -151,7 +152,7 @@ internal/
     whatsapp.go      WhatsApp (whatsmeow, QR login)
     webui.go         Web UI (WebSocket, embedded HTML)
     static/          Embedded web UI assets
-  config/            Configuration loading (JSON + env vars)
+  config/            Configuration loading (JSON + env vars), optional `watch.go` for gateway reload
   cron/              Cron job scheduling with JSON persistence
   gateway/           Gateway orchestration (bus + runtime + channels)
   heartbeat/         Periodic heartbeat service
@@ -217,9 +218,23 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
   "skills": {
     "enabled": true,
     "dir": ""
+  },
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 18790,
+    "hotReload": false,
+    "reloadDebounceMs": 800
   }
 }
 ```
+
+### Gateway (`host`, `port`, hot reload)
+
+- **`gateway.host`** / **`gateway.port`**: HTTP bind for Web UI and channel webhooks (defaults align with `config.example.json`).
+- **`gateway.hotReload`**: when `true`, edits to `~/.maven/config.json` (after a short debounce) trigger a reload; the log line `[gateway] reloaded; …` confirms success. **`agent.workspace` cannot change** on reload (restart required).
+- **`gateway.reloadDebounceMs`**: debounce in milliseconds before reload runs after the file changes; `0` uses an internal default (800ms).
+
+See `config.example.json` for the full schema.
 
 ### Provider Types
 
@@ -273,7 +288,7 @@ keywords: [write, draft]
 Use this skill for writing tasks.
 ```
 
-After changing skills, restart `maven gateway` to apply updates.
+After changing skills, either enable **`gateway.hotReload`** and save `~/.maven/config.json` so the gateway reloads skill registration, or restart **`maven gateway`**.
 
 Skill diagnostics:
 
@@ -337,6 +352,7 @@ Quick steps:
 6. Run `make gateway`
 
 WeCom notes:
+- Outbound is **reactive only** (passive reply URLs from inbound). **Cron jobs with `deliver: true` skip WeCom** and log a skip message; use another channel for proactive delivery.
 - Outbound uses `response_url` and sends `markdown` payloads
 - `response_url` is short-lived (often single-use); delayed or repeated replies may fail
 - Outbound markdown content over 20480 bytes is truncated

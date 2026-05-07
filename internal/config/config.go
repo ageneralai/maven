@@ -91,8 +91,10 @@ type ToolsConfig struct {
 }
 
 type GatewayConfig struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
+	Host             string `json:"host"`
+	Port             int    `json:"port"`
+	HotReload        bool   `json:"hotReload"`
+	ReloadDebounceMs int    `json:"reloadDebounceMs,omitempty"`
 }
 
 type SkillsConfig struct {
@@ -199,6 +201,32 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.Agent.Workspace) == "" {
 		errs = append(errs, errors.New("agent.workspace is required"))
 	}
+	if c.Agent.MaxTokens <= 0 {
+		errs = append(errs, errors.New("agent.maxTokens must be positive"))
+	}
+	if c.Agent.MaxToolIterations < 1 {
+		errs = append(errs, errors.New("agent.maxToolIterations must be at least 1"))
+	}
+	if c.Agent.Temperature < 0 || c.Agent.Temperature > 2 {
+		errs = append(errs, errors.New("agent.temperature must be between 0 and 2"))
+	}
+	if strings.TrimSpace(c.Gateway.Host) == "" {
+		errs = append(errs, errors.New("gateway.host is required"))
+	}
+	if c.Gateway.Port < 1 || c.Gateway.Port > 65535 {
+		errs = append(errs, fmt.Errorf("gateway.port must be 1..65535, got %d", c.Gateway.Port))
+	}
+	if c.Gateway.ReloadDebounceMs < 0 {
+		errs = append(errs, errors.New("gateway.reloadDebounceMs must be non-negative"))
+	}
+	if c.AutoCompact.Enabled {
+		if c.AutoCompact.Threshold <= 0 || c.AutoCompact.Threshold > 1 {
+			errs = append(errs, errors.New("autoCompact.threshold must be in (0,1] when autoCompact.enabled"))
+		}
+		if c.AutoCompact.PreserveCount < 0 {
+			errs = append(errs, errors.New("autoCompact.preserveCount must be non-negative"))
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -212,9 +240,14 @@ func ConfigPath() string {
 }
 
 func LoadConfig() (*Config, error) {
-	cfg := DefaultConfig()
+	return LoadConfigFromPath(ConfigPath())
+}
 
-	data, err := os.ReadFile(ConfigPath())
+// LoadConfigFromPath reads and merges JSON at path with the same defaults and
+// environment overrides as LoadConfig.
+func LoadConfigFromPath(path string) (*Config, error) {
+	cfg := DefaultConfig()
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("read config: %w", err)
@@ -224,8 +257,14 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("parse config: %w", err)
 		}
 	}
+	applyEnvOverrides(cfg)
+	if cfg.Agent.Workspace == "" {
+		cfg.Agent.Workspace = DefaultConfig().Agent.Workspace
+	}
+	return cfg, nil
+}
 
-	// Environment variable overrides
+func applyEnvOverrides(cfg *Config) {
 	if key := os.Getenv("MAVEN_API_KEY"); key != "" {
 		cfg.Provider.APIKey = key
 	}
@@ -265,12 +304,6 @@ func LoadConfig() (*Config, error) {
 	if receiveID := os.Getenv("MAVEN_WECOM_RECEIVE_ID"); receiveID != "" {
 		cfg.Channels.WeCom.ReceiveID = receiveID
 	}
-
-	if cfg.Agent.Workspace == "" {
-		cfg.Agent.Workspace = DefaultConfig().Agent.Workspace
-	}
-
-	return cfg, nil
 }
 
 func SaveConfig(cfg *Config) error {

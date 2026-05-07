@@ -8,6 +8,7 @@ import (
 	"time"
 
 	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/ageneralai/maven/internal/stringutil"
 )
 
 type Service struct {
@@ -77,13 +78,6 @@ func (s *Service) tick() {
 	if strings.Contains(result, "HEARTBEAT_OK") {
 		s.log.Printf("[heartbeat] nothing to do")
 	} else {
-		s.log.Printf("[heartbeat] result: %s", truncate(result, 200))
+		s.log.Printf("[heartbeat] result: %s", stringutil.Truncate(result, 200))
 	}
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }
