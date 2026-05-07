@@ -96,7 +96,7 @@ var scheduleSchema = &tool.JSONSchema{
 		},
 		"deliver_to_incoming_chat": map[string]interface{}{
 			"type":        "boolean",
-			"description": "If true (gateway chat only), deliver to the same channel/chat as the current conversation. Sets deliver implicitly.",
+			"description": "If true (gateway chat only), deliver to the same channel/chat as the current conversation. Sets deliver implicitly. When omitted from a gateway chat with no channel/to, defaults to true.",
 		},
 		"channel": map[string]interface{}{
 			"type":        "string",

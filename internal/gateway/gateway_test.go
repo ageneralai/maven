@@ -873,6 +873,41 @@ func TestGateway_CronOnJob_WithDelivery(t *testing.T) {
 	<-done
 }
 
+func TestGateway_CronOnJob_InvalidDeliverPayload(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			Workspace: tmpDir,
+		},
+		Channels: config.ChannelsConfig{},
+	}
+	mockRt := &mockRuntime{
+		response: &api.Response{
+			Result: &api.Result{Output: "should not run"},
+		},
+	}
+	g, err := NewWithOptions(cfg, Options{
+		RuntimeFactory: mockRuntimeFactory(mockRt),
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions error: %v", err)
+	}
+	defer g.Shutdown()
+	job := cron.CronJob{
+		ID: "bad-payload",
+		Payload: cron.Payload{
+			Message: "test",
+			Deliver: true,
+			Channel: "telegram",
+			To:      "",
+		},
+	}
+	_, err = g.cron.OnJob(job)
+	if err == nil {
+		t.Fatal("expected payload validation error")
+	}
+}
+
 func TestGateway_CronOnJob_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 

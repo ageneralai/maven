@@ -194,18 +194,17 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		return g.runAgent(context.Background(), prompt, automationSessionID, nil)
 	}
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
+		if err := job.Payload.Validate(); err != nil {
+			return "", err
+		}
 		g.agentMu.Lock()
 		defer g.agentMu.Unlock()
 		result, err := runAgent(job.Payload.Message)
 		if err != nil {
 			return "", err
 		}
-		if job.Payload.Deliver && job.Payload.Channel != "" {
-			g.bus.Outbound <- bus.OutboundMessage{
-				Channel: job.Payload.Channel,
-				ChatID:  job.Payload.To,
-				Content: result,
-			}
+		if job.Payload.Deliver {
+			g.deliverCronOutbound(job.Payload.Channel, job.Payload.To, result)
 		}
 		return result, nil
 	}
@@ -224,6 +223,14 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	}
 
 	return g, nil
+}
+
+func (g *Gateway) deliverCronOutbound(channel, chatID, body string) {
+	g.bus.Outbound <- bus.OutboundMessage{
+		Channel: channel,
+		ChatID:  chatID,
+		Content: body,
+	}
 }
 
 func (g *Gateway) heartbeatAgentTurn(prompt string) (string, error) {

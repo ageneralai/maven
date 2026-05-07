@@ -27,7 +27,8 @@ func (t *scheduleTool) Name() string { return "CronSchedule" }
 func (t *scheduleTool) Description() string {
 	return "Schedule a persisted gateway job. When it fires, the gateway runs the agent with your message. " +
 		"Use exactly one of expr (six-field cron with seconds), in (duration e.g. 1m), or at_ms. " +
-		"For reminders in the current Telegram (or other) chat, set deliver_to_incoming_chat to true instead of guessing channel/to."
+		"From a gateway chat, delivery defaults to the current conversation if you omit deliver/channel/to; set deliver false for a silent run. " +
+		"You may also set deliver_to_incoming_chat true explicitly instead of guessing channel/to."
 }
 
 func (t *scheduleTool) Schema() *tool.JSONSchema { return scheduleSchema }
@@ -66,7 +67,7 @@ func (t *removeTool) Description() string {
 func (t *removeTool) Schema() *tool.JSONSchema { return removeSchema }
 
 func (t *removeTool) Execute(_ context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
-	id := stringFrom(params, "id")
+	id := stringFromMap(params, "id")
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
