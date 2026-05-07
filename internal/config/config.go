@@ -2,9 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -165,6 +167,39 @@ func DefaultConfig() *Config {
 			Port: DefaultPort,
 		},
 	}
+}
+
+func (c *Config) Validate() error {
+	if c == nil {
+		return errors.New("config: nil")
+	}
+	var errs []error
+	if strings.TrimSpace(c.Provider.APIKey) == "" {
+		errs = append(errs, errors.New("provider.apiKey is required"))
+	}
+	if c.Channels.Telegram.Enabled && strings.TrimSpace(c.Channels.Telegram.Token) == "" {
+		errs = append(errs, errors.New("channels.telegram.token is required when telegram is enabled"))
+	}
+	if c.Channels.Feishu.Enabled {
+		if strings.TrimSpace(c.Channels.Feishu.AppID) == "" {
+			errs = append(errs, errors.New("channels.feishu.appId is required when feishu is enabled"))
+		}
+		if strings.TrimSpace(c.Channels.Feishu.AppSecret) == "" {
+			errs = append(errs, errors.New("channels.feishu.appSecret is required when feishu is enabled"))
+		}
+	}
+	if c.Channels.WeCom.Enabled {
+		if strings.TrimSpace(c.Channels.WeCom.Token) == "" {
+			errs = append(errs, errors.New("channels.wecom.token is required when wecom is enabled"))
+		}
+		if strings.TrimSpace(c.Channels.WeCom.EncodingAESKey) == "" {
+			errs = append(errs, errors.New("channels.wecom.encodingAESKey is required when wecom is enabled"))
+		}
+	}
+	if strings.TrimSpace(c.Agent.Workspace) == "" {
+		errs = append(errs, errors.New("agent.workspace is required"))
+	}
+	return errors.Join(errs...)
 }
 
 func ConfigDir() string {

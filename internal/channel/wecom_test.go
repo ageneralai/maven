@@ -20,7 +20,10 @@ import (
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
+
+var wecomTestLog = mavenlog.Std()
 
 type mockWeComSend struct {
 	ResponseURL string
@@ -46,12 +49,12 @@ func mockWeComClientFactory(client *mockWeComClient) WeComClientFactory {
 }
 
 func TestNewWeComChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	ch, err := NewWeComChannel(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
 		ReceiveID:      "recv-id-1",
-	}, b)
+	}, wecomTestLog, b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,21 +64,21 @@ func TestNewWeComChannel_Valid(t *testing.T) {
 }
 
 func TestNewWeComChannel_MissingRequiredConfig(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	_, err := NewWeComChannel(config.WeComConfig{}, b)
+	b := bus.NewMessageBus(10, wecomTestLog)
+	_, err := NewWeComChannel(config.WeComConfig{}, wecomTestLog, b)
 	if err == nil {
 		t.Fatal("expected error for empty config")
 	}
 }
 
 func TestWeComChannel_Send_NilClient(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	ch, _ := NewWeComChannelWithFactory(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-	}, b, nil)
+	}, wecomTestLog, b, nil)
 
-	err := ch.Send(bus.OutboundMessage{ChatID: "zhangsan", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "hello"})
 	if err == nil {
 		t.Fatal("expected error when client is nil")
 	}
@@ -192,8 +195,8 @@ func TestWeComCallback_ReceiveTextMessage_OK(t *testing.T) {
 		if msg.Content != "你好，maven" {
 			t.Errorf("content = %q, want 你好，maven", msg.Content)
 		}
-		if msg.Metadata["response_url"] != "https://example.com/resp" {
-			t.Errorf("response_url = %v, want https://example.com/resp", msg.Metadata["response_url"])
+		if msg.TransportMeta["response_url"] != "https://example.com/resp" {
+			t.Errorf("response_url = %v, want https://example.com/resp", msg.TransportMeta["response_url"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected inbound message")
@@ -290,21 +293,21 @@ func TestWeComCallback_DuplicateMsgID_Dropped(t *testing.T) {
 }
 
 func TestWeComChannel_Send_Success(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	mock := &mockWeComClient{}
 
 	ch, err := NewWeComChannelWithFactory(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
 		AllowFrom:      []string{"zhangsan"},
-	}, b, mockWeComClientFactory(mock))
+	}, wecomTestLog, b, mockWeComClientFactory(mock))
 	if err != nil {
 		t.Fatalf("new channel error: %v", err)
 	}
 	ch.client = mock
 	ch.replyCache.Set("zhangsan", "https://example.com/response-url")
 
-	err = ch.Send(bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
+	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
 	if err != nil {
 		t.Fatalf("send error: %v", err)
 	}
@@ -324,20 +327,20 @@ func TestWeComChannel_Send_Success(t *testing.T) {
 }
 
 func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	mock := &mockWeComClient{}
 
 	ch, err := NewWeComChannelWithFactory(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
 		AllowFrom:      []string{"zhangsan"},
-	}, b, mockWeComClientFactory(mock))
+	}, wecomTestLog, b, mockWeComClientFactory(mock))
 	if err != nil {
 		t.Fatalf("new channel error: %v", err)
 	}
 	ch.client = mock
 
-	err = ch.Send(bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
+	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
 	if err == nil {
 		t.Fatal("expected response_url missing error")
 	}
@@ -347,17 +350,17 @@ func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
 }
 
 func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	_, err := NewChannelManager(config.ChannelsConfig{
 		WeCom: config.WeComConfig{Enabled: true},
-	}, b)
+	}, "", b, wecomTestLog)
 	if err == nil {
 		t.Fatal("expected error for missing wecom required config")
 	}
 }
 
 func TestChannelManager_WeComEnabled(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	m, err := NewChannelManager(config.ChannelsConfig{
 		WeCom: config.WeComConfig{
 			Enabled:        true,
@@ -365,7 +368,7 @@ func TestChannelManager_WeComEnabled(t *testing.T) {
 			EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
 			AllowFrom:      []string{"zhangsan"},
 		},
-	}, b)
+	}, "", b, wecomTestLog)
 	if err != nil {
 		t.Fatalf("new channel manager error: %v", err)
 	}
@@ -384,9 +387,9 @@ func TestChannelManager_WeComEnabled(t *testing.T) {
 
 func newTestWeComChannel(t *testing.T, cfg config.WeComConfig) (*WeComChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, wecomTestLog)
 	mock := &mockWeComClient{}
-	ch, err := NewWeComChannelWithFactory(cfg, b, mockWeComClientFactory(mock))
+	ch, err := NewWeComChannelWithFactory(cfg, wecomTestLog, b, mockWeComClientFactory(mock))
 	if err != nil {
 		t.Fatalf("new wecom channel error: %v", err)
 	}

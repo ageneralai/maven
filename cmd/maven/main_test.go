@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/internal/memory"
 	"github.com/cexll/agentsdk-go/pkg/api"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
-	"github.com/ageneralai/maven/internal/config"
-	"github.com/ageneralai/maven/internal/memory"
 )
 
 func TestWriteIfNotExists_NewFile(t *testing.T) {
@@ -893,9 +893,10 @@ func TestRunAgent_NoAPIKey(t *testing.T) {
 
 	err := runAgent(&cobra.Command{}, []string{})
 	if err == nil {
-		t.Error("expected error when API key is not set")
+		t.Fatal("expected error when API key is not set")
 	}
-	if !strings.Contains(err.Error(), "API key not set") {
+	low := strings.ToLower(err.Error())
+	if !strings.Contains(low, "apikey") && !strings.Contains(low, "api key") {
 		t.Errorf("error should mention API key: %v", err)
 	}
 }
@@ -914,9 +915,10 @@ func TestRunGateway_NoAPIKey(t *testing.T) {
 
 	err := runGateway(&cobra.Command{}, []string{})
 	if err == nil {
-		t.Error("expected error when API key is not set")
+		t.Fatal("expected error when API key is not set")
 	}
-	if !strings.Contains(err.Error(), "API key not set") {
+	low := strings.ToLower(err.Error())
+	if !strings.Contains(low, "apikey") && !strings.Contains(low, "api key") {
 		t.Errorf("error should mention API key: %v", err)
 	}
 }
@@ -1220,9 +1222,10 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 
 	_, err := DefaultRuntimeFactory(cfg)
 	if err == nil {
-		t.Error("expected error when API key is not set")
+		t.Fatal("expected error when API key is not set")
 	}
-	if !strings.Contains(err.Error(), "API key not set") {
+	low := strings.ToLower(err.Error())
+	if !strings.Contains(low, "apikey") && !strings.Contains(low, "api key") {
 		t.Errorf("error should mention API key: %v", err)
 	}
 }

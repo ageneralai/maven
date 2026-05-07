@@ -13,11 +13,14 @@ type InboundMessage struct {
 	Content       string
 	Timestamp     time.Time
 	Media         []string
-	Metadata      map[string]any
+	Hints         RoutingHints
+	TransportMeta map[string]any
 	ContentBlocks []model.ContentBlock // 多模态内容（图片、文档等）
 }
 
-func (m *InboundMessage) SessionKey() string {
+// StableRouteKey is the persistent conversation key (channel + chat) for session
+// router rotation and post-actions. It is not the agentsdk SessionID.
+func (m *InboundMessage) StableRouteKey() string {
 	return m.Channel + ":" + m.ChatID
 }
 

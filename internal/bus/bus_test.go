@@ -5,10 +5,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
+var testLG = mavenlog.Std()
+
 func TestNewMessageBus(t *testing.T) {
-	b := NewMessageBus(10)
+	b := NewMessageBus(10, testLG)
 	if b == nil {
 		t.Fatal("NewMessageBus returned nil")
 	}
@@ -21,21 +25,21 @@ func TestNewMessageBus(t *testing.T) {
 }
 
 func TestNewMessageBus_DefaultSize(t *testing.T) {
-	b := NewMessageBus(0)
+	b := NewMessageBus(0, testLG)
 	if cap(b.Inbound) != 100 {
 		t.Errorf("inbound cap = %d, want 100", cap(b.Inbound))
 	}
 }
 
-func TestInboundMessage_SessionKey(t *testing.T) {
+func TestInboundMessage_StableRouteKey(t *testing.T) {
 	msg := InboundMessage{Channel: "telegram", ChatID: "12345"}
-	if msg.SessionKey() != "telegram:12345" {
-		t.Errorf("SessionKey = %q, want telegram:12345", msg.SessionKey())
+	if msg.StableRouteKey() != "telegram:12345" {
+		t.Errorf("StableRouteKey = %q, want telegram:12345", msg.StableRouteKey())
 	}
 }
 
 func TestSubscribeAndDispatch(t *testing.T) {
-	b := NewMessageBus(10)
+	b := NewMessageBus(10, testLG)
 
 	var received OutboundMessage
 	var mu sync.Mutex
@@ -75,7 +79,7 @@ func TestSubscribeAndDispatch(t *testing.T) {
 }
 
 func TestDispatch_NoSubscriber(t *testing.T) {
-	b := NewMessageBus(10)
+	b := NewMessageBus(10, testLG)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -92,7 +96,7 @@ func TestDispatch_NoSubscriber(t *testing.T) {
 }
 
 func TestDispatch_ContextCancel(t *testing.T) {
-	b := NewMessageBus(10)
+	b := NewMessageBus(10, testLG)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

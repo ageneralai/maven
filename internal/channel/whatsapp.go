@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	qrterminal "github.com/mdp/qrterminal/v3"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -42,7 +42,7 @@ type WhatsAppChannel struct {
 	handlerID      uint32
 }
 
-func NewWhatsApp(cfg config.WhatsAppConfig, msgBus *bus.MessageBus) (*WhatsAppChannel, error) {
+func NewWhatsApp(cfg config.WhatsAppConfig, lg mavenlog.PrintLogger, msgBus *bus.MessageBus) (*WhatsAppChannel, error) {
 	storePath := strings.TrimSpace(cfg.StorePath)
 	if storePath == "" {
 		storePath = filepath.Join(config.ConfigDir(), "whatsapp-store.db")
@@ -67,7 +67,7 @@ func NewWhatsApp(cfg config.WhatsAppConfig, msgBus *bus.MessageBus) (*WhatsAppCh
 	client := whatsmeow.NewClient(deviceStore, waLog.Noop)
 
 	ch := &WhatsAppChannel{
-		BaseChannel:    NewBaseChannel(whatsappChannelName, msgBus, cfg.AllowFrom),
+		BaseChannel:    NewBaseChannel(whatsappChannelName, msgBus, cfg.AllowFrom, lg),
 		cfg:            cfg,
 		client:         client,
 		storeContainer: container,
@@ -107,7 +107,7 @@ func (w *WhatsAppChannel) Start(ctx context.Context) error {
 		w.client.Disconnect()
 	}()
 
-	log.Printf("[whatsapp] connected")
+	w.log.Printf("[whatsapp] connected")
 	return nil
 }
 
@@ -131,11 +131,11 @@ func (w *WhatsAppChannel) Stop() error {
 		w.storeContainer = nil
 	}
 
-	log.Printf("[whatsapp] stopped")
+	w.log.Printf("[whatsapp] stopped")
 	return nil
 }
 
-func (w *WhatsAppChannel) Send(msg bus.OutboundMessage) error {
+func (w *WhatsAppChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if w.client == nil {
 		return fmt.Errorf("whatsapp client not initialized")
 	}
@@ -158,10 +158,10 @@ func (w *WhatsAppChannel) Send(msg bus.OutboundMessage) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), whatsappSendTimeout)
+	sendCtx, cancel := context.WithTimeout(ctx, whatsappSendTimeout)
 	defer cancel()
 
-	_, err = w.client.SendMessage(ctx, chatJID, &waE2E.Message{
+	_, err = w.client.SendMessage(sendCtx, chatJID, &waE2E.Message{
 		Conversation: proto.String(content),
 	})
 	if err != nil {
@@ -169,6 +169,10 @@ func (w *WhatsAppChannel) Send(msg bus.OutboundMessage) error {
 	}
 
 	return nil
+}
+
+func (w *WhatsAppChannel) Capabilities() CapabilitySet {
+	return CapabilitySet{FileUpload: true}
 }
 
 func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow.QRChannelItem) {
@@ -183,13 +187,13 @@ func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow
 
 			switch evt.Event {
 			case whatsmeow.QRChannelEventCode:
-				log.Printf("[whatsapp] scan the QR code below to login")
+				w.log.Printf("[whatsapp] scan the QR code below to login")
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 			default:
 				if evt.Error != nil {
-					log.Printf("[whatsapp] login event=%s error=%v", evt.Event, evt.Error)
+					w.log.Printf("[whatsapp] login event=%s error=%v", evt.Event, evt.Error)
 				} else {
-					log.Printf("[whatsapp] login event=%s", evt.Event)
+					w.log.Printf("[whatsapp] login event=%s", evt.Event)
 				}
 			}
 		}
@@ -211,7 +215,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 	rawSender := evt.Info.Sender.String()
 	sender := evt.Info.Sender.ToNonAD().String()
 	if !w.IsAllowed(sender) && !w.IsAllowed(rawSender) {
-		log.Printf("[whatsapp] rejected message from %s", sender)
+		w.log.Printf("[whatsapp] rejected message from %s", sender)
 		return
 	}
 
@@ -227,7 +231,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 		Content:       content,
 		Timestamp:     evt.Info.Timestamp,
 		ContentBlocks: blocks,
-		Metadata: map[string]any{
+		TransportMeta: map[string]any{
 			"message_id": evt.Info.ID,
 			"chat_jid":   evt.Info.Chat.String(),
 			"sender_jid": evt.Info.Sender.String(),
@@ -253,7 +257,7 @@ func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.C
 		data, err := w.client.Download(ctx, image)
 		cancel()
 		if err != nil {
-			log.Printf("[whatsapp] download image failed: %v", err)
+			w.log.Printf("[whatsapp] download image failed: %v", err)
 		} else if len(data) > 0 {
 			mediaType := strings.TrimSpace(image.GetMimetype())
 			if mediaType == "" {

@@ -17,16 +17,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel/telegram"
+	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
-	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel/telegram"
-	"github.com/ageneralai/maven/internal/config"
 )
 
 const fakeToken = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"
+
+var channelTestLog = mavenlog.Std()
 
 // mockCaller implements ta.Caller for testing telego bot methods.
 type mockCaller struct {
@@ -89,12 +92,16 @@ func newTestBot(t *testing.T, caller *mockCaller) *telego.Bot {
 }
 
 func newTestChannel(t *testing.T, cfg config.TelegramConfig) (*TelegramChannel, *mockCaller) {
+	return newTestChannelWithWorkspace(t, cfg, "")
+}
+
+func newTestChannelWithWorkspace(t *testing.T, cfg config.TelegramConfig, workspace string) (*TelegramChannel, *mockCaller) {
 	t.Helper()
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	if cfg.Token == "" {
 		cfg.Token = fakeToken
 	}
-	ch, err := NewTelegramChannel(cfg, b)
+	ch, err := NewTelegramChannel(cfg, workspace, channelTestLog, b)
 	if err != nil {
 		t.Fatalf("newTestChannel: %v", err)
 	}
@@ -113,24 +120,24 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 // === Base Channel Tests ===
 
 func TestBaseChannel_Name(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch := NewBaseChannel("test", b, nil)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch := NewBaseChannel("test", b, nil, channelTestLog)
 	if ch.Name() != "test" {
 		t.Errorf("Name = %q, want test", ch.Name())
 	}
 }
 
 func TestBaseChannel_IsAllowed_NoFilter(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch := NewBaseChannel("test", b, nil)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch := NewBaseChannel("test", b, nil, channelTestLog)
 	if !ch.IsAllowed("anyone") {
 		t.Error("should allow anyone when allowFrom is empty")
 	}
 }
 
 func TestBaseChannel_IsAllowed_WithFilter(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch := NewBaseChannel("test", b, []string{"user1", "user2"})
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch := NewBaseChannel("test", b, []string{"user1", "user2"}, channelTestLog)
 	if !ch.IsAllowed("user1") {
 		t.Error("should allow user1")
 	}
@@ -144,15 +151,15 @@ func TestBaseChannel_IsAllowed_WithFilter(t *testing.T) {
 
 // === Telegram Channel Constructor Tests ===
 func TestNewTelegramChannel_NoToken(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	_, err := NewTelegramChannel(config.TelegramConfig{}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	_, err := NewTelegramChannel(config.TelegramConfig{}, "", channelTestLog, b)
 	if err == nil {
 		t.Error("expected error for empty token")
 	}
 }
 func TestNewTelegramChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -207,8 +214,8 @@ func TestToTelegramHTML_CodeBlocks(t *testing.T) {
 
 // === Channel Manager Tests ===
 func TestChannelManager_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	m, err := NewChannelManager(config.ChannelsConfig{}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	m, err := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
 	if err != nil {
 		t.Fatalf("NewChannelManager error: %v", err)
 	}
@@ -236,16 +243,22 @@ func (m *mockChannel) Stop() error {
 	m.stopped = true
 	return m.stopErr
 }
-func (m *mockChannel) Send(msg bus.OutboundMessage) error {
+func (m *mockChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
+	_ = ctx
 	m.sentMsgs = append(m.sentMsgs, msg)
 	return nil
 }
+
+func (m *mockChannel) Capabilities() CapabilitySet {
+	return CapabilitySet{}
+}
 func TestChannelManager_WithMockChannel(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	mock := &mockChannel{name: "mock"}
 	m := &ChannelManager{
 		channels: map[string]Channel{"mock": mock},
 		bus:      b,
+		log:      channelTestLog,
 	}
 	ctx := context.Background()
 	if err := m.StartAll(ctx); err != nil {
@@ -266,26 +279,27 @@ func TestChannelManager_WithMockChannel(t *testing.T) {
 	}
 }
 func TestChannelManager_StartAll_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	m, _ := NewChannelManager(config.ChannelsConfig{}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	m, _ := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
 	ctx := context.Background()
 	if err := m.StartAll(ctx); err != nil {
 		t.Errorf("StartAll error: %v", err)
 	}
 }
 func TestChannelManager_StopAll_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	m, _ := NewChannelManager(config.ChannelsConfig{}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	m, _ := NewChannelManager(config.ChannelsConfig{}, "", b, channelTestLog)
 	if err := m.StopAll(); err != nil {
 		t.Errorf("StopAll error: %v", err)
 	}
 }
 func TestChannelManager_StartAll_Error(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	mock := &mockChannel{name: "mock", startErr: fmt.Errorf("start failed")}
 	m := &ChannelManager{
 		channels: map[string]Channel{"mock": mock},
 		bus:      b,
+		log:      channelTestLog,
 	}
 	ctx := context.Background()
 	err := m.StartAll(ctx)
@@ -294,11 +308,12 @@ func TestChannelManager_StartAll_Error(t *testing.T) {
 	}
 }
 func TestChannelManager_StopAll_Error(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	mock := &mockChannel{name: "mock", stopErr: fmt.Errorf("stop failed")}
 	m := &ChannelManager{
 		channels: map[string]Channel{"mock": mock},
 		bus:      b,
+		log:      channelTestLog,
 	}
 	if err := m.StopAll(); err != nil {
 		t.Errorf("StopAll should not return error: %v", err)
@@ -307,27 +322,27 @@ func TestChannelManager_StopAll_Error(t *testing.T) {
 
 // === Telegram Channel Tests ===
 func TestTelegramChannel_Stop_NotStarted(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	err := ch.Stop()
 	if err != nil {
 		t.Errorf("Stop error: %v", err)
 	}
 }
 func TestTelegramChannel_Send_NilBot(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: "test"})
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "test"})
 	if err == nil {
 		t.Error("expected error when bot is nil")
 	}
 }
 func TestTelegramChannel_WithProxy(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	ch, err := NewTelegramChannel(config.TelegramConfig{
 		Token: fakeToken,
 		Proxy: "http://proxy.local:8080",
-	}, b)
+	}, "", channelTestLog, b)
 	if err != nil {
 		t.Fatalf("NewTelegramChannel error: %v", err)
 	}
@@ -337,14 +352,14 @@ func TestTelegramChannel_WithProxy(t *testing.T) {
 }
 func TestTelegramChannel_Send_InvalidChatID(t *testing.T) {
 	ch, _ := newTestChannel(t, config.TelegramConfig{})
-	err := ch.Send(bus.OutboundMessage{ChatID: "not-a-number", Content: "test"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "not-a-number", Content: "test"})
 	if err == nil {
 		t.Error("expected error for invalid chat ID")
 	}
 }
 func TestTelegramChannel_Send_Success(t *testing.T) {
 	ch, caller := newTestChannel(t, config.TelegramConfig{})
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "hello"})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
 	}
@@ -358,7 +373,7 @@ func TestTelegramChannel_Send_LongMessage(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		longContent += "This is a long line of text that will be repeated.\n"
 	}
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: longContent})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: longContent})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
 	}
@@ -376,7 +391,7 @@ func TestTelegramChannel_Send_LongMessage(t *testing.T) {
 func TestTelegramChannel_Send_LongMessageNoNewline(t *testing.T) {
 	ch, caller := newTestChannel(t, config.TelegramConfig{})
 	longContent := strings.Repeat("x", 5000)
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: longContent})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: longContent})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
 	}
@@ -395,7 +410,7 @@ func TestTelegramChannel_Send_HTMLError_Retry(t *testing.T) {
 	retryCaller := &retrySendCaller{inner: newMockCaller(), failFirst: true}
 	bot, _ := telego.NewBot(fakeToken, telego.WithAPICaller(retryCaller))
 	ch.bot = bot
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: "test"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "test"})
 	if err != nil {
 		t.Errorf("Send should succeed after retry: %v", err)
 	}
@@ -418,7 +433,7 @@ func (r *retrySendCaller) Call(ctx context.Context, url string, data *ta.Request
 func TestTelegramChannel_Send_BothFail(t *testing.T) {
 	ch, caller := newTestChannel(t, config.TelegramConfig{})
 	caller.responses["sendMessage"] = &ta.Response{Ok: false, Error: &ta.Error{Description: "send failed", ErrorCode: 400}}
-	err := ch.Send(bus.OutboundMessage{ChatID: "123", Content: "test"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "test"})
 	if err == nil {
 		t.Error("expected error when both sends fail")
 	}
@@ -426,8 +441,8 @@ func TestTelegramChannel_Send_BothFail(t *testing.T) {
 
 // === HandleMessage Tests ===
 func TestTelegramChannel_HandleMessage_Allowed(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123, Username: "testuser"},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -452,11 +467,11 @@ func TestTelegramChannel_HandleMessage_Allowed(t *testing.T) {
 }
 
 func TestTelegramChannel_HandleMessage_Rejected(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{
 		Token:     fakeToken,
 		AllowFrom: []string{"999"},
-	}, b)
+	}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123, Username: "testuser"},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -470,8 +485,8 @@ func TestTelegramChannel_HandleMessage_Rejected(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_EmptyText(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -485,8 +500,8 @@ func TestTelegramChannel_HandleMessage_EmptyText(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_Caption(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From:    &telego.User{ID: 123},
 		Chat:    telego.Chat{ID: 456, Type: "private"},
@@ -588,9 +603,8 @@ func TestTelegramChannel_HandleMessage_PhotoWithCaption(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
 	workspace := t.TempDir()
-	ch.SetWorkspace(workspace)
+	ch, _ := newTestChannelWithWorkspace(t, config.TelegramConfig{}, workspace)
 	pdfData := []byte("%PDF-1.4\n")
 	ch.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -624,8 +638,8 @@ func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
 
 // === Reply Context Tests ===
 func TestTelegramChannel_HandleMessage_ReplyContext(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123, Username: "testuser"},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -653,8 +667,8 @@ func TestTelegramChannel_HandleMessage_ReplyContext(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ReplyToPhoto(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -679,8 +693,8 @@ func TestTelegramChannel_HandleMessage_ReplyToPhoto(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ExternalReply(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -766,8 +780,8 @@ func TestTelegramChannel_HandleMessage_ExternalReplyWithPhoto(t *testing.T) {
 
 // === Forward Message Tests ===
 func TestTelegramChannel_HandleMessage_ForwardWithText(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -791,8 +805,8 @@ func TestTelegramChannel_HandleMessage_ForwardWithText(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ForwardNoComment(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
 		Chat: telego.Chat{ID: 456, Type: "private"},
@@ -929,11 +943,11 @@ func TestWeComCallback_ImageMessage(t *testing.T) {
 
 // === InitBot and Start Tests ===
 func TestTelegramChannel_InitBot_InvalidProxy(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{
 		Token: fakeToken,
 		Proxy: "://invalid-url",
-	}, b)
+	}, "", channelTestLog, b)
 	err := ch.initBot()
 	if err == nil {
 		t.Error("expected error for invalid proxy URL")
@@ -975,12 +989,11 @@ func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 }
 
 func TestTelegramChannel_TelegramRootOverride(t *testing.T) {
-	b := bus.NewMessageBus(10)
-	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken, RootDir: "/tmp/custom-telegram"}, b)
+	b := bus.NewMessageBus(10, channelTestLog)
+	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken, RootDir: "/tmp/custom-telegram"}, "", channelTestLog, b)
 	if err != nil {
 		t.Fatalf("NewTelegramChannel error: %v", err)
 	}
-	ch.SetWorkspace("/tmp/workspace")
 	if got := ch.telegramRoot(); got != "/tmp/custom-telegram" {
 		t.Fatalf("telegramRoot = %q, want /tmp/custom-telegram", got)
 	}
@@ -1348,9 +1361,8 @@ func TestTelegramChannel_SendStream_FinalSend429RetriesOnce(t *testing.T) {
 }
 
 func TestTelegramChannel_SaveFile_SanitizesName(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
 	tmpDir := t.TempDir()
-	ch.SetWorkspace(tmpDir)
+	ch, _ := newTestChannelWithWorkspace(t, config.TelegramConfig{}, tmpDir)
 
 	payload := []byte("hello")
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

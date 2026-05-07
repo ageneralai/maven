@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -15,6 +14,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
 //go:embed static
@@ -40,14 +40,14 @@ type WebUIChannel struct {
 	nextID  atomic.Int64
 }
 
-func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, b *bus.MessageBus) (*WebUIChannel, error) {
+func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WebUIChannel, error) {
 	port := gwCfg.Port
 	if port == 0 {
 		port = config.DefaultPort
 	}
 
 	ch := &WebUIChannel{
-		BaseChannel: NewBaseChannel(webUIChannelName, b, cfg.AllowFrom),
+		BaseChannel: NewBaseChannel(webUIChannelName, b, cfg.AllowFrom, lg),
 		port:        port,
 	}
 	return ch, nil
@@ -69,9 +69,9 @@ func (w *WebUIChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		log.Printf("[webui] listening on :%d", w.port)
+		w.log.Printf("[webui] listening on :%d", w.port)
 		if err := w.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[webui] server error: %v", err)
+			w.log.Printf("[webui] server error: %v", err)
 		}
 	}()
 
@@ -83,19 +83,19 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		log.Printf("[webui] websocket accept error: %v", err)
+		w.log.Printf("[webui] websocket accept error: %v", err)
 		return
 	}
 
 	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
 	client := &wsClient{conn: conn, id: clientID}
 	w.clients.Store(clientID, client)
-	log.Printf("[webui] client connected: %s", clientID)
+	w.log.Printf("[webui] client connected: %s", clientID)
 
 	defer func() {
 		w.clients.Delete(clientID)
 		conn.CloseNow()
-		log.Printf("[webui] client disconnected: %s", clientID)
+		w.log.Printf("[webui] client disconnected: %s", clientID)
 	}()
 
 	for {
@@ -114,7 +114,7 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		}
 
 		if !w.IsAllowed(clientID) {
-			log.Printf("[webui] rejected message from %s", clientID)
+			w.log.Printf("[webui] rejected message from %s", clientID)
 			continue
 		}
 
@@ -128,7 +128,7 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (w *WebUIChannel) Send(msg bus.OutboundMessage) error {
+func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	data, err := json.Marshal(wsMessage{
 		Type:    "message",
 		Content: msg.Content,
@@ -137,23 +137,26 @@ func (w *WebUIChannel) Send(msg bus.OutboundMessage) error {
 		return err
 	}
 
+	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	client, ok := w.clients.Load(msg.ChatID)
 	if !ok {
 		// Broadcast to all clients if no specific target
 		w.clients.Range(func(key, value any) bool {
 			c := value.(*wsClient)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = c.conn.Write(ctx, websocket.MessageText, data)
+			_ = c.conn.Write(writeCtx, websocket.MessageText, data)
 			return true
 		})
 		return nil
 	}
 
 	c := client.(*wsClient)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return c.conn.Write(ctx, websocket.MessageText, data)
+	return c.conn.Write(writeCtx, websocket.MessageText, data)
+}
+
+func (w *WebUIChannel) Capabilities() CapabilitySet {
+	return CapabilitySet{}
 }
 
 func (w *WebUIChannel) Stop() error {
@@ -161,7 +164,7 @@ func (w *WebUIChannel) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := w.server.Shutdown(ctx); err != nil {
-			log.Printf("[webui] shutdown error: %v", err)
+			w.log.Printf("[webui] shutdown error: %v", err)
 		}
 	}
 	w.clients.Range(func(key, value any) bool {
@@ -169,6 +172,6 @@ func (w *WebUIChannel) Stop() error {
 		c.conn.CloseNow()
 		return true
 	})
-	log.Printf("[webui] stopped")
+	w.log.Printf("[webui] stopped")
 	return nil
 }

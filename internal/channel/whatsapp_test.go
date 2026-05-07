@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -8,21 +9,24 @@ import (
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
 
+var waTestLog = mavenlog.Std()
+
 func TestNewWhatsApp_Disabled(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, waTestLog)
 
 	m, err := NewChannelManager(config.ChannelsConfig{
 		WhatsApp: config.WhatsAppConfig{
 			Enabled:   false,
 			StorePath: filepath.Join("/dev/null", "whatsapp-store.db"),
 		},
-	}, b)
+	}, "", b, waTestLog)
 	if err != nil {
 		t.Fatalf("NewChannelManager error: %v", err)
 	}
@@ -35,13 +39,13 @@ func TestNewWhatsApp_Disabled(t *testing.T) {
 }
 
 func TestNewWhatsApp_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, waTestLog)
 	storePath := filepath.Join(t.TempDir(), "whatsapp-store.db")
 
 	ch, err := NewWhatsApp(config.WhatsAppConfig{
 		Enabled:   true,
 		StorePath: storePath,
-	}, b)
+	}, waTestLog, b)
 	if err != nil {
 		t.Fatalf("NewWhatsApp error: %v", err)
 	}
@@ -69,7 +73,7 @@ func TestWhatsAppChannel_Name(t *testing.T) {
 
 func TestWhatsAppChannel_Send_NilClient(t *testing.T) {
 	ch := &WhatsAppChannel{}
-	err := ch.Send(bus.OutboundMessage{ChatID: "8613800138000", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "8613800138000", Content: "hello"})
 	if err == nil {
 		t.Fatal("expected error when client is nil")
 	}
@@ -101,8 +105,8 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 	}
 
 	dispatched := func(allowFrom []string, sender types.JID) bool {
-		b := bus.NewMessageBus(1)
-		ch := &WhatsAppChannel{BaseChannel: NewBaseChannel(whatsappChannelName, b, allowFrom)}
+		b := bus.NewMessageBus(1, waTestLog)
+		ch := &WhatsAppChannel{BaseChannel: NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog)}
 		ch.handleMessage(makeEvent(sender))
 
 		select {
@@ -221,7 +225,8 @@ func TestWhatsAppChannel_ParseJID(t *testing.T) {
 }
 
 func TestWhatsAppChannel_Stop_NotStarted(t *testing.T) {
-	ch := &WhatsAppChannel{}
+	b := bus.NewMessageBus(1, waTestLog)
+	ch := &WhatsAppChannel{BaseChannel: NewBaseChannel(whatsappChannelName, b, nil, waTestLog)}
 	if err := ch.Stop(); err != nil {
 		t.Fatalf("Stop error: %v", err)
 	}

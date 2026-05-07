@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/skills"
@@ -266,8 +266,8 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	if cfg.Provider.APIKey == "" {
-		return fmt.Errorf("API key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
 	}
 
 	gw, err := gateway.New(cfg)
@@ -388,7 +388,7 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	registrations, err := skills.LoadSkills(skillDir)
+	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -463,7 +463,7 @@ func runSkillsInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	skillDir := resolveSkillsDir(cfg)
-	registrations, err := skills.LoadSkills(skillDir)
+	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -609,7 +609,7 @@ func runSkillsCheck(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingSkillFile)
 
-	registrations, err := skills.LoadSkills(skillDir)
+	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -655,9 +655,9 @@ func loadRuntimeSkills(cfg *config.Config) []api.SkillRegistration {
 		return nil
 	}
 
-	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg))
+	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), mavenlog.Std())
 	if err != nil {
-		log.Printf("[agent] skills load warning: %v", err)
+		mavenlog.Std().Printf("[agent] skills load warning: %v", err)
 		return nil
 	}
 	return skillRegs

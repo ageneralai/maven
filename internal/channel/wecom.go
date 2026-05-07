@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
 const wecomChannelName = "wecom"
@@ -346,11 +346,11 @@ var defaultWeComClientFactory WeComClientFactory = func(cfg config.WeComConfig) 
 	return newDefaultWeComClient(cfg)
 }
 
-func NewWeComChannel(cfg config.WeComConfig, b *bus.MessageBus) (*WeComChannel, error) {
-	return NewWeComChannelWithFactory(cfg, b, defaultWeComClientFactory)
+func NewWeComChannel(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WeComChannel, error) {
+	return NewWeComChannelWithFactory(cfg, lg, b, defaultWeComClientFactory)
 }
 
-func NewWeComChannelWithFactory(cfg config.WeComConfig, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
+func NewWeComChannelWithFactory(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("wecom token is required")
 	}
@@ -365,7 +365,7 @@ func NewWeComChannelWithFactory(cfg config.WeComConfig, b *bus.MessageBus, facto
 	receiveID := strings.TrimSpace(cfg.ReceiveID)
 
 	ch := &WeComChannel{
-		BaseChannel:      NewBaseChannel(wecomChannelName, b, cfg.AllowFrom),
+		BaseChannel:      NewBaseChannel(wecomChannelName, b, cfg.AllowFrom, lg),
 		cfg:              cfg,
 		clientFactory:    factory,
 		allowlistEnabled: len(cfg.AllowFrom) > 0,
@@ -395,9 +395,9 @@ func (w *WeComChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		log.Printf("[wecom] callback server listening on :%d", port)
+		w.log.Printf("[wecom] callback server listening on :%d", port)
 		if err := w.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("[wecom] server error: %v", err)
+			w.log.Printf("[wecom] server error: %v", err)
 		}
 	}()
 
@@ -419,11 +419,11 @@ func (w *WeComChannel) Stop() error {
 	if w.client != nil {
 		w.client.Close()
 	}
-	log.Printf("[wecom] stopped")
+	w.log.Printf("[wecom] stopped")
 	return nil
 }
 
-func (w *WeComChannel) Send(msg bus.OutboundMessage) error {
+func (w *WeComChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if w.client == nil {
 		return fmt.Errorf("wecom client not initialized")
 	}
@@ -438,7 +438,11 @@ func (w *WeComChannel) Send(msg bus.OutboundMessage) error {
 		return fmt.Errorf("wecom response_url not found or expired for chat id %q", chatID)
 	}
 
-	return w.client.SendMessage(context.Background(), responseURL, msg)
+	return w.client.SendMessage(ctx, responseURL, msg)
+}
+
+func (w *WeComChannel) Capabilities() CapabilitySet {
+	return CapabilitySet{FileUpload: true}
 }
 
 type weComEncryptedEnvelope struct {
@@ -643,7 +647,7 @@ func (w *WeComChannel) buildEncryptedReply(timestamp, nonce, receiveID string, p
 func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	var message weComInboundMessage
 	if err := json.Unmarshal([]byte(plaintext), &message); err != nil {
-		log.Printf("[wecom] unmarshal plaintext json error: %v", err)
+		w.log.Printf("[wecom] unmarshal plaintext json error: %v", err)
 		return
 	}
 
@@ -653,13 +657,13 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	}
 
 	if !w.allowMessageFrom(senderID) {
-		log.Printf("[wecom] rejected message from %s", senderID)
+		w.log.Printf("[wecom] rejected message from %s", senderID)
 		return
 	}
 
 	messageID := strings.TrimSpace(message.MsgID)
 	if messageID != "" && w.msgCache.Seen(messageID) {
-		log.Printf("[wecom] duplicate message dropped: %s", messageID)
+		w.log.Printf("[wecom] duplicate message dropped: %s", messageID)
 		return
 	}
 
@@ -673,7 +677,7 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 		w.replyCache.Set(chatID, responseURL)
 	}
 
-	content := extractWeComContent(message)
+	content := extractWeComContent(message, w.log)
 	contentBlocks := w.extractWeComContentBlocks(message)
 	if content == "" && len(contentBlocks) == 0 {
 		return
@@ -686,7 +690,7 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 		Content:       content,
 		Timestamp:     time.Now(),
 		ContentBlocks: contentBlocks,
-		Metadata: map[string]any{
+		TransportMeta: map[string]any{
 			"msg_id":         messageID,
 			"aibot_id":       strings.TrimSpace(message.AIBotID),
 			"chat_id":        strings.TrimSpace(message.ChatID),
@@ -723,7 +727,7 @@ func (w *WeComChannel) extractWeComContentBlocks(message weComInboundMessage) []
 
 	block, err := w.buildWeComImageContentBlock(context.Background(), message)
 	if err != nil {
-		log.Printf("[wecom] process image message warning: %v", err)
+		w.log.Printf("[wecom] process image message warning: %v", err)
 	}
 	if block == nil {
 		return nil
@@ -802,7 +806,7 @@ func normalizeWeComMediaType(value string) string {
 	return strings.TrimSpace(contentType)
 }
 
-func extractWeComContent(message weComInboundMessage) string {
+func extractWeComContent(message weComInboundMessage, lg mavenlog.PrintLogger) string {
 	switch strings.ToLower(strings.TrimSpace(message.MsgType)) {
 	case "text":
 		return strings.TrimSpace(message.Text.Content)
@@ -822,7 +826,7 @@ func extractWeComContent(message weComInboundMessage) string {
 		}
 		return strings.TrimSpace(strings.Join(parts, "\n"))
 	default:
-		log.Printf("[wecom] unsupported message type: %s", strings.TrimSpace(message.MsgType))
+		lg.Printf("[wecom] unsupported message type: %s", strings.TrimSpace(message.MsgType))
 		return ""
 	}
 }

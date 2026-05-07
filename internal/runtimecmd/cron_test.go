@@ -6,13 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
 	"github.com/ageneralai/maven/internal/cron"
+	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
 )
+
+var testLG = mavenlog.Std()
 
 func TestHandleCronAdd_atDuration(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"))
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testLG)
 	h := handleCronAddBody(svc)
 	res, err := h(context.Background(), mustParse(t, `/cron-add --name n1 --in 2m --message "ping"`))
 	if err != nil {
@@ -34,7 +37,7 @@ func TestHandleCronAdd_atDuration(t *testing.T) {
 }
 
 func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"), testLG)
 	h := handleCronAddBody(svc)
 	_, err := h(context.Background(), mustParse(t, `/cron-add --name x --in 1s --message hi --deliver true`))
 	if err == nil || !strings.Contains(err.Error(), "--channel") {
@@ -44,7 +47,7 @@ func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
 
 func TestHandleCronRemove(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"))
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testLG)
 	add := handleCronAddBody(svc)
 	if _, err := add(context.Background(), mustParse(t, `/cron-add --name z --in 1h --message m`)); err != nil {
 		t.Fatal(err)

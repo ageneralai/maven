@@ -8,10 +8,14 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
+var testLG = mavenlog.Std()
+
 func TestNew(t *testing.T) {
-	s := New("/tmp/ws", nil, 0)
+	s := New("/tmp/ws", nil, 0, testLG)
 	if s == nil {
 		t.Fatal("New returned nil")
 	}
@@ -21,7 +25,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNew_CustomInterval(t *testing.T) {
-	s := New("/tmp/ws", nil, 5*time.Minute)
+	s := New("/tmp/ws", nil, 5*time.Minute, testLG)
 	if s.interval != 5*time.Minute {
 		t.Errorf("interval = %v, want 5m", s.interval)
 	}
@@ -33,7 +37,7 @@ func TestTick_NoFile(t *testing.T) {
 	s := New(tmpDir, func(prompt string) (string, error) {
 		called.Add(1)
 		return "ok", nil
-	}, time.Second)
+	}, time.Second, testLG)
 
 	s.tick()
 
@@ -50,7 +54,7 @@ func TestTick_EmptyFile(t *testing.T) {
 	s := New(tmpDir, func(prompt string) (string, error) {
 		called.Add(1)
 		return "ok", nil
-	}, time.Second)
+	}, time.Second, testLG)
 
 	s.tick()
 
@@ -67,7 +71,7 @@ func TestTick_WithContent(t *testing.T) {
 	s := New(tmpDir, func(prompt string) (string, error) {
 		receivedPrompt = prompt
 		return "done", nil
-	}, time.Second)
+	}, time.Second, testLG)
 
 	s.tick()
 
@@ -78,7 +82,7 @@ func TestTick_WithContent(t *testing.T) {
 
 func TestStart_ContextCancel(t *testing.T) {
 	tmpDir := t.TempDir()
-	s := New(tmpDir, nil, 100*time.Millisecond)
+	s := New(tmpDir, nil, 100*time.Millisecond, testLG)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -110,7 +114,7 @@ func TestStart_TickerFires(t *testing.T) {
 	s := New(tmpDir, func(prompt string) (string, error) {
 		tickCount++
 		return "ok", nil
-	}, 50*time.Millisecond)
+	}, 50*time.Millisecond, testLG)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -136,7 +140,7 @@ func TestTick_HandlerError(t *testing.T) {
 
 	s := New(tmpDir, func(prompt string) (string, error) {
 		return "", fmt.Errorf("handler error")
-	}, time.Second)
+	}, time.Second, testLG)
 
 	// Should not panic on handler error
 	s.tick()
@@ -150,7 +154,7 @@ func TestTick_HeartbeatOK(t *testing.T) {
 	s := New(tmpDir, func(prompt string) (string, error) {
 		called = true
 		return "HEARTBEAT_OK - nothing to do", nil
-	}, time.Second)
+	}, time.Second, testLG)
 
 	s.tick()
 
@@ -163,7 +167,7 @@ func TestTick_NoHandler(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("Check tasks"), 0644)
 
-	s := New(tmpDir, nil, time.Second)
+	s := New(tmpDir, nil, time.Second, testLG)
 
 	// Should not panic when handler is nil
 	s.tick()

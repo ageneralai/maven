@@ -8,17 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/coder/websocket"
 )
 
+var webuiTestLog = mavenlog.Std()
+
 func TestNewWebUIChannel(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, webuiTestLog)
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 0}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
 	if err != nil {
 		t.Fatalf("NewWebUIChannel: %v", err)
 	}
@@ -28,11 +31,11 @@ func TestNewWebUIChannel(t *testing.T) {
 }
 
 func TestWebUIChannel_StartStop(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, webuiTestLog)
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19876}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,11 +64,11 @@ func TestWebUIChannel_StartStop(t *testing.T) {
 }
 
 func TestWebUIChannel_WebSocket(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, webuiTestLog)
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19877}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +107,7 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 			t.Errorf("chatID = %q, want prefix %q", inbound.ChatID, "webui-")
 		}
 
-		if err := ch.Send(bus.OutboundMessage{
+		if err := ch.Send(ctx, bus.OutboundMessage{
 			Channel: "webui",
 			ChatID:  inbound.ChatID,
 			Content: "reply from bot",
@@ -133,11 +136,11 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 }
 
 func TestWebUIChannel_SendBroadcast(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, webuiTestLog)
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19878}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +169,7 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if err := ch.Send(bus.OutboundMessage{
+	if err := ch.Send(ctx, bus.OutboundMessage{
 		Channel: "webui",
 		ChatID:  "unknown-id",
 		Content: "broadcast msg",

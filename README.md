@@ -129,7 +129,7 @@ make package-all PLATFORMS="linux/amd64 linux/arm64"
                   └───────────────────────────────────────┘
 
 Data Flow (Gateway Mode):
-  Telegram/Feishu/WeCom/WhatsApp/WebUI ──► Channel ──► Bus.Inbound ──► processLoop
+  Telegram/Feishu/WeCom/WhatsApp/WebUI ──► Channel ──► Bus.Inbound ──► Pipeline.Run
                                                                       │
                                                                       ▼
                                                                Runtime.Run()

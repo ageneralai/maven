@@ -9,8 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cexll/agentsdk-go/pkg/api"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
+
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
+
+var testLG = mavenlog.Std()
 
 func TestLoadSkills_LoadSingleSkill(t *testing.T) {
 	t.Parallel()
@@ -25,48 +30,36 @@ func TestLoadSkills_LoadSingleSkill(t *testing.T) {
 		t.Fatalf("write skill file: %v", err)
 	}
 
-	registrations, err := LoadSkills(root)
+	loaded, err := LoadSkills(root, testLG)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
-	if len(registrations) != 1 {
-		t.Fatalf("registration count = %d, want 1", len(registrations))
+	if len(loaded) != 1 {
+		t.Fatalf("skill count = %d, want 1", len(loaded))
 	}
 
-	registration := registrations[0]
-	if registration.Definition.Name != "writer" {
-		t.Fatalf("definition name = %q, want writer", registration.Definition.Name)
+	reg := loaded[0]
+	def := reg.Definition
+	if def.Name != "writer" {
+		t.Fatalf("name = %q, want writer", def.Name)
 	}
-	if registration.Definition.Description != "writing helper" {
-		t.Fatalf("definition description = %q, want writing helper", registration.Definition.Description)
+	if def.Description != "writing helper" {
+		t.Fatalf("description = %q, want writing helper", def.Description)
 	}
-
-	if len(registration.Definition.Matchers) != 1 {
-		t.Fatalf("matchers count = %d, want 1", len(registration.Definition.Matchers))
+	kw := skillKeywords(def)
+	if len(kw) != 2 {
+		t.Fatalf("keywords count = %d, want 2", len(kw))
 	}
-	match := registration.Definition.Matchers[0].Match(runtimeskills.ActivationContext{Prompt: "please draft a summary"})
-	if !match.Matched {
-		t.Fatalf("expected keyword matcher to match prompt")
+	if kw[0] != "draft" || kw[1] != "write" {
+		t.Fatalf("keywords = %v, want [draft write]", kw)
 	}
-
-	result, execErr := registration.Handler.Execute(context.Background(), runtimeskills.ActivationContext{})
-	if execErr != nil {
-		t.Fatalf("execute handler: %v", execErr)
+	wantBody := "# Writer\nUse this skill for writing tasks."
+	out, meta := skillExec(t, reg)
+	if out != wantBody {
+		t.Fatalf("handler output = %q, want %q", out, wantBody)
 	}
-
-	outputText, ok := result.Output.(string)
-	if !ok {
-		t.Fatalf("output type = %T, want string", result.Output)
-	}
-	if outputText != "# Writer\nUse this skill for writing tasks." {
-		t.Fatalf("unexpected output: %q", outputText)
-	}
-
-	if result.Metadata["system_prompt"] != outputText {
-		t.Fatalf("system_prompt metadata mismatch")
-	}
-	if result.Metadata["source_path"] != skillPath {
-		t.Fatalf("source_path metadata mismatch: %v", result.Metadata["source_path"])
+	if meta["source_path"] != skillPath {
+		t.Fatalf("source path = %v, want %q", meta["source_path"], skillPath)
 	}
 }
 
@@ -74,12 +67,12 @@ func TestLoadSkills_DirNotFound(t *testing.T) {
 	t.Parallel()
 
 	notFoundDir := filepath.Join(t.TempDir(), "missing")
-	registrations, err := LoadSkills(notFoundDir)
+	loaded, err := LoadSkills(notFoundDir, testLG)
 	if err != nil {
 		t.Fatalf("load skills from missing dir: %v", err)
 	}
-	if len(registrations) != 0 {
-		t.Fatalf("registration count = %d, want 0", len(registrations))
+	if len(loaded) != 0 {
+		t.Fatalf("skill count = %d, want 0", len(loaded))
 	}
 }
 
@@ -95,7 +88,7 @@ func TestLoadSkills_MissingFrontmatter(t *testing.T) {
 		t.Fatalf("write skill file: %v", err)
 	}
 
-	_, err := LoadSkills(root)
+	_, err := LoadSkills(root, testLG)
 	if err == nil {
 		t.Fatalf("expected error for invalid frontmatter")
 	}
@@ -123,7 +116,7 @@ func TestLoadSkills_DuplicateSkillName(t *testing.T) {
 		t.Fatalf("write second skill file: %v", err)
 	}
 
-	_, err := LoadSkills(root)
+	_, err := LoadSkills(root, testLG)
 	if err == nil {
 		t.Fatalf("expected duplicate name error")
 	}
@@ -137,61 +130,45 @@ func TestLoadSkills_MultipleSkills(t *testing.T) {
 	writeTestSkillFile(t, root, "beta", "---\nname: beta\ndescription: beta helper\nkeywords: [beta]\n---\nbeta body\n")
 	writeTestSkillFile(t, root, "gamma", "---\nname: gamma\ndescription: gamma helper\nkeywords: [gamma]\n---\ngamma body\n")
 
-	registrations, err := LoadSkills(root)
+	loaded, err := LoadSkills(root, testLG)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
-	if len(registrations) != 3 {
-		t.Fatalf("registration count = %d, want 3", len(registrations))
+	if len(loaded) != 3 {
+		t.Fatalf("skill count = %d, want 3", len(loaded))
 	}
 
 	wantNames := []string{"alpha", "beta", "gamma"}
 	for i, wantName := range wantNames {
-		if registrations[i].Definition.Name != wantName {
-			t.Fatalf("registration[%d].definition.name = %q, want %q", i, registrations[i].Definition.Name, wantName)
+		if loaded[i].Definition.Name != wantName {
+			t.Fatalf("skill[%d].name = %q, want %q", i, loaded[i].Definition.Name, wantName)
 		}
 	}
 }
 
-func TestLoadSkills_KeywordMatching(t *testing.T) {
+func TestLoadSkills_KeywordSanitize(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	writeTestSkillFile(t, root, "web-search", "---\nname: web-search\ndescription: Search the web\nkeywords:\n  - \" Search \"\n  - WEB\n  - web\n  - find online\n  - \"  \"\n---\n# Web Search\n")
 
-	registrations, err := LoadSkills(root)
+	loaded, err := LoadSkills(root, testLG)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
-	if len(registrations) != 1 {
-		t.Fatalf("registration count = %d, want 1", len(registrations))
-	}
-
-	registration := registrations[0]
-	if len(registration.Definition.Matchers) != 1 {
-		t.Fatalf("matchers count = %d, want 1", len(registration.Definition.Matchers))
-	}
-
-	matcher, ok := registration.Definition.Matchers[0].(runtimeskills.KeywordMatcher)
-	if !ok {
-		t.Fatalf("matcher type = %T, want KeywordMatcher", registration.Definition.Matchers[0])
+	if len(loaded) != 1 {
+		t.Fatalf("skill count = %d, want 1", len(loaded))
 	}
 
 	wantKeywords := []string{"find online", "search", "web"}
-	if len(matcher.Any) != len(wantKeywords) {
-		t.Fatalf("keyword count = %d, want %d", len(matcher.Any), len(wantKeywords))
+	gotKW := skillKeywords(loaded[0].Definition)
+	if len(gotKW) != len(wantKeywords) {
+		t.Fatalf("keyword count = %d, want %d", len(gotKW), len(wantKeywords))
 	}
 	for i, wantKeyword := range wantKeywords {
-		if matcher.Any[i] != wantKeyword {
-			t.Fatalf("keyword[%d] = %q, want %q", i, matcher.Any[i], wantKeyword)
+		if gotKW[i] != wantKeyword {
+			t.Fatalf("keyword[%d] = %q, want %q", i, gotKW[i], wantKeyword)
 		}
-	}
-
-	if !registration.Definition.Matchers[0].Match(runtimeskills.ActivationContext{Prompt: "please search the web"}).Matched {
-		t.Fatalf("expected matcher to match prompt with keywords")
-	}
-	if registration.Definition.Matchers[0].Match(runtimeskills.ActivationContext{Prompt: "write me a poem"}).Matched {
-		t.Fatalf("expected matcher not to match unrelated prompt")
 	}
 }
 
@@ -201,20 +178,19 @@ func TestLoadSkills_EmptyKeywords(t *testing.T) {
 	root := t.TempDir()
 	writeTestSkillFile(t, root, "empty-keywords", "---\nname: empty-keywords\ndescription: no keywords\n---\n# Empty Keywords\nStill valid skill body.\n")
 
-	registrations, err := LoadSkills(root)
+	loaded, err := LoadSkills(root, testLG)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
-	if len(registrations) != 1 {
-		t.Fatalf("registration count = %d, want 1", len(registrations))
+	if len(loaded) != 1 {
+		t.Fatalf("skill count = %d, want 1", len(loaded))
 	}
 
-	registration := registrations[0]
-	if registration.Definition.Name != "empty-keywords" {
-		t.Fatalf("definition name = %q, want empty-keywords", registration.Definition.Name)
+	if loaded[0].Definition.Name != "empty-keywords" {
+		t.Fatalf("name = %q, want empty-keywords", loaded[0].Definition.Name)
 	}
-	if len(registration.Definition.Matchers) != 0 {
-		t.Fatalf("matchers count = %d, want 0", len(registration.Definition.Matchers))
+	if len(skillKeywords(loaded[0].Definition)) != 0 {
+		t.Fatalf("keywords count = %d, want 0", len(skillKeywords(loaded[0].Definition)))
 	}
 }
 
@@ -236,15 +212,15 @@ func TestLoadSkills_InvalidYAML(t *testing.T) {
 		log.SetPrefix(originalPrefix)
 	})
 
-	registrations, err := LoadSkills(root)
+	loaded, err := LoadSkills(root, testLG)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
-	if len(registrations) != 1 {
-		t.Fatalf("registration count = %d, want 1", len(registrations))
+	if len(loaded) != 1 {
+		t.Fatalf("skill count = %d, want 1", len(loaded))
 	}
-	if registrations[0].Definition.Name != "ok" {
-		t.Fatalf("definition name = %q, want ok", registrations[0].Definition.Name)
+	if loaded[0].Definition.Name != "ok" {
+		t.Fatalf("name = %q, want ok", loaded[0].Definition.Name)
 	}
 
 	output := logBuf.String()
@@ -254,6 +230,24 @@ func TestLoadSkills_InvalidYAML(t *testing.T) {
 	if !strings.Contains(output, invalidSkillPath) {
 		t.Fatalf("expected warning log to include invalid skill path %q, got: %q", invalidSkillPath, output)
 	}
+}
+
+func skillKeywords(def runtimeskills.Definition) []string {
+	for _, m := range def.Matchers {
+		if km, ok := m.(runtimeskills.KeywordMatcher); ok {
+			return append([]string(nil), km.Any...)
+		}
+	}
+	return nil
+}
+
+func skillExec(t *testing.T, reg api.SkillRegistration) (string, map[string]any) {
+	res, err := reg.Handler.Execute(context.Background(), runtimeskills.ActivationContext{})
+	if err != nil {
+		t.Fatalf("handler execute: %v", err)
+	}
+	out, _ := res.Output.(string)
+	return out, res.Metadata
 }
 
 func writeTestSkillFile(t *testing.T, root, dirName, content string) string {

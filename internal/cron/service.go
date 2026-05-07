@@ -4,17 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	rcron "github.com/robfig/cron/v3"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
 type Service struct {
 	storePath string
+	log       mavenlog.PrintLogger
 	mu        sync.Mutex
 	jobs      []CronJob
 	OnJob     func(job CronJob) (string, error)
@@ -23,9 +24,10 @@ type Service struct {
 	wakeChan  chan struct{}
 }
 
-func NewService(storePath string) *Service {
+func NewService(storePath string, lg mavenlog.PrintLogger) *Service {
 	return &Service{
 		storePath: storePath,
+		log:       lg,
 		entryMap:  make(map[string]rcron.EntryID),
 		wakeChan:  make(chan struct{}, 1),
 	}
@@ -40,7 +42,7 @@ func (s *Service) notify() {
 
 func (s *Service) Start(ctx context.Context) error {
 	if err := s.load(); err != nil {
-		log.Printf("[cron] warning: failed to load jobs: %v", err)
+		s.log.Printf("[cron] warning: failed to load jobs: %v", err)
 	}
 	s.initNextRun()
 	s.cron = rcron.New(rcron.WithSeconds())
@@ -52,7 +54,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 	s.cron.Start()
-	log.Printf("[cron] started with %d jobs", len(s.jobs))
+	s.log.Printf("[cron] started with %d jobs", len(s.jobs))
 	go s.tickLoop(ctx)
 	go func() {
 		<-ctx.Done()
@@ -89,16 +91,16 @@ func (s *Service) registerJob(job *CronJob) {
 		s.executeJob(jobCopy)
 	})
 	if err != nil {
-		log.Printf("[cron] failed to register job %s (%s): %v", job.Name, job.Schedule.Expr, err)
+		s.log.Printf("[cron] failed to register job %s (%s): %v", job.Name, job.Schedule.Expr, err)
 		return
 	}
 	s.entryMap[job.ID] = entryID
 }
 
 func (s *Service) executeJob(job CronJob) {
-	log.Printf("[cron] executing job %s (%s)", job.Name, job.ID)
+	s.log.Printf("[cron] executing job %s (%s)", job.Name, job.ID)
 	if s.OnJob == nil {
-		log.Printf("[cron] no OnJob handler set")
+		s.log.Printf("[cron] no OnJob handler set")
 		return
 	}
 	result, err := s.OnJob(job)
@@ -115,11 +117,11 @@ func (s *Service) executeJob(job CronJob) {
 		if err != nil {
 			s.jobs[i].State.LastStatus = "error"
 			s.jobs[i].State.LastError = err.Error()
-			log.Printf("[cron] job %s error: %v", job.Name, err)
+			s.log.Printf("[cron] job %s error: %v", job.Name, err)
 		} else {
 			s.jobs[i].State.LastStatus = "ok"
 			s.jobs[i].State.LastError = ""
-			log.Printf("[cron] job %s result: %s", job.Name, truncate(result, 100))
+			s.log.Printf("[cron] job %s result: %s", job.Name, truncate(result, 100))
 		}
 		if s.jobs[i].DeleteAfterRun {
 			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
@@ -259,7 +261,7 @@ func (s *Service) Stop() {
 	if s.cron != nil {
 		s.cron.Stop()
 	}
-	log.Printf("[cron] stopped")
+	s.log.Printf("[cron] stopped")
 }
 
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {

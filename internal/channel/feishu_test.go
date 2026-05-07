@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/cexll/agentsdk-go/pkg/model"
 )
+
+var feishuTestLog = mavenlog.Std()
 
 // mockFeishuClient implements FeishuClient for testing
 type mockFeishuClient struct {
@@ -39,11 +42,11 @@ func mockFeishuClientFactory(client *mockFeishuClient) FeishuClientFactory {
 }
 
 func TestNewFeishuChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	ch, err := NewFeishuChannel(config.FeishuConfig{
 		AppID:     "cli_test",
 		AppSecret: "secret",
-	}, b)
+	}, feishuTestLog, b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,48 +56,48 @@ func TestNewFeishuChannel_Valid(t *testing.T) {
 }
 
 func TestNewFeishuChannel_MissingAppID(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	_, err := NewFeishuChannel(config.FeishuConfig{
 		AppSecret: "secret",
-	}, b)
+	}, feishuTestLog, b)
 	if err == nil {
 		t.Error("expected error for missing app_id")
 	}
 }
 
 func TestNewFeishuChannel_MissingAppSecret(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	_, err := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test",
-	}, b)
+	}, feishuTestLog, b)
 	if err == nil {
 		t.Error("expected error for missing app_secret")
 	}
 }
 
 func TestFeishuChannel_Send_NilClient(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	ch, _ := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, b)
+	}, feishuTestLog, b)
 
-	err := ch.Send(bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
 	if err == nil {
 		t.Error("expected error when client is nil")
 	}
 }
 
 func TestFeishuChannel_Send_Success(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	mock := &mockFeishuClient{token: "test-token"}
 
 	ch, _ := NewFeishuChannelWithFactory(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, b, mockFeishuClientFactory(mock))
+	}, feishuTestLog, b, mockFeishuClientFactory(mock))
 
 	ch.client = mock
 
-	err := ch.Send(bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
 	}
@@ -107,25 +110,25 @@ func TestFeishuChannel_Send_Success(t *testing.T) {
 }
 
 func TestFeishuChannel_Send_Error(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	mock := &mockFeishuClient{sendErr: fmt.Errorf("send failed")}
 
 	ch, _ := NewFeishuChannelWithFactory(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, b, mockFeishuClientFactory(mock))
+	}, feishuTestLog, b, mockFeishuClientFactory(mock))
 	ch.client = mock
 
-	err := ch.Send(bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
 	if err == nil {
 		t.Error("expected error")
 	}
 }
 
 func TestFeishuChannel_Stop_NotStarted(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	ch, _ := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, b)
+	}, feishuTestLog, b)
 
 	err := ch.Stop()
 	if err != nil {
@@ -137,9 +140,9 @@ func TestFeishuChannel_Stop_NotStarted(t *testing.T) {
 
 func newTestFeishuChannel(t *testing.T, cfg config.FeishuConfig) (*FeishuChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	mock := &mockFeishuClient{token: "test-token"}
-	ch, err := NewFeishuChannelWithFactory(cfg, b, mockFeishuClientFactory(mock))
+	ch, err := NewFeishuChannelWithFactory(cfg, feishuTestLog, b, mockFeishuClientFactory(mock))
 	if err != nil {
 		t.Fatalf("NewFeishuChannelWithFactory error: %v", err)
 	}
@@ -386,8 +389,8 @@ func TestFeishuWebhook_ImageMessage(t *testing.T) {
 		if block.Data != "iVBORw0KGgo=" {
 			t.Errorf("data = %q, want iVBORw0KGgo=", block.Data)
 		}
-		if got := msg.Metadata["image_key"]; got != "img_xxx" {
-			t.Errorf("metadata image_key = %v, want img_xxx", got)
+		if got := msg.TransportMeta["image_key"]; got != "img_xxx" {
+			t.Errorf("transport meta image_key = %v, want img_xxx", got)
 		}
 	default:
 		t.Error("should receive image message")
@@ -547,12 +550,12 @@ func TestFeishuWebhook_NoVerificationToken(t *testing.T) {
 }
 
 func TestFeishuChannel_StartStop(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	mock := &mockFeishuClient{token: "test-token"}
 
 	ch, err := NewFeishuChannelWithFactory(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret", Port: 0,
-	}, b, mockFeishuClientFactory(mock))
+	}, feishuTestLog, b, mockFeishuClientFactory(mock))
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -575,14 +578,14 @@ func TestFeishuChannel_StartStop(t *testing.T) {
 }
 
 func TestChannelManager_FeishuEnabled(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	m, err := NewChannelManager(config.ChannelsConfig{
 		Feishu: config.FeishuConfig{
 			Enabled:   true,
 			AppID:     "cli_test",
 			AppSecret: "secret",
 		},
-	}, b)
+	}, "", b, feishuTestLog)
 	if err != nil {
 		t.Fatalf("NewChannelManager error: %v", err)
 	}
@@ -594,13 +597,13 @@ func TestChannelManager_FeishuEnabled(t *testing.T) {
 }
 
 func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
-	b := bus.NewMessageBus(10)
+	b := bus.NewMessageBus(10, feishuTestLog)
 	_, err := NewChannelManager(config.ChannelsConfig{
 		Feishu: config.FeishuConfig{
 			Enabled: true,
 			// Missing AppID and AppSecret
 		},
-	}, b)
+	}, "", b, feishuTestLog)
 	if err == nil {
 		t.Error("expected error for missing feishu config")
 	}

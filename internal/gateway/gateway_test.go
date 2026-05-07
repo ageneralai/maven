@@ -8,20 +8,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	"github.com/ageneralai/maven/internal/heartbeatsession"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/memory"
+	"github.com/ageneralai/maven/internal/pipeline"
+	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
 )
+
+var testLG = mavenlog.Std()
 
 // mockRuntime implements Runtime interface for testing
 type mockRuntime struct {
@@ -44,6 +49,7 @@ func (m *mockRuntime) Run(ctx context.Context, req api.Request) (*api.Response, 
 func (m *mockRuntime) Close() {
 	m.closed = true
 }
+
 func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan api.StreamEvent, error) {
 	if m.err != nil {
 		return nil, m.err
@@ -61,24 +67,10 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 	return ch, nil
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input string
-		n     int
-		want  string
-	}{
-		{"short", 10, "short"},
-		{"exactly10!", 10, "exactly10!"},
-		{"this is a long message", 10, "this is a ..."},
-		{"", 5, ""},
-	}
+var _ agent.Runtime = (*mockRuntime)(nil)
 
-	for _, tt := range tests {
-		got := truncate(tt.input, tt.n)
-		if got != tt.want {
-			t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.n, got, tt.want)
-		}
-	}
+func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
+	return pipeline.New(testLG, b, rt, &agent.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
 }
 
 func TestGateway_BuildSystemPrompt(t *testing.T) {
@@ -99,15 +91,15 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 		mem: memory.NewMemoryStore(tmpDir),
 	}
 
-	prompt := g.buildSystemPrompt()
+	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
 
-	if prompt == "" {
+	if sys == "" {
 		t.Error("expected non-empty prompt")
 	}
-	if !contains(prompt, "# Agent") {
+	if !contains(sys, "# Agent") {
 		t.Error("missing AGENTS.md content")
 	}
-	if !contains(prompt, "# Soul") {
+	if !contains(sys, "# Soul") {
 		t.Error("missing SOUL.md content")
 	}
 }
@@ -129,9 +121,9 @@ func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 		mem: mem,
 	}
 
-	prompt := g.buildSystemPrompt()
+	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
 
-	if !contains(prompt, "User is a developer") {
+	if !contains(sys, "User is a developer") {
 		t.Error("missing memory content")
 	}
 }
@@ -150,11 +142,11 @@ func TestGateway_BuildSystemPrompt_NoFiles(t *testing.T) {
 		mem: memory.NewMemoryStore(tmpDir),
 	}
 
-	prompt := g.buildSystemPrompt()
+	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
 
 	// Should return empty when no files exist
-	if prompt != "" {
-		t.Errorf("expected empty prompt, got %q", prompt)
+	if sys != "" {
+		t.Errorf("expected empty prompt, got %q", sys)
 	}
 }
 
@@ -167,9 +159,9 @@ func TestGateway_Shutdown(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
-	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, msgBus)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"))
+	msgBus := bus.NewMessageBus(10, testLG)
+	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, tmpDir, msgBus, testLG)
+	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), testLG)
 	mockRt := &mockRuntime{}
 
 	g := &Gateway{
@@ -177,9 +169,10 @@ func TestGateway_Shutdown(t *testing.T) {
 		bus:      msgBus,
 		channels: chMgr,
 		cron:     cronSvc,
-		hb:       heartbeat.New(tmpDir, nil, 0),
+		hb:       heartbeat.New(tmpDir, nil, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
-		runtime:  mockRt,
+		rt:       mockRt,
+		logger:   testLG,
 	}
 
 	err := g.Shutdown()
@@ -192,14 +185,6 @@ func TestGateway_Shutdown(t *testing.T) {
 }
 
 func TestGateway_RunAgent(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	cfg := &config.Config{
-		Agent: config.AgentConfig{
-			Workspace: tmpDir,
-		},
-	}
-
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{
@@ -208,12 +193,7 @@ func TestGateway_RunAgent(t *testing.T) {
 		},
 	}
 
-	g := &Gateway{
-		cfg:     cfg,
-		runtime: mockRt,
-	}
-
-	result, err := g.runAgent(context.Background(), "test", "session1", nil)
+	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -225,9 +205,7 @@ func TestGateway_RunAgent(t *testing.T) {
 func TestGateway_RunAgent_NilResponse(t *testing.T) {
 	mockRt := &mockRuntime{response: nil}
 
-	g := &Gateway{runtime: mockRt}
-
-	result, err := g.runAgent(context.Background(), "test", "session1", nil)
+	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -239,9 +217,7 @@ func TestGateway_RunAgent_NilResponse(t *testing.T) {
 func TestGateway_RunAgent_NilResult(t *testing.T) {
 	mockRt := &mockRuntime{response: &api.Response{Result: nil}}
 
-	g := &Gateway{runtime: mockRt}
-
-	result, err := g.runAgent(context.Background(), "test", "session1", nil)
+	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -259,7 +235,11 @@ func TestGateway_ProcessLoop(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
+	router, err := session.New(filepath.Join(tmpDir, "router.json"))
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "response"},
@@ -267,15 +247,16 @@ func TestGateway_ProcessLoop(t *testing.T) {
 	}
 
 	g := &Gateway{
-		cfg:     cfg,
-		bus:     msgBus,
-		runtime: mockRt,
+		cfg:  cfg,
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start process loop
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	// Send inbound message
 	msgBus.Inbound <- bus.InboundMessage{
@@ -310,7 +291,7 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	imgBlock := model.ContentBlock{
 		Type:      model.ContentBlockImage,
 		MediaType: "image/jpeg",
@@ -324,17 +305,21 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 			Result: &api.Result{Output: "multimodal response"},
 		},
 	}
-
+	router, err := session.New(filepath.Join(tmpDir, "router.json"))
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
 	g := &Gateway{
-		cfg:     cfg,
-		bus:     msgBus,
-		runtime: mockRt,
+		cfg:  cfg,
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	msgBus.Inbound <- bus.InboundMessage{
 		Channel:       "telegram",
@@ -386,9 +371,7 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 func TestGateway_RunAgent_Error(t *testing.T) {
 	mockRt := &mockRuntime{err: context.DeadlineExceeded}
 
-	g := &Gateway{runtime: mockRt}
-
-	_, err := g.runAgent(context.Background(), "test", "session1", nil)
+	_, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
 	if err != context.DeadlineExceeded {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}
@@ -400,8 +383,7 @@ func TestGateway_RunAgent_ContentBlocks(t *testing.T) {
 		response: &api.Response{Result: &api.Result{Output: "ok"}},
 	}
 
-	g := &Gateway{runtime: mockRt}
-	result, err := g.runAgent(context.Background(), "test", "session1", blocks)
+	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", blocks)
 	if err != nil {
 		t.Fatalf("runAgent error: %v", err)
 	}
@@ -419,18 +401,22 @@ func TestGateway_ProcessLoop_AgentError(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	mockRt := &mockRuntime{err: context.DeadlineExceeded}
-
+	router, err := session.New(filepath.Join(tmpDir, "router.json"))
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
 	g := &Gateway{
-		cfg:     cfg,
-		bus:     msgBus,
-		runtime: mockRt,
+		cfg:  cfg,
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	msgBus.Inbound <- bus.InboundMessage{
 		Channel:  "test",
@@ -460,22 +446,26 @@ func TestGateway_ProcessLoop_EmptyResult(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: ""},
 		},
 	}
-
+	router, err := session.New(filepath.Join(tmpDir, "router.json"))
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
 	g := &Gateway{
-		cfg:     cfg,
-		bus:     msgBus,
-		runtime: mockRt,
+		cfg:  cfg,
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	msgBus.Inbound <- bus.InboundMessage{
 		Channel:  "test",
@@ -504,20 +494,24 @@ func TestGateway_ProcessLoop_ContextCancelled(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	mockRt := &mockRuntime{}
-
+	router, err := session.New(filepath.Join(tmpDir, "router.json"))
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
 	g := &Gateway{
-		cfg:     cfg,
-		bus:     msgBus,
-		runtime: mockRt,
+		cfg:  cfg,
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
 	go func() {
-		g.processLoop(ctx)
+		g.pipe.Run(ctx)
 		close(done)
 	}()
 
@@ -527,7 +521,7 @@ func TestGateway_ProcessLoop_ContextCancelled(t *testing.T) {
 	case <-done:
 		// Expected - loop exited
 	case <-time.After(time.Second):
-		t.Error("processLoop did not exit after context cancel")
+		t.Error("pipeline Run did not exit after context cancel")
 	}
 }
 
@@ -540,18 +534,19 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10)
-	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, msgBus)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"))
+	msgBus := bus.NewMessageBus(10, testLG)
+	chMgr, _ := channel.NewChannelManager(config.ChannelsConfig{}, tmpDir, msgBus, testLG)
+	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), testLG)
 
 	g := &Gateway{
 		cfg:      cfg,
 		bus:      msgBus,
 		channels: chMgr,
 		cron:     cronSvc,
-		hb:       heartbeat.New(tmpDir, nil, 0),
+		hb:       heartbeat.New(tmpDir, nil, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
-		runtime:  nil,
+		rt:       nil,
+		logger:   testLG,
 	}
 
 	err := g.Shutdown()
@@ -561,15 +556,15 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 }
 
 // mockRuntimeFactory returns a factory that creates mock runtimes
-func mockRuntimeFactory(rt Runtime) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string) (Runtime, error) {
+func mockRuntimeFactory(rt agent.Runtime) RuntimeFactory {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error) {
 		return rt, nil
 	}
 }
 
 // errorRuntimeFactory returns a factory that always fails
 func errorRuntimeFactory(err error) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string) (Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error) {
 		return nil, err
 	}
 }
@@ -599,9 +594,6 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 
 	if g == nil {
 		t.Fatal("gateway should not be nil")
-	}
-	if g.runtime != mockRt {
-		t.Error("runtime should be the mock")
 	}
 	if g.bus == nil {
 		t.Error("bus should not be nil")
@@ -762,7 +754,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 
 	// DefaultRuntimeFactory will try to create real runtime
 	// which may fail in different ways depending on SDK behavior
-	_, err := DefaultRuntimeFactory(cfg, "test prompt")
+	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil)
 	// Just ensure it doesn't panic - error is expected
 	_ = err
 }
@@ -962,7 +954,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 		t.Fatalf("session.New error: %v", err)
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "important user goals and pending tasks"},
@@ -976,25 +968,25 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	}
 
 	g := &Gateway{
-		cfg:      &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
-		bus:      msgBus,
-		runtime:  mockRt,
-		sessions: router,
+		cfg:  &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	msgBus.Inbound <- bus.InboundMessage{
 		Channel:  "telegram",
 		SenderID: "user1",
 		ChatID:   "chat1",
 		Content:  "/compact",
-		Metadata: map[string]any{
-			"slash_command":       "compact",
-			"slash_type":          "pipeline",
-			"force_non_streaming": true,
+		Hints: bus.RoutingHints{
+			SlashCommand: "compact",
+			SlashType:    "pipeline",
+			ForceSync:    true,
 		},
 	}
 
@@ -1030,28 +1022,28 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 		t.Fatalf("session.New error: %v", err)
 	}
 
-	msgBus := bus.NewMessageBus(10)
+	msgBus := bus.NewMessageBus(10, testLG)
 	reqCh := make(chan api.Request, 1)
 	mockRt := &mockRuntime{reqCh: reqCh}
 
 	g := &Gateway{
-		cfg:      &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
-		bus:      msgBus,
-		runtime:  mockRt,
-		sessions: router,
+		cfg:  &config.Config{Agent: config.AgentConfig{Workspace: tmpDir}},
+		bus:  msgBus,
+		pipe: testPipeline(msgBus, mockRt, router, tmpDir),
+		rt:   mockRt,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go g.processLoop(ctx)
+	go g.pipe.Run(ctx)
 
 	msgBus.Inbound <- bus.InboundMessage{
 		Channel:  "telegram",
 		SenderID: "user1",
 		ChatID:   "chat1",
-		Metadata: map[string]any{
-			"builtin_command":     "new",
-			"force_non_streaming": true,
+		Hints: bus.RoutingHints{
+			BuiltinCommand: "new",
+			ForceSync:      true,
 		},
 	}
 
@@ -1074,44 +1066,6 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	currentSession := router.Resolve(baseSession, baseSession)
 	if currentSession == baseSession {
 		t.Fatal("expected /new to rotate session")
-	}
-}
-
-func TestGateway_HeartbeatSkipsWhenAutomationLaneBusy(t *testing.T) {
-	g := &Gateway{}
-	g.agentMu.Lock()
-	out, err := g.heartbeatAgentTurn("ping")
-	g.agentMu.Unlock()
-	if err != nil {
-		t.Fatalf("err = %v", err)
-	}
-	if out != "" {
-		t.Fatalf("out = %q, want empty", out)
-	}
-}
-
-func TestGateway_HeartbeatAgentTurnUsesHeartbeatSession(t *testing.T) {
-	reqCh := make(chan api.Request, 1)
-	g := &Gateway{
-		runtime: &mockRuntime{
-			response: &api.Response{Result: &api.Result{Output: "HEARTBEAT_OK"}},
-			reqCh:    reqCh,
-		},
-	}
-	out, err := g.heartbeatAgentTurn("hello")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != "HEARTBEAT_OK" {
-		t.Fatalf("out = %q", out)
-	}
-	select {
-	case req := <-reqCh:
-		if !heartbeatsession.Matches(req.SessionID) {
-			t.Fatalf("SessionID = %q, want maven:heartbeat-<uuid>", req.SessionID)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for runtime request")
 	}
 }
 

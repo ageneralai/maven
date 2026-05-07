@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/ageneralai/maven/internal/config"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
 const telegramChannelName = "telegram"
@@ -42,6 +42,7 @@ type TelegramChannel struct {
 	streaming  bool
 	workspace  string // workspace root for file saving
 	rootDir    string // telegram assets root, default <workspace>/.telegram
+	caps       CapabilitySet
 
 	// Media group buffering: Telegram sends multi-photo messages as separate
 	// Message objects with the same MediaGroupID. We collect them briefly
@@ -83,7 +84,7 @@ func telegramRetryAfter(err error) (time.Duration, bool) {
 	return time.Duration(secs) * time.Second, true
 }
 
-func NewTelegramChannel(cfg config.TelegramConfig, b *bus.MessageBus) (*TelegramChannel, error) {
+func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg mavenlog.PrintLogger, b *bus.MessageBus) (*TelegramChannel, error) {
 	if cfg.Token == "" {
 		return nil, fmt.Errorf("telegram token is required")
 	}
@@ -92,19 +93,29 @@ func NewTelegramChannel(cfg config.TelegramConfig, b *bus.MessageBus) (*Telegram
 		feedback = "normal"
 	}
 	ch := &TelegramChannel{
-		BaseChannel: NewBaseChannel(telegramChannelName, b, cfg.AllowFrom),
+		BaseChannel: NewBaseChannel(telegramChannelName, b, cfg.AllowFrom, lg),
 		token:       cfg.Token,
 		proxy:       cfg.Proxy,
 		httpClient:  http.DefaultClient,
 		feedback:    feedback,
 		streaming:   cfg.Streaming,
 		rootDir:     strings.TrimSpace(cfg.RootDir),
+		workspace:   strings.TrimSpace(workspace),
+		caps: CapabilitySet{
+			Reactions:  true,
+			FileUpload: true,
+		},
 	}
 	return ch, nil
 }
 
-// SetWorkspace sets the workspace directory for file saving.
-func (t *TelegramChannel) SetWorkspace(dir string) { t.workspace = dir }
+func (t *TelegramChannel) Capabilities() CapabilitySet { return t.caps }
+
+// PreProcessInbound implements InboundPreprocessor for gateway/pipeline use.
+func (t *TelegramChannel) PreProcessInbound(ctx context.Context, chatID int64, hints bus.RoutingHints) {
+	_ = ctx
+	t.PreProcessFeedback(chatID, hints.MessageID)
+}
 
 func (t *TelegramChannel) telegramRoot() string {
 	if root := strings.TrimSpace(t.rootDir); root != "" {
@@ -144,7 +155,7 @@ func (t *TelegramChannel) initBot() error {
 	if err != nil {
 		return fmt.Errorf("telegram getMe: %w", err)
 	}
-	log.Printf("[telegram] authorized as @%s", me.Username)
+	t.log.Printf("[telegram] authorized as @%s", me.Username)
 	return nil
 }
 
@@ -172,7 +183,7 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 		}
 	}()
 
-	log.Printf("[telegram] polling started")
+	t.log.Printf("[telegram] polling started")
 	return nil
 }
 
@@ -188,7 +199,7 @@ func (t *TelegramChannel) handleMessage(msg *telego.Message) {
 	}
 	senderID := strconv.FormatInt(msg.From.ID, 10)
 	if !t.IsAllowed(senderID) {
-		log.Printf("[telegram] rejected message from %s (%s)", senderID, msg.From.Username)
+		t.log.Printf("[telegram] rejected message from %s (%s)", senderID, msg.From.Username)
 		return
 	}
 
@@ -264,11 +275,6 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 	}
 
 	chatID := strconv.FormatInt(primary.Chat.ID, 10)
-	metadata := map[string]any{
-		"username":   primary.From.Username,
-		"first_name": primary.From.FirstName,
-		"message_id": primary.MessageID,
-	}
 	t.bus.Inbound <- bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(primary.From.ID, 10),
@@ -276,7 +282,13 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 		Content:       content,
 		Timestamp:     time.Unix(int64(primary.Date), 0),
 		ContentBlocks: allBlocks,
-		Metadata:      metadata,
+		Hints: bus.RoutingHints{
+			MessageID: primary.MessageID,
+		},
+		TransportMeta: map[string]any{
+			"username":   primary.From.Username,
+			"first_name": primary.From.FirstName,
+		},
 	}
 }
 
@@ -291,11 +303,6 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 		return
 	}
 	chatID := strconv.FormatInt(msg.Chat.ID, 10)
-	metadata := map[string]any{
-		"username":   msg.From.Username,
-		"first_name": msg.From.FirstName,
-		"message_id": msg.MessageID,
-	}
 	t.bus.Inbound <- bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(msg.From.ID, 10),
@@ -303,7 +310,13 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 		Content:       content,
 		Timestamp:     time.Unix(int64(msg.Date), 0),
 		ContentBlocks: blocks,
-		Metadata:      metadata,
+		Hints: bus.RoutingHints{
+			MessageID: msg.MessageID,
+		},
+		TransportMeta: map[string]any{
+			"username":   msg.From.Username,
+			"first_name": msg.From.FirstName,
+		},
 	}
 }
 
@@ -349,7 +362,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		photo := msg.Photo[len(msg.Photo)-1]
 		data, err := t.downloadFileData(photo.FileID)
 		if err != nil {
-			log.Printf("[telegram] download photo %s failed: %v", photo.FileID, err)
+			t.log.Printf("[telegram] download photo %s failed: %v", photo.FileID, err)
 		} else {
 			mediaType := http.DetectContentType(data)
 			if mediaType == "application/octet-stream" {
@@ -365,7 +378,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 	// Non-image files: save to workspace and pass path reference.
 	if msg.Voice != nil {
 		if path, err := t.saveFile(msg.Voice.FileID, "voice.ogg"); err != nil {
-			log.Printf("[telegram] save voice failed: %v", err)
+			t.log.Printf("[telegram] save voice failed: %v", err)
 			content = telegram.AppendLine(content, fmt.Sprintf("[Voice message, %ds, download failed]", msg.Voice.Duration))
 		} else {
 			content = telegram.AppendLine(content, "[Voice message saved to: "+path+"]")
@@ -377,7 +390,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "audio.mp3"
 		}
 		if path, err := t.saveFile(msg.Audio.FileID, name); err != nil {
-			log.Printf("[telegram] save audio failed: %v", err)
+			t.log.Printf("[telegram] save audio failed: %v", err)
 			content = telegram.AppendLine(content, fmt.Sprintf("[Audio: %s, download failed]", name))
 		} else {
 			content = telegram.AppendLine(content, "[Audio file saved to: "+path+"]")
@@ -389,7 +402,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "video.mp4"
 		}
 		if path, err := t.saveFile(msg.Video.FileID, name); err != nil {
-			log.Printf("[telegram] save video failed: %v", err)
+			t.log.Printf("[telegram] save video failed: %v", err)
 			content = telegram.AppendLine(content, fmt.Sprintf("[Video: %s, download failed]", name))
 		} else {
 			content = telegram.AppendLine(content, "[Video file saved to: "+path+"]")
@@ -404,7 +417,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		if strings.HasPrefix(mediaType, "image/") {
 			data, err := t.downloadFileData(msg.Document.FileID)
 			if err != nil {
-				log.Printf("[telegram] download document %s failed: %v", msg.Document.FileID, err)
+				t.log.Printf("[telegram] download document %s failed: %v", msg.Document.FileID, err)
 				content = telegram.AppendLine(content, fmt.Sprintf("[Image document: %s (%s), download failed]", name, mediaType))
 			} else {
 				blocks = append(blocks, model.ContentBlock{
@@ -415,7 +428,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			}
 		} else {
 			if path, err := t.saveFile(msg.Document.FileID, name); err != nil {
-				log.Printf("[telegram] save document failed: %v", err)
+				t.log.Printf("[telegram] save document failed: %v", err)
 				info := fmt.Sprintf("[File: %s (%s)", name, mediaType)
 				if msg.Document.FileSize > 0 {
 					info += fmt.Sprintf(", %d bytes", msg.Document.FileSize)
@@ -455,7 +468,7 @@ func (t *TelegramChannel) extractExternalReplyContext(ext *telego.ExternalReplyI
 			photo := ext.Photo[len(ext.Photo)-1]
 			data, err := t.downloadFileData(photo.FileID)
 			if err != nil {
-				log.Printf("[telegram] download external reply photo failed: %v", err)
+				t.log.Printf("[telegram] download external reply photo failed: %v", err)
 				b.WriteString("\n[Photo, download failed]")
 			} else {
 				mediaType := http.DetectContentType(data)
@@ -513,7 +526,7 @@ func (t *TelegramChannel) saveFile(fileID, name string) (string, error) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
-	log.Printf("[telegram] saved file to %s (%d bytes)", path, len(data))
+	t.log.Printf("[telegram] saved file to %s (%d bytes)", path, len(data))
 	return path, nil
 }
 
@@ -564,7 +577,7 @@ func (t *TelegramChannel) Stop() error {
 	if t.cancel != nil {
 		t.cancel()
 	}
-	log.Printf("[telegram] stopped")
+	t.log.Printf("[telegram] stopped")
 	return nil
 }
 
@@ -595,7 +608,7 @@ func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string
 		Reaction:  []telego.ReactionType{tu.ReactionEmoji(emoji)},
 	})
 	if err != nil {
-		log.Printf("[telegram] sendReaction failed: %v", err)
+		t.log.Printf("[telegram] sendReaction failed: %v", err)
 	}
 }
 
@@ -606,7 +619,7 @@ func (t *TelegramChannel) sendTyping(chatID int64) {
 	}
 	err := t.bot.SendChatAction(context.Background(), tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
 	if err != nil {
-		log.Printf("[telegram] sendTyping failed: %v", err)
+		t.log.Printf("[telegram] sendTyping failed: %v", err)
 	}
 }
 
@@ -658,7 +671,7 @@ func (t *TelegramChannel) editMessage(chatID int64, messageID int, text string, 
 	}
 	return nil
 }
-func (t *TelegramChannel) Send(msg bus.OutboundMessage) error {
+func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if t.bot == nil {
 		return fmt.Errorf("telegram bot not initialized")
 	}
@@ -671,7 +684,7 @@ func (t *TelegramChannel) Send(msg bus.OutboundMessage) error {
 		if pid, ok := placeholderID.(int); ok && pid != 0 {
 			content := telegram.ToTelegramHTML(msg.Content)
 			if err := t.editMessage(chatID, pid, content, telego.ModeHTML); err != nil {
-				log.Printf("[telegram] edit placeholder failed: %v", err)
+				t.log.Printf("[telegram] edit placeholder failed: %v", err)
 			} else {
 				return nil
 			}
@@ -691,10 +704,10 @@ func (t *TelegramChannel) Send(msg bus.OutboundMessage) error {
 		}
 		content = content[len(chunk):]
 		tgMsg := tu.Message(tu.ID(chatID), chunk).WithParseMode(telego.ModeHTML)
-		if _, err := t.bot.SendMessage(context.Background(), tgMsg); err != nil {
+		if _, err := t.bot.SendMessage(ctx, tgMsg); err != nil {
 			// Retry without HTML parse mode
 			plain := tu.Message(tu.ID(chatID), msg.Content)
-			if _, err2 := t.bot.SendMessage(context.Background(), plain); err2 != nil {
+			if _, err2 := t.bot.SendMessage(ctx, plain); err2 != nil {
 				return fmt.Errorf("send telegram message: %w", err2)
 			}
 			return nil
@@ -732,7 +745,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 		if result == "" {
 			return nil
 		}
-		return t.Send(bus.OutboundMessage{ChatID: chatID, Content: result, Metadata: metadata})
+		return t.Send(ctx, bus.OutboundMessage{ChatID: chatID, Content: result, Metadata: metadata})
 	}
 	// Streaming mode:
 	// 1) status card message: tool/status progress
@@ -800,7 +813,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 			pid, err := t.sendPlaceholder(numChatID, text, parseMode, silent)
 			if err != nil {
 				setCooldown(now, err)
-				log.Printf("[telegram] stream placeholder failed: %v", err)
+				t.log.Printf("[telegram] stream placeholder failed: %v", err)
 				msg.dirty = true
 				return false
 			}
@@ -808,7 +821,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 		} else {
 			if err := t.editMessage(numChatID, msg.id, text, parseMode); err != nil {
 				setCooldown(now, err)
-				log.Printf("[telegram] stream edit failed: %v", err)
+				t.log.Printf("[telegram] stream edit failed: %v", err)
 				msg.dirty = true
 				return false
 			}
@@ -875,7 +888,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 				continue
 			}
 			if t.feedback == "debug" && event.Type != api.EventContentBlockDelta && event.Type != api.EventContentBlockStop && event.Type != api.EventPing {
-				log.Printf("[telegram] stream event: type=%s name=%s", event.Type, event.Name)
+				t.log.Printf("[telegram] stream event: type=%s name=%s", event.Type, event.Name)
 			}
 			switch event.Type {
 			case api.EventIterationStart:
@@ -937,7 +950,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 
 			case api.EventError:
 				streamErr = strings.TrimSpace(fmt.Sprintf("%v", event.Output))
-				log.Printf("[telegram] stream error: %s", streamErr)
+				t.log.Printf("[telegram] stream error: %s", streamErr)
 				tryUpdateStatus(time.Now())
 			}
 		}
@@ -957,12 +970,12 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 	if err := waitCooldown(); err != nil {
 		return err
 	}
-	if err := t.Send(finalMsg); err != nil {
+	if err := t.Send(ctx, finalMsg); err != nil {
 		if setCooldown(time.Now(), err) {
 			if err := waitCooldown(); err != nil {
 				return err
 			}
-			if err := t.Send(finalMsg); err != nil {
+			if err := t.Send(ctx, finalMsg); err != nil {
 				return err
 			}
 		} else {
@@ -973,12 +986,12 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 	// Remove intermediate status/content messages only after the final report is visible.
 	if statusMsg.id != 0 {
 		if err := t.deleteMessage(numChatID, statusMsg.id); err != nil {
-			log.Printf("[telegram] delete status message failed: %v", err)
+			t.log.Printf("[telegram] delete status message failed: %v", err)
 		}
 	}
 	if contentMsg.id != 0 {
 		if err := t.deleteMessage(numChatID, contentMsg.id); err != nil {
-			log.Printf("[telegram] delete content message failed: %v", err)
+			t.log.Printf("[telegram] delete content message failed: %v", err)
 		}
 	}
 
@@ -990,23 +1003,23 @@ func (t *TelegramChannel) loadSlashCommands() {
 	t.slashCommands = make(map[string]telegram.Command)
 	root := t.telegramRoot()
 	if root == "" {
-		log.Printf("[telegram] skip slash command load: telegram root is not configured")
+		t.log.Printf("[telegram] skip slash command load: telegram root is not configured")
 		return
 	}
 	dir := filepath.Join(root, "slashes")
 	cmds, err := telegram.LoadCommands(dir)
 	if err != nil {
-		log.Printf("[telegram] load slash commands: %v", err)
+		t.log.Printf("[telegram] load slash commands: %v", err)
 		return
 	}
 	for _, cmd := range cmds {
 		t.slashCommands[cmd.Name] = cmd
 	}
 	if len(t.slashCommands) > 0 {
-		log.Printf("[telegram] loaded %d slash commands from %s", len(t.slashCommands), dir)
+		t.log.Printf("[telegram] loaded %d slash commands from %s", len(t.slashCommands), dir)
 		return
 	}
-	log.Printf("[telegram] no slash commands found in %s", dir)
+	t.log.Printf("[telegram] no slash commands found in %s", dir)
 }
 
 func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
@@ -1024,7 +1037,7 @@ func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
 		return err
 	}
 
-	log.Printf("[telegram] registered %d bot commands", len(commands))
+	t.log.Printf("[telegram] registered %d bot commands", len(commands))
 	return nil
 }
 
@@ -1110,26 +1123,23 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 			return
 		}
 
-		metadata := map[string]interface{}{
-			"slash_command": cmdName,
-			"slash_type":    string(cmd.Type),
-			"args":          args,
-			"message_id":    msg.MessageID,
+		hints := bus.RoutingHints{
+			SlashCommand: cmdName,
+			SlashType:    string(cmd.Type),
+			SlashArgs:    args,
+			MessageID:    msg.MessageID,
+			ForceSync:    !cmd.Streaming,
 		}
 		if cmd.Session == telegram.SessionModeIsolated {
-			metadata["session_mode"] = string(cmd.Session)
+			hints.SessionMode = bus.SessionModeIsolated
 		}
-		if !cmd.Streaming {
-			metadata["force_non_streaming"] = true
-		}
-
 		t.bus.Inbound <- bus.InboundMessage{
 			Channel:   telegramChannelName,
 			SenderID:  strconv.FormatInt(msg.From.ID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 			Content:   content,
 			Timestamp: time.Now(),
-			Metadata:  metadata,
+			Hints:     hints,
 		}
 	}
 }
@@ -1144,10 +1154,10 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 		SenderID:  strconv.FormatInt(msg.From.ID, 10),
 		ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 		Timestamp: time.Now(),
-		Metadata: map[string]interface{}{
-			"builtin_command":     "new",
-			"force_non_streaming": true,
-			"message_id":          msg.MessageID,
+		Hints: bus.RoutingHints{
+			BuiltinCommand: "new",
+			ForceSync:      true,
+			MessageID:      msg.MessageID,
 		},
 	}
 	return true

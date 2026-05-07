@@ -2,20 +2,22 @@ package heartbeat
 
 import (
 	"context"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
 
 type Service struct {
 	workspace   string
 	onHeartbeat func(prompt string) (string, error)
 	interval    time.Duration
+	log         mavenlog.PrintLogger
 }
 
-func New(workspace string, onHB func(string) (string, error), interval time.Duration) *Service {
+func New(workspace string, onHB func(string) (string, error), interval time.Duration, log mavenlog.PrintLogger) *Service {
 	if interval <= 0 {
 		interval = 30 * time.Minute
 	}
@@ -23,6 +25,7 @@ func New(workspace string, onHB func(string) (string, error), interval time.Dura
 		workspace:   workspace,
 		onHeartbeat: onHB,
 		interval:    interval,
+		log:         log,
 	}
 }
 
@@ -30,14 +33,14 @@ func (s *Service) Start(ctx context.Context) error {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	log.Printf("[heartbeat] started, interval=%s", s.interval)
+	s.log.Printf("[heartbeat] started, interval=%s", s.interval)
 
 	for {
 		select {
 		case <-ticker.C:
 			s.tick()
 		case <-ctx.Done():
-			log.Printf("[heartbeat] stopped")
+			s.log.Printf("[heartbeat] stopped")
 			return nil
 		}
 	}
@@ -48,7 +51,7 @@ func (s *Service) tick() {
 	data, err := os.ReadFile(hbPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[heartbeat] read error: %v", err)
+			s.log.Printf("[heartbeat] read error: %v", err)
 		}
 		return
 	}
@@ -58,23 +61,23 @@ func (s *Service) tick() {
 		return
 	}
 
-	log.Printf("[heartbeat] triggering with prompt (%d chars)", len(content))
+	s.log.Printf("[heartbeat] triggering with prompt (%d chars)", len(content))
 
 	if s.onHeartbeat == nil {
-		log.Printf("[heartbeat] no handler set")
+		s.log.Printf("[heartbeat] no handler set")
 		return
 	}
 
 	result, err := s.onHeartbeat(content)
 	if err != nil {
-		log.Printf("[heartbeat] error: %v", err)
+		s.log.Printf("[heartbeat] error: %v", err)
 		return
 	}
 
 	if strings.Contains(result, "HEARTBEAT_OK") {
-		log.Printf("[heartbeat] nothing to do")
+		s.log.Printf("[heartbeat] nothing to do")
 	} else {
-		log.Printf("[heartbeat] result: %s", truncate(result, 200))
+		s.log.Printf("[heartbeat] result: %s", truncate(result, 200))
 	}
 }
 

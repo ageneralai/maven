@@ -9,11 +9,14 @@ import (
 
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/inboundctx"
+	mavenlog "github.com/ageneralai/maven/internal/log"
 )
+
+var testLG = mavenlog.Std()
 
 func TestAddFromToolMap_incomingChat(t *testing.T) {
 	ctx := inboundctx.With(context.Background(), "telegram", "4242")
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name":                     "n",
 		"message":                  "m",
@@ -30,7 +33,7 @@ func TestAddFromToolMap_incomingChat(t *testing.T) {
 
 func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 	ctx := inboundctx.With(context.Background(), "telegram", "999")
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name": "n", "message": "m", "in": "2m",
 	}, time.Unix(1000, 0))
@@ -44,7 +47,7 @@ func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 
 func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
 	ctx := inboundctx.With(context.Background(), "telegram", "999")
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name": "n", "message": "m", "in": "2m",
 		"deliver": false,
@@ -58,7 +61,7 @@ func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
 }
 
 func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	_, err := AddFromToolMap(svc, context.Background(), map[string]interface{}{
 		"name":                     "n",
 		"message":                  "m",
@@ -71,7 +74,7 @@ func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
 }
 
 func TestCronScheduleTool_Execute(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	tools := Tools(svc)
 	if len(tools) != 3 {
 		t.Fatalf("tools=%d", len(tools))
@@ -92,7 +95,7 @@ func TestCronScheduleTool_Execute(t *testing.T) {
 }
 
 func TestAdd_duplicateScheduleKinds(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"))
+	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), testLG)
 	_, err := Add(svc, AddParams{Name: "x", Message: "y", Expr: "0 0 * * * *", In: "1m"}, time.Now())
 	if err == nil {
 		t.Fatal("expected error")
