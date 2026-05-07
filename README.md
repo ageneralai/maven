@@ -1,3 +1,7 @@
+<p>
+  <img src="https://github.com/ageneralai/maven/blob/main/website/public/images/panorama_photosphere_120dp_000_FILL0_wght500_GRAD0_opsz48.png?raw=true" alt="Maven" width="120">
+</p>
+
 # Maven
 
 Personal AI assistant built on [agentsdk-go](https://github.com/cexll/agentsdk-go).
