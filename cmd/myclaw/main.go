@@ -19,6 +19,7 @@ import (
 	"github.com/stellarlinkco/myclaw/internal/config"
 	"github.com/stellarlinkco/myclaw/internal/gateway"
 	"github.com/stellarlinkco/myclaw/internal/memory"
+	"github.com/stellarlinkco/myclaw/internal/runtimecmd"
 	"github.com/stellarlinkco/myclaw/internal/skills"
 )
 
@@ -84,7 +85,8 @@ func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
 			Threshold:     cfg.AutoCompact.Threshold,
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
-		Skills: skillRegs,
+		Skills:   skillRegs,
+		Commands: runtimecmd.Build(nil),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)
@@ -779,6 +781,13 @@ You are myclaw, a personal AI assistant.
 
 You have access to tools for file operations, web search, and command execution.
 Use them to help the user accomplish tasks.
+
+## Gateway scheduling
+When this session is served by the **myclaw gateway** (e.g. Telegram), you have **CronSchedule**, **CronList**, and **CronRemove**. For reminders or recurring work, **call CronSchedule**—plain text alone does not schedule anything.
+- One-shot: **in** (e.g. 1m) and **message** (prompt when the job runs).
+- Reply in the same chat: **deliver_to_incoming_chat** true (no channel/chat id).
+- Recurring: **expr** = six-field cron with seconds (e.g. 0 0 9 * * * daily 09:00 UTC).
+- List/remove: **CronList**, **CronRemove** with job **id**.
 
 ## Guidelines
 - Be concise and helpful

@@ -14,11 +14,14 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/cexll/agentsdk-go/pkg/tool"
 	"github.com/stellarlinkco/myclaw/internal/bus"
 	"github.com/stellarlinkco/myclaw/internal/channel"
 	"github.com/stellarlinkco/myclaw/internal/config"
 	"github.com/stellarlinkco/myclaw/internal/cron"
+	"github.com/stellarlinkco/myclaw/internal/cronschedule"
 	"github.com/stellarlinkco/myclaw/internal/heartbeat"
+	"github.com/stellarlinkco/myclaw/internal/inboundctx"
 	"github.com/stellarlinkco/myclaw/internal/memory"
 	"github.com/stellarlinkco/myclaw/internal/runtimecmd"
 	"github.com/stellarlinkco/myclaw/internal/session"
@@ -60,10 +63,10 @@ type Options struct {
 
 // DefaultRuntimeFactory creates the default agentsdk-go runtime
 func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string) (Runtime, error) {
-	return newRuntime(cfg, sysPrompt, nil)
+	return newRuntime(cfg, sysPrompt, nil, nil)
 }
 
-func newRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration) (Runtime, error) {
+func newRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (Runtime, error) {
 	var provider api.ModelFactory
 	switch cfg.Provider.Type {
 	case "openai":
@@ -94,13 +97,18 @@ func newRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegis
 			Threshold:     cfg.AutoCompact.Threshold,
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
-		Skills:   skillRegs,
-		Commands: runtimecmd.Build(),
+		Skills:      skillRegs,
+		Commands:    runtimecmd.Build(cronSvc),
+		CustomTools: customCronTools(cronSvc),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)
 	}
 	return &runtimeAdapter{rt: rt}, nil
+}
+
+func customCronTools(cronSvc *cron.Service) []tool.Tool {
+	return cronschedule.Tools(cronSvc)
 }
 
 type Gateway struct {
@@ -152,6 +160,9 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		g.skillRegs = skillRegs
 	}
 
+	cronStorePath := filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json")
+	g.cron = cron.NewService(cronStorePath)
+
 	// Create runtime using factory (allows injection for testing)
 	factory := opts.RuntimeFactory
 	var (
@@ -159,7 +170,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		err error
 	)
 	if factory == nil {
-		rt, err = newRuntime(cfg, sysPrompt, g.skillRegs)
+		rt, err = newRuntime(cfg, sysPrompt, g.skillRegs, g.cron)
 	} else {
 		rt, err = factory(cfg, sysPrompt)
 	}
@@ -176,9 +187,6 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		return g.runAgent(context.Background(), prompt, "system", nil)
 	}
 
-	// Cron
-	cronStorePath := filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json")
-	g.cron = cron.NewService(cronStorePath)
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
 		result, err := runAgent(job.Payload.Message)
 		if err != nil {
@@ -332,8 +340,7 @@ func (g *Gateway) processLoop(ctx context.Context) {
 				continue
 			}
 
-			msgCtx := context.WithValue(ctx, "channel", msg.Channel)
-			msgCtx = context.WithValue(msgCtx, "chatID", msg.ChatID)
+			msgCtx := inboundctx.With(ctx, msg.Channel, msg.ChatID)
 
 			sessionKey := msg.SessionKey()
 			if shouldIsolateSession(msg.Metadata) {

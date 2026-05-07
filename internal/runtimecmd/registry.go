@@ -6,6 +6,7 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
+	"github.com/stellarlinkco/myclaw/internal/cron"
 )
 
 const (
@@ -16,14 +17,16 @@ const (
 	ResponseCompactAck      = "compact_ack"
 )
 
-func Build() []api.CommandRegistration {
-	return []api.CommandRegistration{{
+func Build(cronSvc *cron.Service) []api.CommandRegistration {
+	regs := []api.CommandRegistration{{
 		Definition: commands.Definition{
 			Name:        "compact",
 			Description: "Compress the current conversation into a fresh continuation context.",
 		},
 		Handler: commands.HandlerFunc(handleCompact),
 	}}
+	regs = append(regs, cronRegistrations(cronSvc)...)
+	return regs
 }
 
 func handleCompact(_ context.Context, inv commands.Invocation) (commands.Result, error) {
