@@ -19,13 +19,22 @@ type Service struct {
 	jobs      []CronJob
 	OnJob     func(job CronJob) (string, error)
 	cron      *rcron.Cron
-	entryMap  map[string]rcron.EntryID // job ID -> cron entry ID
+	entryMap  map[string]rcron.EntryID
+	wakeChan  chan struct{}
 }
 
 func NewService(storePath string) *Service {
 	return &Service{
 		storePath: storePath,
 		entryMap:  make(map[string]rcron.EntryID),
+		wakeChan:  make(chan struct{}, 1),
+	}
+}
+
+func (s *Service) notify() {
+	select {
+	case s.wakeChan <- struct{}{}:
+	default:
 	}
 }
 
@@ -33,9 +42,8 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := s.load(); err != nil {
 		log.Printf("[cron] warning: failed to load jobs: %v", err)
 	}
-
+	s.initNextRun()
 	s.cron = rcron.New(rcron.WithSeconds())
-
 	s.mu.Lock()
 	for i := range s.jobs {
 		if s.jobs[i].Enabled && s.jobs[i].Schedule.Kind == "cron" {
@@ -43,106 +51,205 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}
 	s.mu.Unlock()
-
 	s.cron.Start()
 	log.Printf("[cron] started with %d jobs", len(s.jobs))
-
-	// Handle "every" and "at" jobs in a separate goroutine
 	go s.tickLoop(ctx)
-
 	go func() {
 		<-ctx.Done()
 		s.Stop()
 	}()
-
 	return nil
 }
 
+func (s *Service) initNextRun() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UnixMilli()
+	for i := range s.jobs {
+		j := &s.jobs[i]
+		if !j.Enabled || j.Schedule.Kind != "every" || j.Schedule.EveryMs <= 0 {
+			continue
+		}
+		if j.State.LastRunAtMs == 0 && j.State.NextRunAtMs == 0 {
+			j.State.NextRunAtMs = now + j.Schedule.EveryMs
+		}
+	}
+}
+
 func (s *Service) registerJob(job *CronJob) {
+	if s.cron == nil {
+		return
+	}
+	if id, ok := s.entryMap[job.ID]; ok {
+		s.cron.Remove(id)
+		delete(s.entryMap, job.ID)
+	}
 	jobCopy := *job
-	id, err := s.cron.AddFunc(job.Schedule.Expr, func() {
+	entryID, err := s.cron.AddFunc(job.Schedule.Expr, func() {
 		s.executeJob(jobCopy)
 	})
 	if err != nil {
 		log.Printf("[cron] failed to register job %s (%s): %v", job.Name, job.Schedule.Expr, err)
 		return
 	}
-	s.entryMap[job.ID] = id
+	s.entryMap[job.ID] = entryID
 }
 
 func (s *Service) executeJob(job CronJob) {
 	log.Printf("[cron] executing job %s (%s)", job.Name, job.ID)
-
 	if s.OnJob == nil {
 		log.Printf("[cron] no OnJob handler set")
 		return
 	}
-
 	result, err := s.OnJob(job)
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	for i := range s.jobs {
-		if s.jobs[i].ID == job.ID {
-			s.jobs[i].State.LastRunAtMs = time.Now().UnixMilli()
-			if err != nil {
-				s.jobs[i].State.LastStatus = "error"
-				s.jobs[i].State.LastError = err.Error()
-				log.Printf("[cron] job %s error: %v", job.Name, err)
-			} else {
-				s.jobs[i].State.LastStatus = "ok"
-				s.jobs[i].State.LastError = ""
-				log.Printf("[cron] job %s result: %s", job.Name, truncate(result, 100))
-			}
-
-			if s.jobs[i].DeleteAfterRun {
-				s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
-			}
-			break
+		if s.jobs[i].ID != job.ID {
+			continue
 		}
+		s.jobs[i].State.LastRunAtMs = time.Now().UnixMilli()
+		if s.jobs[i].Schedule.Kind == "every" {
+			s.jobs[i].State.NextRunAtMs = 0
+		}
+		if err != nil {
+			s.jobs[i].State.LastStatus = "error"
+			s.jobs[i].State.LastError = err.Error()
+			log.Printf("[cron] job %s error: %v", job.Name, err)
+		} else {
+			s.jobs[i].State.LastStatus = "ok"
+			s.jobs[i].State.LastError = ""
+			log.Printf("[cron] job %s result: %s", job.Name, truncate(result, 100))
+		}
+		if s.jobs[i].DeleteAfterRun {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+		}
+		break
 	}
-
 	_ = s.save()
 }
 
-func (s *Service) tickLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+func (s *Service) computeMinDelay() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UnixMilli()
+	var minRemaining int64 = -1
+	for i := range s.jobs {
+		job := &s.jobs[i]
+		if !job.Enabled {
+			continue
+		}
+		switch job.Schedule.Kind {
+		case "every":
+			if job.Schedule.EveryMs <= 0 {
+				continue
+			}
+			var rem int64
+			if job.State.LastRunAtMs == 0 {
+				if job.State.NextRunAtMs > 0 {
+					rem = job.State.NextRunAtMs - now
+				} else {
+					rem = job.Schedule.EveryMs
+				}
+			} else {
+				rem = job.State.LastRunAtMs + job.Schedule.EveryMs - now
+			}
+			if rem <= 0 {
+				rem = 1
+			}
+			if minRemaining < 0 || rem < minRemaining {
+				minRemaining = rem
+			}
+		case "at":
+			if job.Schedule.AtMs <= 0 {
+				continue
+			}
+			rem := job.Schedule.AtMs - now
+			if rem <= 0 {
+				rem = 1
+			}
+			if minRemaining < 0 || rem < minRemaining {
+				minRemaining = rem
+			}
+		}
+	}
+	if minRemaining < 0 {
+		return time.Hour
+	}
+	return time.Duration(minRemaining) * time.Millisecond
+}
 
+func (s *Service) checkDueJobs(now int64) {
+	s.mu.Lock()
+	var toRun []CronJob
+	for i := range s.jobs {
+		job := &s.jobs[i]
+		if !job.Enabled {
+			continue
+		}
+		switch job.Schedule.Kind {
+		case "every":
+			var due bool
+			if job.State.LastRunAtMs == 0 {
+				due = job.State.NextRunAtMs > 0 && now >= job.State.NextRunAtMs
+			} else {
+				due = now >= job.State.LastRunAtMs+job.Schedule.EveryMs
+			}
+			if due {
+				toRun = append(toRun, *job)
+			}
+		case "at":
+			if job.Schedule.AtMs > 0 && now >= job.Schedule.AtMs {
+				job.Enabled = false
+				job.State.NextRunAtMs = 0
+				toRun = append(toRun, *job)
+			}
+		}
+	}
+	if len(toRun) > 0 {
+		_ = s.save()
+	}
+	s.mu.Unlock()
+	for _, job := range toRun {
+		s.executeJob(job)
+	}
+}
+
+func (s *Service) tickLoop(ctx context.Context) {
+	timer := time.NewTimer(time.Hour)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+	resetTimer := func() {
+		d := s.computeMinDelay()
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(d)
+	}
+	resetTimer()
 	for {
 		select {
-		case <-ticker.C:
-			now := time.Now().UnixMilli()
-			s.mu.Lock()
-			for i := range s.jobs {
-				job := &s.jobs[i]
-				if !job.Enabled {
-					continue
-				}
-				switch job.Schedule.Kind {
-				case "every":
-					if job.Schedule.EveryMs > 0 {
-						nextRun := job.State.LastRunAtMs + job.Schedule.EveryMs
-						if now >= nextRun {
-							jobCopy := *job
-							s.mu.Unlock()
-							s.executeJob(jobCopy)
-							s.mu.Lock()
-						}
-					}
-				case "at":
-					if job.Schedule.AtMs > 0 && now >= job.Schedule.AtMs {
-						jobCopy := *job
-						job.Enabled = false
-						s.mu.Unlock()
-						s.executeJob(jobCopy)
-						s.mu.Lock()
-					}
+		case <-timer.C:
+			s.checkDueJobs(time.Now().UnixMilli())
+			resetTimer()
+		case <-s.wakeChan:
+			resetTimer()
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
 				}
 			}
-			s.mu.Unlock()
-		case <-ctx.Done():
 			return
 		}
 	}
@@ -157,38 +264,45 @@ func (s *Service) Stop() {
 
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	job := NewCronJob(name, schedule, payload)
+	if job.Schedule.Kind == "every" && job.Schedule.EveryMs > 0 && job.State.LastRunAtMs == 0 {
+		job.State.NextRunAtMs = time.Now().UnixMilli() + job.Schedule.EveryMs
+	}
 	s.jobs = append(s.jobs, job)
-
 	if job.Schedule.Kind == "cron" && s.cron != nil {
 		s.registerJob(&s.jobs[len(s.jobs)-1])
 	}
-
-	if err := s.save(); err != nil {
+	err := s.save()
+	out := s.jobs[len(s.jobs)-1]
+	s.mu.Unlock()
+	if err != nil {
 		return nil, fmt.Errorf("save jobs: %w", err)
 	}
-
-	return &job, nil
+	s.notify()
+	return &out, nil
 }
 
 func (s *Service) RemoveJob(id string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	removed := false
 	for i, job := range s.jobs {
-		if job.ID == id {
-			if entryID, ok := s.entryMap[id]; ok {
-				s.cron.Remove(entryID)
-				delete(s.entryMap, id)
-			}
-			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
-			_ = s.save()
-			return true
+		if job.ID != id {
+			continue
 		}
+		if entryID, ok := s.entryMap[id]; ok && s.cron != nil {
+			s.cron.Remove(entryID)
+			delete(s.entryMap, id)
+		}
+		s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+		_ = s.save()
+		removed = true
+		break
 	}
-	return false
+	s.mu.Unlock()
+	if removed {
+		s.notify()
+	}
+	return removed
 }
 
 func (s *Service) ListJobs() []CronJob {
@@ -201,17 +315,31 @@ func (s *Service) ListJobs() []CronJob {
 
 func (s *Service) EnableJob(id string, enabled bool) (*CronJob, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	var out *CronJob
 	for i := range s.jobs {
-		if s.jobs[i].ID == id {
-			s.jobs[i].Enabled = enabled
-			_ = s.save()
-			job := s.jobs[i]
-			return &job, nil
+		if s.jobs[i].ID != id {
+			continue
 		}
+		s.jobs[i].Enabled = enabled
+		if s.jobs[i].Schedule.Kind == "cron" && s.cron != nil {
+			if enabled {
+				s.registerJob(&s.jobs[i])
+			} else if entryID, ok := s.entryMap[id]; ok {
+				s.cron.Remove(entryID)
+				delete(s.entryMap, id)
+			}
+		}
+		_ = s.save()
+		job := s.jobs[i]
+		out = &job
+		break
 	}
-	return nil, fmt.Errorf("job %s not found", id)
+	s.mu.Unlock()
+	if out == nil {
+		return nil, fmt.Errorf("job %s not found", id)
+	}
+	s.notify()
+	return out, nil
 }
 
 func (s *Service) load() error {
@@ -237,9 +365,9 @@ func (s *Service) save() error {
 	return os.WriteFile(s.storePath, data, 0644)
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
+func truncate(str string, n int) string {
+	if len(str) <= n {
+		return str
 	}
-	return s[:n] + "..."
+	return str[:n] + "..."
 }

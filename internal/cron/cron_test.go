@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+func TestNewService(t *testing.T) {
+	s := NewService(filepath.Join(t.TempDir(), "jobs.json"))
+	if s.wakeChan == nil {
+		t.Fatal("wakeChan should be initialized")
+	}
+	if s.entryMap == nil {
+		t.Fatal("entryMap should be initialized")
+	}
+}
+
 func TestNewCronJob(t *testing.T) {
 	job := NewCronJob("test", Schedule{Kind: "cron", Expr: "0 * * * *"}, Payload{Message: "hello"})
 	if job.ID == "" {
@@ -23,6 +33,133 @@ func TestNewCronJob(t *testing.T) {
 	}
 	if job.Payload.Message != "hello" {
 		t.Errorf("message = %q, want hello", job.Payload.Message)
+	}
+}
+
+func TestEnableJobCron(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := NewService(filepath.Join(tmpDir, "jobs.json"))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	j, err := s.AddJob("c", Schedule{Kind: "cron", Expr: "0 0 * * * *"}, Payload{Message: "x"})
+	if err != nil {
+		t.Fatalf("AddJob: %v", err)
+	}
+	if len(s.entryMap) != 1 {
+		t.Fatalf("entryMap after add = %d, want 1", len(s.entryMap))
+	}
+	if _, err := s.EnableJob(j.ID, false); err != nil {
+		t.Fatalf("EnableJob disable: %v", err)
+	}
+	if len(s.entryMap) != 0 {
+		t.Fatalf("entryMap after disable = %d, want 0", len(s.entryMap))
+	}
+	if _, err := s.EnableJob(j.ID, true); err != nil {
+		t.Fatalf("EnableJob enable: %v", err)
+	}
+	if len(s.entryMap) != 1 {
+		t.Fatalf("entryMap after re-enable = %d, want 1", len(s.entryMap))
+	}
+	s.Stop()
+}
+
+func TestAddJobEveryAt(t *testing.T) {
+	tmpDir := t.TempDir()
+	s := NewService(filepath.Join(tmpDir, "jobs.json"))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	before := len(s.entryMap)
+	if _, err := s.AddJob("e", Schedule{Kind: "every", EveryMs: 1000}, Payload{}); err != nil {
+		t.Fatalf("AddJob every: %v", err)
+	}
+	if _, err := s.AddJob("a", Schedule{Kind: "at", AtMs: time.Now().UnixMilli() + 60000}, Payload{}); err != nil {
+		t.Fatalf("AddJob at: %v", err)
+	}
+	if len(s.entryMap) != before {
+		t.Fatalf("entryMap changed for non-cron jobs: before=%d after=%d", before, len(s.entryMap))
+	}
+	s.Stop()
+}
+
+func TestComputeMinDelayNeverRunEvery(t *testing.T) {
+	s := NewService(filepath.Join(t.TempDir(), "jobs.json"))
+	s.jobs = []CronJob{{
+		ID: "e", Name: "e", Enabled: true,
+		Schedule: Schedule{Kind: "every", EveryMs: 60000},
+		State:    JobState{LastRunAtMs: 0},
+	}}
+	got := s.computeMinDelay()
+	want := 60 * time.Second
+	const slop = 10 * time.Millisecond
+	if got < want-slop || got > want+slop {
+		t.Fatalf("computeMinDelay = %v, want %v ± %v", got, want, slop)
+	}
+}
+
+func TestComputeMinDelayIdle(t *testing.T) {
+	s := NewService(filepath.Join(t.TempDir(), "jobs.json"))
+	if d := s.computeMinDelay(); d != time.Hour {
+		t.Fatalf("computeMinDelay = %v, want %v", d, time.Hour)
+	}
+}
+
+func TestComputeMinDelayMixed(t *testing.T) {
+	now := time.Now().UnixMilli()
+	s := NewService(filepath.Join(t.TempDir(), "jobs.json"))
+	s.jobs = []CronJob{
+		{ID: "a", Name: "a", Enabled: true, Schedule: Schedule{Kind: "at", AtMs: now + 3600_000}},
+		{ID: "b", Name: "b", Enabled: true, Schedule: Schedule{Kind: "at", AtMs: now + 500}},
+	}
+	got := s.computeMinDelay()
+	want := 500 * time.Millisecond
+	const slop = 50 * time.Millisecond
+	if got < want-slop || got > want+slop {
+		t.Fatalf("computeMinDelay = %v, want ~%v", got, want)
+	}
+}
+
+func TestCheckDueJobsAtDisable(t *testing.T) {
+	tmpDir := t.TempDir()
+	storePath := filepath.Join(tmpDir, "jobs.json")
+	s := NewService(storePath)
+	at := time.Now().UnixMilli()
+	job := NewCronJob("one", Schedule{Kind: "at", AtMs: at}, Payload{Message: "m"})
+	s.jobs = []CronJob{job}
+	_ = s.save()
+	var sawPersisted bool
+	s.OnJob = func(j CronJob) (string, error) {
+		data, err := os.ReadFile(storePath)
+		if err != nil {
+			t.Fatalf("read store in handler: %v", err)
+		}
+		var stored []CronJob
+		if err := json.Unmarshal(data, &stored); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if len(stored) != 1 {
+			t.Fatalf("stored len = %d", len(stored))
+		}
+		if stored[0].Enabled {
+			t.Fatal("expected job disabled in store before handler runs")
+		}
+		if stored[0].State.NextRunAtMs != 0 {
+			t.Fatalf("NextRunAtMs = %d, want 0", stored[0].State.NextRunAtMs)
+		}
+		if stored[0].ID != j.ID {
+			t.Fatal("stored job id mismatch")
+		}
+		sawPersisted = true
+		return "ok", nil
+	}
+	s.checkDueJobs(at + 1)
+	if !sawPersisted {
+		t.Fatal("OnJob not invoked")
 	}
 }
 
