@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cexll/agentsdk-go/pkg/tool"
-	"github.com/stellarlinkco/myclaw/internal/cron"
+	"github.com/stellarlinkco/maven/internal/cron"
 )
 
 func FormatJobAdded(job *cron.CronJob) string {

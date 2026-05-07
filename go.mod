@@ -1,4 +1,4 @@
-module github.com/stellarlinkco/myclaw
+module github.com/stellarlinkco/maven
 
 go 1.25.5
 

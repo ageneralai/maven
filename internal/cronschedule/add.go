@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stellarlinkco/myclaw/internal/cron"
-	"github.com/stellarlinkco/myclaw/internal/inboundctx"
+	"github.com/stellarlinkco/maven/internal/cron"
+	"github.com/stellarlinkco/maven/internal/inboundctx"
 )
 
 type AddParams struct {

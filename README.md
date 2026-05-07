@@ -1,4 +1,4 @@
-# myclaw
+# Maven
 
 Personal AI assistant built on [agentsdk-go](https://github.com/cexll/agentsdk-go).
 
@@ -34,10 +34,10 @@ make setup
 make onboard
 
 # Set your API key
-export MYCLAW_API_KEY=your-api-key
+export MAVEN_API_KEY=your-api-key
 
 # Run agent (single message)
-./myclaw agent -m "Hello"
+./maven agent -m "Hello"
 
 # Run agent (REPL mode)
 make run
@@ -52,13 +52,13 @@ make gateway
 |--------|-------------|
 | `make build` | Build binary |
 | `make build-release` | Build optimized binary with `-trimpath -ldflags="-s -w"` |
-| `make package` | Package optimized binary to `dist/myclaw-<os>-<arch>.gz` |
+| `make package` | Package optimized binary to `dist/maven-<os>-<arch>.gz` |
 | `make package-all` | Package optimized binaries for `darwin/arm64 linux/amd64 linux/arm64` |
 | `make run` | Run agent REPL |
 | `make gateway` | Start gateway (channels + cron + heartbeat) |
 | `make onboard` | Initialize config and workspace |
-| `make status` | Show myclaw status |
-| `make setup` | Interactive config setup (generates `~/.myclaw/config.json`) |
+| `make status` | Show maven status |
+| `make setup` | Interactive config setup (generates `~/.maven/config.json`) |
 | `make tunnel` | Start cloudflared tunnel for Feishu webhook |
 | `make test` | Run tests |
 | `make test-race` | Run tests with race detection |
@@ -84,7 +84,7 @@ make package-all
 make package-all PLATFORMS="linux/amd64 linux/arm64"
 ```
 
-`make package` creates a single archive `dist/myclaw-<os>-<arch>.gz`.
+`make package` creates a single archive `dist/maven-<os>-<arch>.gz`.
 `make package-all` creates multiple archives under `dist/`, suitable for release distribution and low-bandwidth deployment.
 
 ## Architecture
@@ -137,7 +137,7 @@ Data Flow (Gateway Mode):
 ## Project Structure
 
 ```
-cmd/myclaw/          CLI entry point (agent, gateway, onboard, status)
+cmd/maven/          CLI entry point (agent, gateway, onboard, status)
 internal/
   bus/               Message bus (inbound/outbound channels)
   channel/           Channel interface + implementations
@@ -167,7 +167,7 @@ workspace/
 
 ## Configuration
 
-Run `make setup` for interactive config, or copy `config.example.json` to `~/.myclaw/config.json`:
+Run `make setup` for interactive config, or copy `config.example.json` to `~/.maven/config.json`:
 
 ```json
 {
@@ -221,7 +221,7 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.my
 
 | Type | Config | Env Vars |
 |------|--------|----------|
-| `anthropic` (default) | `"type": "anthropic"` | `MYCLAW_API_KEY`, `ANTHROPIC_API_KEY` |
+| `anthropic` (default) | `"type": "anthropic"` | `MAVEN_API_KEY`, `ANTHROPIC_API_KEY` |
 | `openai` | `"type": "openai"` | `OPENAI_API_KEY` |
 
 When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
@@ -230,26 +230,26 @@ When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
 
 | Variable | Description |
 |----------|-------------|
-| `MYCLAW_API_KEY` | API key (any provider) |
+| `MAVEN_API_KEY` | API key (any provider) |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OPENAI_API_KEY` | OpenAI API key (auto-sets type to openai) |
-| `MYCLAW_BASE_URL` | Custom API base URL |
-| `MYCLAW_TELEGRAM_TOKEN` | Telegram bot token |
-| `MYCLAW_FEISHU_APP_ID` | Feishu app ID |
-| `MYCLAW_FEISHU_APP_SECRET` | Feishu app secret |
-| `MYCLAW_WECOM_TOKEN` | WeCom intelligent bot callback token |
-| `MYCLAW_WECOM_ENCODING_AES_KEY` | WeCom intelligent bot callback EncodingAESKey |
-| `MYCLAW_WECOM_RECEIVE_ID` | Optional receive ID for strict decrypt validation |
+| `MAVEN_BASE_URL` | Custom API base URL |
+| `MAVEN_TELEGRAM_TOKEN` | Telegram bot token |
+| `MAVEN_FEISHU_APP_ID` | Feishu app ID |
+| `MAVEN_FEISHU_APP_SECRET` | Feishu app secret |
+| `MAVEN_WECOM_TOKEN` | WeCom intelligent bot callback token |
+| `MAVEN_WECOM_ENCODING_AES_KEY` | WeCom intelligent bot callback EncodingAESKey |
+| `MAVEN_WECOM_RECEIVE_ID` | Optional receive ID for strict decrypt validation |
 
 > Prefer environment variables over config files for sensitive values like API keys.
 
 ### Skills
 
-`myclaw` supports local skills loaded from `SKILL.md` files.
+`maven` supports local skills loaded from `SKILL.md` files.
 
 - `skills.enabled`: enable or disable skills (default `true`)
 - `skills.dir`: custom skills directory; empty means `<agent.workspace>/skills`
-- `myclaw onboard` automatically creates the default skills directory
+- `maven onboard` automatically creates the default skills directory
 
 Skill layout:
 
@@ -269,15 +269,15 @@ keywords: [write, draft]
 Use this skill for writing tasks.
 ```
 
-After changing skills, restart `myclaw gateway` to apply updates.
+After changing skills, restart `maven gateway` to apply updates.
 
 Skill diagnostics:
 
 ```bash
-./myclaw skills list
-./myclaw skills info writer
-./myclaw skills check
-./myclaw skills list --json
+./maven skills list
+./maven skills info writer
+./maven skills check
+./maven skills list --json
 ```
 
 JSON contract (stable):
@@ -304,7 +304,7 @@ See [docs/telegram-setup.md](docs/telegram-setup.md) for detailed setup guide.
 
 Quick steps:
 1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
-2. Set `token` in config or `MYCLAW_TELEGRAM_TOKEN` env var
+2. Set `token` in config or `MAVEN_TELEGRAM_TOKEN` env var
 3. Run `make gateway`
 
 ### Feishu (Lark)
@@ -327,7 +327,7 @@ See [docs/wecom-setup.md](docs/wecom-setup.md) for detailed setup guide.
 Quick steps:
 1. Create a WeCom intelligent bot in API mode and get `token`, `encodingAESKey`
 2. Configure callback URL: `https://your-domain/wecom/bot`
-3. Set `token` and `encodingAESKey` in both WeCom console and myclaw config
+3. Set `token` and `encodingAESKey` in both WeCom console and maven config
 4. Optionally set `receiveId` if you need strict decrypt receive-id validation
 5. Optional: set `allowFrom` to your user ID(s) as whitelist (if unset/empty, inbound from all users is allowed)
 6. Run `make gateway`
@@ -364,16 +364,16 @@ Features:
 ### Build and Run
 
 ```bash
-docker build -t myclaw .
+docker build -t maven .
 
 docker run -d \
-  -e MYCLAW_API_KEY=your-api-key \
-  -e MYCLAW_TELEGRAM_TOKEN=your-token \
+  -e MAVEN_API_KEY=your-api-key \
+  -e MAVEN_TELEGRAM_TOKEN=your-token \
   -p 18790:18790 \
   -p 9876:9876 \
   -p 9886:9886 \
-  -v myclaw-data:/root/.myclaw \
-  myclaw
+  -v maven-data:/root/.maven \
+  maven
 ```
 
 ### Docker Compose
@@ -390,7 +390,7 @@ docker compose up -d
 docker compose --profile tunnel up -d
 
 # View logs
-docker compose logs -f myclaw
+docker compose logs -f maven
 ```
 
 ### Cloudflared Tunnel
@@ -410,7 +410,7 @@ Set the output URL + `/feishu/webhook` as your Feishu event subscription URL.
 
 ## Security
 
-- `~/.myclaw/config.json` is set to `chmod 600` (owner read/write only)
+- `~/.maven/config.json` is set to `chmod 600` (owner read/write only)
 - `.gitignore` excludes `config.json`, `.env`, and workspace memory files
 - Use environment variables for sensitive values in CI/CD and production
 - Never commit real API keys or tokens to version control

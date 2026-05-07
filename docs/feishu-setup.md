@@ -3,14 +3,14 @@
 ## 前置条件
 
 - 飞书账号（需要属于一个团队，免费创建即可）
-- myclaw 已编译（`make build`）
+- maven 已编译（`make build`）
 - 公网可访问的 URL（用于 webhook，可用 cloudflared 隧道）
 
 ## 第一步：创建飞书应用
 
 1. 登录 [飞书开放平台](https://open.feishu.cn/)
 2. 点击「创建应用」→ 选择「企业自建应用」
-3. 填写应用名称（如 `myclaw`）和描述
+3. 填写应用名称（如 `maven`）和描述
 4. 进入应用 →「凭证与基础信息」，记录：
    - **App ID**（如 `cli_a5xxxxx`）
    - **App Secret**
@@ -36,7 +36,7 @@
    ```
    https://your-domain.com/feishu/webhook
    ```
-3. 飞书会自动发送 challenge 验证请求，myclaw 会自动响应
+3. 飞书会自动发送 challenge 验证请求，maven 会自动响应
 4. 在「加密策略」中记录 **Verification Token**
 5. 添加事件：搜索 `im.message.receive_v1`（接收消息 v2.0）
 
@@ -48,11 +48,11 @@
 
 > 每次修改权限后都需要重新发布版本才能生效。
 
-## 第六步：配置 myclaw
+## 第六步：配置 maven
 
 ### 方式一：配置文件
 
-编辑 `~/.myclaw/config.json`：
+编辑 `~/.maven/config.json`：
 
 ```json
 {
@@ -72,8 +72,8 @@
 ### 方式二：环境变量
 
 ```bash
-export MYCLAW_FEISHU_APP_ID="cli_a5xxxxx"
-export MYCLAW_FEISHU_APP_SECRET="your-app-secret"
+export MAVEN_FEISHU_APP_ID="cli_a5xxxxx"
+export MAVEN_FEISHU_APP_SECRET="your-app-secret"
 ```
 
 > 注意：`verificationToken` 和 `port` 只能通过配置文件设置。
@@ -128,13 +128,13 @@ https://xxx-xxx-xxx.trycloudflare.com
 cloudflared tunnel login
 
 # 创建隧道
-cloudflared tunnel create myclaw
+cloudflared tunnel create maven
 
 # 配置 DNS
-cloudflared tunnel route dns myclaw feishu-bot.yourdomain.com
+cloudflared tunnel route dns maven feishu-bot.yourdomain.com
 
 # 运行
-cloudflared tunnel run myclaw
+cloudflared tunnel run maven
 ```
 
 飞书事件订阅地址设为：`https://feishu-bot.yourdomain.com/feishu/webhook`
@@ -142,7 +142,7 @@ cloudflared tunnel run myclaw
 ### Docker Compose 隧道
 
 ```bash
-# 启动 myclaw + cloudflared 隧道
+# 启动 maven + cloudflared 隧道
 docker compose --profile tunnel up -d
 
 # 查看隧道 URL
@@ -181,7 +181,7 @@ make gateway
 - 设为空字符串可跳过验证（仅开发测试用）
 
 **Q: 如何获取用户的 open_id？**
-- 查看 myclaw 日志中的 `inbound from feishu/ou_xxx` 信息
+- 查看 maven 日志中的 `inbound from feishu/ou_xxx` 信息
 - `ou_xxx` 即为用户的 open_id，可添加到 `allowFrom`
 
 **Q: 如何限制只有自己能用？**

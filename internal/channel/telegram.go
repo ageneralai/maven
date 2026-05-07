@@ -24,9 +24,9 @@ import (
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoapi"
 	tu "github.com/mymmrac/telego/telegoutil"
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/channel/telegram"
-	"github.com/stellarlinkco/myclaw/internal/config"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/channel/telegram"
+	"github.com/stellarlinkco/maven/internal/config"
 )
 
 const telegramChannelName = "telegram"

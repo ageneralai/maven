@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/config"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/config"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"

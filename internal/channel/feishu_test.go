@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/cexll/agentsdk-go/pkg/model"
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/config"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/config"
 )
 
 // mockFeishuClient implements FeishuClient for testing
@@ -257,7 +257,7 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 			"message": map[string]interface{}{
 				"chat_id":      "oc_chat456",
 				"message_type": "text",
-				"content":      `{"text":"hello myclaw"}`,
+				"content":      `{"text":"hello maven"}`,
 			},
 		},
 	}
@@ -274,8 +274,8 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 
 	select {
 	case msg := <-b.Inbound:
-		if msg.Content != "hello myclaw" {
-			t.Errorf("content = %q, want 'hello myclaw'", msg.Content)
+		if msg.Content != "hello maven" {
+			t.Errorf("content = %q, want 'hello maven'", msg.Content)
 		}
 		if msg.SenderID != "ou_test123" {
 			t.Errorf("senderID = %q, want ou_test123", msg.SenderID)

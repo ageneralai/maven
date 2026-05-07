@@ -1,8 +1,8 @@
 .PHONY: build build-release package package-all run gateway tunnel test setup clean docker-up docker-down lint
 
-BINARY    := myclaw
+BINARY    := maven
 BUILD_DIR := .
-CONFIG    := $(HOME)/.myclaw/config.json
+CONFIG    := $(HOME)/.maven/config.json
 FEISHU_PORT ?= 9876
 DIST_DIR  := dist
 RELEASE_LDFLAGS := -s -w
@@ -10,11 +10,11 @@ PLATFORMS ?= darwin/arm64 linux/amd64 linux/arm64
 
 ## Build
 build:
-	go build -o $(BINARY) ./cmd/myclaw
+	go build -o $(BINARY) ./cmd/maven
 
 ## Build optimized release binary (smaller size)
 build-release:
-	go build -trimpath -ldflags="$(RELEASE_LDFLAGS)" -o $(BINARY) ./cmd/myclaw
+	go build -trimpath -ldflags="$(RELEASE_LDFLAGS)" -o $(BINARY) ./cmd/maven
 
 ## Package optimized binary (gzip)
 package: build-release
@@ -30,7 +30,7 @@ package-all:
 	@set -e; for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; arch=$${platform#*/}; out="$(DIST_DIR)/$(BINARY)-$$os-$$arch"; \
 		echo "Building $$os/$$arch..."; \
-		GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags="$(RELEASE_LDFLAGS)" -o "$$out" ./cmd/myclaw; \
+		GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags="$(RELEASE_LDFLAGS)" -o "$$out" ./cmd/maven; \
 		gzip -f -9 "$$out"; \
 		ls -lh "$$out.gz"; \
 	done
@@ -98,7 +98,7 @@ lint:
 
 ## Help
 help:
-	@echo "myclaw Makefile targets:"
+	@echo "Maven Makefile targets:"
 	@echo ""
 	@echo "  build           Build binary"
 	@echo "  build-release   Build optimized release binary"
@@ -107,7 +107,7 @@ help:
 	@echo "  run             Run agent REPL"
 	@echo "  gateway         Start gateway (channels + cron)"
 	@echo "  onboard         Initialize config and workspace"
-	@echo "  status          Show myclaw status"
+	@echo "  status          Show Maven status"
 	@echo "  setup           Interactive config setup"
 	@echo "  tunnel          Start cloudflared tunnel for Feishu"
 	@echo "  test            Run tests"

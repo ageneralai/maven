@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_DIR="${HOME}/.myclaw"
+CONFIG_DIR="${HOME}/.maven"
 CONFIG_FILE="${CONFIG_DIR}/config.json"
 
-echo "=== myclaw setup ==="
+echo "=== Maven setup ==="
 echo ""
 
 # Check if config exists
@@ -93,7 +93,7 @@ mkdir -p "$CONFIG_DIR"
 cat > "$CONFIG_FILE" <<EOF_JSON
 {
   "agent": {
-    "workspace": "${HOME}/.myclaw/workspace",
+    "workspace": "${HOME}/.maven/workspace",
     "model": "claude-sonnet-4-5-20250929",
     "maxTokens": 8192,
     "temperature": 0.7,

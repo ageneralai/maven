@@ -23,4 +23,4 @@ jobs:
         run: go test ./...
 
       - name: Build
-        run: go build -o myclaw ./cmd/myclaw
+        run: go build -o maven ./cmd/maven

@@ -7,19 +7,19 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /myclaw ./cmd/myclaw
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /maven ./cmd/maven
 
 FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates tzdata
 
-COPY --from=builder /myclaw /usr/local/bin/myclaw
+COPY --from=builder /maven /usr/local/bin/maven
 
-RUN mkdir -p /root/.myclaw/workspace
+RUN mkdir -p /root/.maven/workspace
 
-VOLUME ["/root/.myclaw"]
+VOLUME ["/root/.maven"]
 
 EXPOSE 18790 9876 9886
 
-ENTRYPOINT ["myclaw"]
+ENTRYPOINT ["maven"]
 CMD ["gateway"]

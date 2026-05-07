@@ -16,11 +16,11 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/model"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
-	"github.com/stellarlinkco/myclaw/internal/config"
-	"github.com/stellarlinkco/myclaw/internal/gateway"
-	"github.com/stellarlinkco/myclaw/internal/memory"
-	"github.com/stellarlinkco/myclaw/internal/runtimecmd"
-	"github.com/stellarlinkco/myclaw/internal/skills"
+	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/stellarlinkco/maven/internal/gateway"
+	"github.com/stellarlinkco/maven/internal/memory"
+	"github.com/stellarlinkco/maven/internal/runtimecmd"
+	"github.com/stellarlinkco/maven/internal/skills"
 )
 
 // Runtime interface for agent runtime (allows mocking in tests)
@@ -48,7 +48,7 @@ type RuntimeFactory func(cfg *config.Config) (Runtime, error)
 // DefaultRuntimeFactory creates the default agentsdk-go runtime
 func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
 	if cfg.Provider.APIKey == "" {
-		return nil, fmt.Errorf("API key not set. Run 'myclaw onboard' or set MYCLAW_API_KEY / ANTHROPIC_API_KEY")
+		return nil, fmt.Errorf("API key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
 	}
 
 	mem := memory.NewMemoryStore(cfg.Agent.Workspace)
@@ -103,8 +103,8 @@ type AgentOptions struct {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "myclaw",
-	Short: "myclaw - personal AI assistant",
+	Use:   "maven",
+	Short: "Maven - personal AI assistant",
 }
 
 var agentCmd = &cobra.Command{
@@ -127,7 +127,7 @@ var onboardCmd = &cobra.Command{
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show myclaw status",
+	Short: "Show Maven status",
 	RunE:  runStatus,
 }
 
@@ -230,7 +230,7 @@ func runAgentWithOptions(opts AgentOptions) error {
 	}
 
 	// REPL mode
-	fmt.Fprintln(stdout, "myclaw agent (type 'exit' to quit)")
+	fmt.Fprintln(stdout, "maven agent (type 'exit' to quit)")
 	scanner := bufio.NewScanner(stdin)
 	for {
 		fmt.Fprint(stdout, "\n> ")
@@ -267,7 +267,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	}
 
 	if cfg.Provider.APIKey == "" {
-		return fmt.Errorf("API key not set. Run 'myclaw onboard' or set MYCLAW_API_KEY / ANTHROPIC_API_KEY")
+		return fmt.Errorf("API key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
 	}
 
 	gw, err := gateway.New(cfg)
@@ -315,9 +315,9 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Skills dir: %s\n", resolveSkillsDir(cfg))
 	fmt.Println("\nNext steps:")
 	fmt.Printf("  1. Edit %s to set your API key\n", cfgPath)
-	fmt.Println("  2. Or set MYCLAW_API_KEY environment variable")
+	fmt.Println("  2. Or set MAVEN_API_KEY environment variable")
 	fmt.Printf("  3. Add skills under %s (optional)\n", resolveSkillsDir(cfg))
-	fmt.Println("  4. Run 'myclaw agent -m \"Hello\"' to test")
+	fmt.Println("  4. Run 'maven agent -m \"Hello\"' to test")
 
 	return nil
 }
@@ -347,7 +347,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Skills: enabled=%v dir=%s\n", cfg.Skills.Enabled, resolveSkillsDir(cfg))
 
 	if _, err := os.Stat(cfg.Agent.Workspace); err != nil {
-		fmt.Println("Workspace: not found (run 'myclaw onboard')")
+		fmt.Println("Workspace: not found (run 'maven onboard')")
 	} else {
 		mem := memory.NewMemoryStore(cfg.Agent.Workspace)
 		lt, _ := mem.ReadLongTerm()
@@ -775,15 +775,15 @@ func writeIfNotExists(path, content string) {
 	}
 }
 
-const defaultAgentsMD = `# myclaw Agent
+const defaultAgentsMD = `# Maven Agent
 
-You are myclaw, a personal AI assistant.
+You are Maven, a personal AI assistant.
 
 You have access to tools for file operations, web search, and command execution.
 Use them to help the user accomplish tasks.
 
 ## Gateway scheduling
-When this session is served by the **myclaw gateway** (e.g. Telegram), you have **CronSchedule**, **CronList**, and **CronRemove**. For reminders or recurring work, **call CronSchedule**—plain text alone does not schedule anything.
+When this session is served by the **Maven gateway** (e.g. Telegram), you have **CronSchedule**, **CronList**, and **CronRemove**. For reminders or recurring work, **call CronSchedule**—plain text alone does not schedule anything.
 - One-shot: **in** (e.g. 1m) and **message** (prompt when the job runs).
 - Reply in the same chat: **deliver_to_incoming_chat** true (no channel/chat id).
 - Recurring: **expr** = six-field cron with seconds (e.g. 0 0 9 * * * daily 09:00 UTC).

@@ -15,17 +15,17 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/cexll/agentsdk-go/pkg/tool"
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/channel"
-	"github.com/stellarlinkco/myclaw/internal/config"
-	"github.com/stellarlinkco/myclaw/internal/cron"
-	"github.com/stellarlinkco/myclaw/internal/cronschedule"
-	"github.com/stellarlinkco/myclaw/internal/heartbeat"
-	"github.com/stellarlinkco/myclaw/internal/inboundctx"
-	"github.com/stellarlinkco/myclaw/internal/memory"
-	"github.com/stellarlinkco/myclaw/internal/runtimecmd"
-	"github.com/stellarlinkco/myclaw/internal/session"
-	"github.com/stellarlinkco/myclaw/internal/skills"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/channel"
+	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/stellarlinkco/maven/internal/cron"
+	"github.com/stellarlinkco/maven/internal/cronschedule"
+	"github.com/stellarlinkco/maven/internal/heartbeat"
+	"github.com/stellarlinkco/maven/internal/inboundctx"
+	"github.com/stellarlinkco/maven/internal/memory"
+	"github.com/stellarlinkco/maven/internal/runtimecmd"
+	"github.com/stellarlinkco/maven/internal/session"
+	"github.com/stellarlinkco/maven/internal/skills"
 )
 
 // Runtime interface for agent runtime (allows mocking in tests)
@@ -139,7 +139,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	// Memory
 	g.mem = memory.NewMemoryStore(cfg.Agent.Workspace)
 
-	router, routerErr := session.New(filepath.Join(cfg.Agent.Workspace, ".myclaw", "session-router.json"))
+	router, routerErr := session.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
 	if routerErr != nil {
 		return nil, routerErr
 	}

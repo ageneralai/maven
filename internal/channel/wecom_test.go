@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/config"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/config"
 )
 
 type mockWeComSend struct {
@@ -140,7 +140,7 @@ func TestWeComCallback_ReceiveTextMessage_OK(t *testing.T) {
 
 	timestamp := "1739000001"
 	nonce := "nonce-2"
-	plaintext := `{"msgid":"10001","aibotid":"AIBOTID","chattype":"single","from":{"userid":"zhangsan"},"response_url":"https://example.com/resp","msgtype":"text","text":{"content":"你好，myclaw"}}`
+	plaintext := `{"msgid":"10001","aibotid":"AIBOTID","chattype":"single","from":{"userid":"zhangsan"},"response_url":"https://example.com/resp","msgtype":"text","text":{"content":"你好，maven"}}`
 	encrypt := testWeComEncrypt(t, ch.cfg.EncodingAESKey, ch.receiveID, plaintext)
 	signature := testWeComSignature(ch.cfg.Token, timestamp, nonce, encrypt)
 
@@ -189,8 +189,8 @@ func TestWeComCallback_ReceiveTextMessage_OK(t *testing.T) {
 		if msg.ChatID != "zhangsan" {
 			t.Errorf("chatID = %q, want zhangsan", msg.ChatID)
 		}
-		if msg.Content != "你好，myclaw" {
-			t.Errorf("content = %q, want 你好，myclaw", msg.Content)
+		if msg.Content != "你好，maven" {
+			t.Errorf("content = %q, want 你好，maven", msg.Content)
 		}
 		if msg.Metadata["response_url"] != "https://example.com/resp" {
 			t.Errorf("response_url = %v, want https://example.com/resp", msg.Metadata["response_url"])

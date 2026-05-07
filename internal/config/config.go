@@ -140,7 +140,7 @@ func DefaultConfig() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
 		Agent: AgentConfig{
-			Workspace:         filepath.Join(home, ".myclaw", "workspace"),
+			Workspace:         filepath.Join(home, ".maven", "workspace"),
 			Model:             DefaultModel,
 			MaxTokens:         DefaultMaxTokens,
 			Temperature:       DefaultTemperature,
@@ -169,7 +169,7 @@ func DefaultConfig() *Config {
 
 func ConfigDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".myclaw")
+	return filepath.Join(home, ".maven")
 }
 
 func ConfigPath() string {
@@ -191,7 +191,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Environment variable overrides
-	if key := os.Getenv("MYCLAW_API_KEY"); key != "" {
+	if key := os.Getenv("MAVEN_API_KEY"); key != "" {
 		cfg.Provider.APIKey = key
 	}
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" && cfg.Provider.APIKey == "" {
@@ -206,28 +206,28 @@ func LoadConfig() (*Config, error) {
 			cfg.Provider.Type = "openai"
 		}
 	}
-	if url := os.Getenv("MYCLAW_BASE_URL"); url != "" {
+	if url := os.Getenv("MAVEN_BASE_URL"); url != "" {
 		cfg.Provider.BaseURL = url
 	}
 	if url := os.Getenv("ANTHROPIC_BASE_URL"); url != "" && cfg.Provider.BaseURL == "" {
 		cfg.Provider.BaseURL = url
 	}
-	if token := os.Getenv("MYCLAW_TELEGRAM_TOKEN"); token != "" {
+	if token := os.Getenv("MAVEN_TELEGRAM_TOKEN"); token != "" {
 		cfg.Channels.Telegram.Token = token
 	}
-	if appID := os.Getenv("MYCLAW_FEISHU_APP_ID"); appID != "" {
+	if appID := os.Getenv("MAVEN_FEISHU_APP_ID"); appID != "" {
 		cfg.Channels.Feishu.AppID = appID
 	}
-	if appSecret := os.Getenv("MYCLAW_FEISHU_APP_SECRET"); appSecret != "" {
+	if appSecret := os.Getenv("MAVEN_FEISHU_APP_SECRET"); appSecret != "" {
 		cfg.Channels.Feishu.AppSecret = appSecret
 	}
-	if token := os.Getenv("MYCLAW_WECOM_TOKEN"); token != "" {
+	if token := os.Getenv("MAVEN_WECOM_TOKEN"); token != "" {
 		cfg.Channels.WeCom.Token = token
 	}
-	if aesKey := os.Getenv("MYCLAW_WECOM_ENCODING_AES_KEY"); aesKey != "" {
+	if aesKey := os.Getenv("MAVEN_WECOM_ENCODING_AES_KEY"); aesKey != "" {
 		cfg.Channels.WeCom.EncodingAESKey = aesKey
 	}
-	if receiveID := os.Getenv("MYCLAW_WECOM_RECEIVE_ID"); receiveID != "" {
+	if receiveID := os.Getenv("MAVEN_WECOM_RECEIVE_ID"); receiveID != "" {
 		cfg.Channels.WeCom.ReceiveID = receiveID
 	}
 

@@ -1,5 +1,5 @@
 services:
-  myclaw:
+  maven:
     build: .
     restart: unless-stopped
     ports:
@@ -7,24 +7,24 @@ services:
       - "9876:9876"
       - "9886:9886"
     volumes:
-      - myclaw-data:/root/.myclaw
+      - maven-data:/root/.maven
     environment:
-      - MYCLAW_API_KEY=${MYCLAW_API_KEY}
-      - MYCLAW_TELEGRAM_TOKEN=${MYCLAW_TELEGRAM_TOKEN:-}
-      - MYCLAW_FEISHU_APP_ID=${MYCLAW_FEISHU_APP_ID:-}
-      - MYCLAW_FEISHU_APP_SECRET=${MYCLAW_FEISHU_APP_SECRET:-}
-      - MYCLAW_WECOM_TOKEN=${MYCLAW_WECOM_TOKEN:-}
-      - MYCLAW_WECOM_ENCODING_AES_KEY=${MYCLAW_WECOM_ENCODING_AES_KEY:-}
-      - MYCLAW_WECOM_RECEIVE_ID=${MYCLAW_WECOM_RECEIVE_ID:-}
+      - MAVEN_API_KEY=${MAVEN_API_KEY}
+      - MAVEN_TELEGRAM_TOKEN=${MAVEN_TELEGRAM_TOKEN:-}
+      - MAVEN_FEISHU_APP_ID=${MAVEN_FEISHU_APP_ID:-}
+      - MAVEN_FEISHU_APP_SECRET=${MAVEN_FEISHU_APP_SECRET:-}
+      - MAVEN_WECOM_TOKEN=${MAVEN_WECOM_TOKEN:-}
+      - MAVEN_WECOM_ENCODING_AES_KEY=${MAVEN_WECOM_ENCODING_AES_KEY:-}
+      - MAVEN_WECOM_RECEIVE_ID=${MAVEN_WECOM_RECEIVE_ID:-}
 
   # Optional: expose webhook via cloudflared tunnel
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     profiles: ["tunnel"]
-    command: tunnel --url http://myclaw:9876
+    command: tunnel --url http://maven:9876
     depends_on:
-      - myclaw
+      - maven
 
 volumes:
-  myclaw-data:
+  maven-data:

@@ -22,8 +22,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/cexll/agentsdk-go/pkg/model"
-	"github.com/stellarlinkco/myclaw/internal/bus"
-	"github.com/stellarlinkco/myclaw/internal/config"
+	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/stellarlinkco/maven/internal/config"
 )
 
 const wecomChannelName = "wecom"

@@ -6,12 +6,12 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
-	"github.com/stellarlinkco/myclaw/internal/cron"
+	"github.com/stellarlinkco/maven/internal/cron"
 )
 
 const (
-	MetaPostAction = "myclaw.post_action"
-	MetaResponse   = "myclaw.response_mode"
+	MetaPostAction = "maven.post_action"
+	MetaResponse   = "maven.response_mode"
 
 	PostActionCompactRotate = "compact_rotate"
 	ResponseCompactAck      = "compact_ack"

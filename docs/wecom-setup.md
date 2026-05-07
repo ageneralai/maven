@@ -3,10 +3,10 @@
 ## 前置条件
 
 - 企业微信管理员账号
-- `myclaw` 已编译（`make build`）
+- `maven` 已编译（`make build`）
 - 一个可公网访问的回调 URL（生产建议 HTTPS）
 
-> 说明：myclaw 只实现渠道协议与业务逻辑；公网入口、证书、域名和反向代理由部署方自行配置。
+> 说明：maven 只实现渠道协议与业务逻辑；公网入口、证书、域名和反向代理由部署方自行配置。
 
 ## 协议说明（当前仅支持这一种）
 
@@ -47,7 +47,7 @@
    - `Token`
    - `EncodingAESKey`
 
-> 可选字段：`ReceiveID`（若你明确知道加解密校验用的接收方 ID，可在 myclaw 中配置；不配则不做严格 ReceiveID 校验）
+> 可选字段：`ReceiveID`（若你明确知道加解密校验用的接收方 ID，可在 maven 中配置；不配则不做严格 ReceiveID 校验）
 
 ## 第二步：配置回调 URL
 
@@ -57,11 +57,11 @@
 - Token：与你配置文件一致
 - EncodingAESKey：与你配置文件一致
 
-保存时平台会发起 URL 验证请求，myclaw 会自动处理。
+保存时平台会发起 URL 验证请求，maven 会自动处理。
 
-## 第三步：配置 myclaw
+## 第三步：配置 maven
 
-编辑 `~/.myclaw/config.json`：
+编辑 `~/.maven/config.json`：
 
 ```json
 {
@@ -92,9 +92,9 @@
 ### 环境变量（可选覆盖）
 
 ```bash
-export MYCLAW_WECOM_TOKEN="your-token"
-export MYCLAW_WECOM_ENCODING_AES_KEY="your-43-char-encoding-aes-key"
-export MYCLAW_WECOM_RECEIVE_ID="optional-receive-id"
+export MAVEN_WECOM_TOKEN="your-token"
+export MAVEN_WECOM_ENCODING_AES_KEY="your-43-char-encoding-aes-key"
+export MAVEN_WECOM_RECEIVE_ID="optional-receive-id"
 ```
 
 ## 第四步：启动并验证
@@ -119,7 +119,7 @@ make gateway
   - 配置非空列表：仅接收列表中的用户
   - 注意：若错误配置成 `allowFrom: [""]`，会被视为“启用白名单”，可能导致全部被拒绝
 - 出站依赖临时 `response_url`：
-  - 只有在该会话最近有入站消息且缓存了 `response_url`，myclaw 才能回消息
+  - 只有在该会话最近有入站消息且缓存了 `response_url`，maven 才能回消息
   - `response_url` 基本是单次/短时有效，不要依赖延迟回包或多次发送
   - `response_url` 过期后，发送会失败并返回错误
 - 出站 `markdown.content` 最长 20480 字节，超过会被截断（不是自动分片）
