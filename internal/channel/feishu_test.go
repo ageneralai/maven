@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/cexll/agentsdk-go/pkg/model"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/config"
 )
 
 // mockFeishuClient implements FeishuClient for testing

@@ -14,8 +14,8 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/api"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
-	"github.com/stellarlinkco/maven/internal/config"
-	"github.com/stellarlinkco/maven/internal/memory"
+	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/internal/memory"
 )
 
 func TestWriteIfNotExists_NewFile(t *testing.T) {

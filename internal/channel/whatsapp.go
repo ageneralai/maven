@@ -13,8 +13,8 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/model"
 	qrterminal "github.com/mdp/qrterminal/v3"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/config"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"

@@ -16,11 +16,11 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/model"
 	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
-	"github.com/stellarlinkco/maven/internal/config"
-	"github.com/stellarlinkco/maven/internal/gateway"
-	"github.com/stellarlinkco/maven/internal/memory"
-	"github.com/stellarlinkco/maven/internal/runtimecmd"
-	"github.com/stellarlinkco/maven/internal/skills"
+	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/internal/gateway"
+	"github.com/ageneralai/maven/internal/memory"
+	"github.com/ageneralai/maven/internal/runtimecmd"
+	"github.com/ageneralai/maven/internal/skills"
 )
 
 // Runtime interface for agent runtime (allows mocking in tests)

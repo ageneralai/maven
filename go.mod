@@ -1,4 +1,4 @@
-module github.com/stellarlinkco/maven
+module github.com/ageneralai/maven
 
 go 1.25.5
 

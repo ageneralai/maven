@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
-	"github.com/stellarlinkco/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/cron"
 )
 
 func TestHandleCronAdd_atDuration(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stellarlinkco/maven/internal/inboundctx"
+	"github.com/ageneralai/maven/internal/inboundctx"
 )
 
 func TestValidateCronDelivery(t *testing.T) {

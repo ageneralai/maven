@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/stellarlinkco/maven/internal/inboundctx"
+	"github.com/ageneralai/maven/internal/inboundctx"
 )
 
 var reservedRecipientTokens = []string{

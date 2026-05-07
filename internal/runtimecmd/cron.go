@@ -9,8 +9,8 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
-	"github.com/stellarlinkco/maven/internal/cron"
-	"github.com/stellarlinkco/maven/internal/cronschedule"
+	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/cronschedule"
 )
 
 func cronRegistrations(svc *cron.Service) []api.CommandRegistration {

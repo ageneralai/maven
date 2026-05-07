@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/config"
 )
 
 //go:embed static

@@ -11,14 +11,14 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/channel"
-	"github.com/stellarlinkco/maven/internal/config"
-	"github.com/stellarlinkco/maven/internal/cron"
-	"github.com/stellarlinkco/maven/internal/heartbeat"
-	"github.com/stellarlinkco/maven/internal/memory"
-	"github.com/stellarlinkco/maven/internal/runtimecmd"
-	"github.com/stellarlinkco/maven/internal/session"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/heartbeat"
+	"github.com/ageneralai/maven/internal/memory"
+	"github.com/ageneralai/maven/internal/runtimecmd"
+	"github.com/ageneralai/maven/internal/session"
 )
 
 // mockRuntime implements Runtime interface for testing

@@ -9,8 +9,8 @@ import (
 
 	"github.com/cexll/agentsdk-go/pkg/api"
 	"github.com/cexll/agentsdk-go/pkg/message"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/runtimecmd"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/runtimecmd"
 )
 
 func (g *Gateway) handleBuiltinCommand(msg bus.InboundMessage) (bool, error) {

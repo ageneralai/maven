@@ -21,9 +21,9 @@ import (
 	"github.com/cexll/agentsdk-go/pkg/model"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
-	"github.com/stellarlinkco/maven/internal/bus"
-	"github.com/stellarlinkco/maven/internal/channel/telegram"
-	"github.com/stellarlinkco/maven/internal/config"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel/telegram"
+	"github.com/ageneralai/maven/internal/config"
 )
 
 const fakeToken = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"

@@ -3,7 +3,7 @@ package channel
 import (
 	"context"
 
-	"github.com/stellarlinkco/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/bus"
 )
 
 type Channel interface {

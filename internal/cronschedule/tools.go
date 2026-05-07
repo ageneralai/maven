@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cexll/agentsdk-go/pkg/tool"
-	"github.com/stellarlinkco/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/cron"
 )
 
 func Tools(svc *cron.Service) []tool.Tool {
