@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
-	"github.com/cexll/agentsdk-go/pkg/model"
-	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
@@ -19,6 +16,9 @@ import (
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
+	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
 )
 
 // mockRuntime implements Runtime interface for testing
@@ -1028,6 +1028,44 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	currentSession := router.Resolve(baseSession, baseSession)
 	if currentSession == baseSession {
 		t.Fatal("expected /new to rotate session")
+	}
+}
+
+func TestGateway_HeartbeatSkipsWhenAutomationLaneBusy(t *testing.T) {
+	g := &Gateway{}
+	g.agentMu.Lock()
+	out, err := g.heartbeatAgentTurn("ping")
+	g.agentMu.Unlock()
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if out != "" {
+		t.Fatalf("out = %q, want empty", out)
+	}
+}
+
+func TestGateway_HeartbeatAgentTurnUsesAutomationSession(t *testing.T) {
+	reqCh := make(chan api.Request, 1)
+	g := &Gateway{
+		runtime: &mockRuntime{
+			response: &api.Response{Result: &api.Result{Output: "HEARTBEAT_OK"}},
+			reqCh:    reqCh,
+		},
+	}
+	out, err := g.heartbeatAgentTurn("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "HEARTBEAT_OK" {
+		t.Fatalf("out = %q", out)
+	}
+	select {
+	case req := <-reqCh:
+		if req.SessionID != automationSessionID {
+			t.Fatalf("SessionID = %q, want %q", req.SessionID, automationSessionID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for runtime request")
 	}
 }
 

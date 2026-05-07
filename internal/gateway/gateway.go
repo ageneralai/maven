@@ -13,9 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
-	"github.com/cexll/agentsdk-go/pkg/model"
-	"github.com/cexll/agentsdk-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
@@ -27,7 +24,16 @@ import (
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
+	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/cexll/agentsdk-go/pkg/tool"
 )
+
+// automationSessionID is the only session used for cron and heartbeat (single automation lane).
+const automationSessionID = "system"
+
+// heartbeatSkipReasonAutomationLaneBusy is logged when heartbeat yields because cron holds agentMu.
+const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"
 
 // Runtime interface for agent runtime (allows mocking in tests)
 type Runtime interface {
@@ -184,11 +190,9 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	// Signal channel for testing
 	g.signalChan = opts.SignalChan
 
-	// runAgent helper for cron/heartbeat (serialized via agentMu; inbound chat uses runAgentResponse directly)
 	runAgent := func(prompt string) (string, error) {
-		return g.runAgent(context.Background(), prompt, "system", nil)
+		return g.runAgent(context.Background(), prompt, automationSessionID, nil)
 	}
-
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
 		g.agentMu.Lock()
 		defer g.agentMu.Unlock()
@@ -205,14 +209,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		}
 		return result, nil
 	}
-
-	g.hb = heartbeat.New(cfg.Agent.Workspace, func(prompt string) (string, error) {
-		if !g.agentMu.TryLock() {
-			return "", nil
-		}
-		defer g.agentMu.Unlock()
-		return runAgent(prompt)
-	}, 0)
+	g.hb = heartbeat.New(cfg.Agent.Workspace, g.heartbeatAgentTurn, 0)
 
 	// Channels (with gateway config for WebUI port)
 	chMgr, err := channel.NewChannelManagerWithGateway(cfg.Channels, cfg.Gateway, g.bus)
@@ -227,6 +224,15 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	}
 
 	return g, nil
+}
+
+func (g *Gateway) heartbeatAgentTurn(prompt string) (string, error) {
+	if !g.agentMu.TryLock() {
+		log.Printf("[heartbeat] skipped: %s", heartbeatSkipReasonAutomationLaneBusy)
+		return "", nil
+	}
+	defer g.agentMu.Unlock()
+	return g.runAgent(context.Background(), prompt, automationSessionID, nil)
 }
 
 func (g *Gateway) buildSystemPrompt() string {
