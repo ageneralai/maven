@@ -11,8 +11,8 @@ import (
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/inboundctx"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/slash"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
 )
 
@@ -107,7 +107,10 @@ func cloneTransportMeta(meta map[string]any) map[string]any {
 func (p *Pipeline) Run(ctx context.Context) {
 	for {
 		select {
-		case msg := <-p.Bus.Inbound:
+		case msg, ok := <-p.Bus.InboundChan():
+			if !ok {
+				return
+			}
 			p.handle(ctx, msg)
 		case <-ctx.Done():
 			return
@@ -115,27 +118,27 @@ func (p *Pipeline) Run(ctx context.Context) {
 	}
 }
 
-func (p *Pipeline) sendError(chName, chatID, userMsg string, err error) {
+func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string, err error) {
 	p.Log.Printf("[pipeline] %s/%s error: %v", chName, chatID, err)
-	p.Bus.Outbound <- bus.OutboundMessage{
+	_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: chName,
 		ChatID:  chatID,
 		Content: userMsg,
-	}
+	})
 }
 
 func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, stringutil.Truncate(msg.Content, 80))
 	if handled, err := p.Posts.HandleBuiltin(msg); handled {
 		if err != nil {
-			p.sendError(msg.Channel, msg.ChatID, userErrCommand, err)
+			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		} else {
-			p.Bus.Outbound <- bus.OutboundMessage{
+			_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 				Channel:  msg.Channel,
 				ChatID:   msg.ChatID,
 				Content:  "✅ Started a fresh session.",
 				Metadata: cloneTransportMeta(msg.TransportMeta),
-			}
+			})
 		}
 		return
 	}
@@ -160,28 +163,28 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		ExpectedSlashName: msg.Hints.SlashCommand,
 	})
 	if err != nil {
-		p.sendError(msg.Channel, msg.ChatID, userErrCommand, err)
+		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		return
 	}
 	if !slashOut.ContinueToModel {
-		p.Bus.Outbound <- bus.OutboundMessage{
+		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  slashOut.DirectReply,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
-		}
+		})
 		return
 	}
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
 			events, err := agent.RunStreamWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
 			if err != nil {
-				p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
+				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 				return
 			}
 			meta := cloneTransportMeta(msg.TransportMeta)
 			if err := sc.SendStream(ctx, msg.ChatID, meta, events); err != nil {
-				p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
+				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 				return
 			}
 			return
@@ -189,7 +192,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	resp, err := agent.RunResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
 	if err != nil {
-		p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
+		p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 		return
 	}
 	result := ""
@@ -198,17 +201,17 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	if postResult, handled, postErr := p.Posts.HandlePostResponse(msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
 		if postErr != nil {
-			p.sendError(msg.Channel, msg.ChatID, userErrCommand, postErr)
+			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, postErr)
 			return
 		}
 		result = postResult
 	}
 	if result != "" {
-		p.Bus.Outbound <- bus.OutboundMessage{
+		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  result,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
-		}
+		})
 	}
 }

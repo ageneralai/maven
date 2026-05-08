@@ -20,13 +20,13 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegoapi"
-	tu "github.com/mymmrac/telego/telegoutil"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoapi"
+	tu "github.com/mymmrac/telego/telegoutil"
 )
 
 const telegramChannelName = "telegram"
@@ -280,7 +280,8 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 	}
 
 	chatID := strconv.FormatInt(primary.Chat.ID, 10)
-	t.bus.Inbound <- bus.InboundMessage{
+	tIn := context.Background()
+	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(primary.From.ID, 10),
 		ChatID:        chatID,
@@ -294,7 +295,7 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 			"username":   primary.From.Username,
 			"first_name": primary.From.FirstName,
 		},
-	}
+	})
 }
 
 // dispatchMessage extracts content from a single message and sends it to the bus.
@@ -308,7 +309,8 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 		return
 	}
 	chatID := strconv.FormatInt(msg.Chat.ID, 10)
-	t.bus.Inbound <- bus.InboundMessage{
+	tIn := context.Background()
+	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(msg.From.ID, 10),
 		ChatID:        chatID,
@@ -322,7 +324,7 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 			"username":   msg.From.Username,
 			"first_name": msg.From.FirstName,
 		},
-	}
+	})
 }
 
 // extractContent extracts text content, content blocks, reply context, and forward hints from a Telegram message.
@@ -1208,14 +1210,15 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 		if cmd.Session == telegram.SessionModeIsolated {
 			hints.SessionMode = bus.SessionModeIsolated
 		}
-		t.bus.Inbound <- bus.InboundMessage{
+		tIn := context.Background()
+		_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
 			Channel:   telegramChannelName,
 			SenderID:  strconv.FormatInt(msg.From.ID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 			Content:   content,
 			Timestamp: time.Now(),
 			Hints:     hints,
-		}
+		})
 	}
 }
 
@@ -1224,7 +1227,8 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 		return false
 	}
 
-	t.bus.Inbound <- bus.InboundMessage{
+	tIn := context.Background()
+	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:   telegramChannelName,
 		SenderID:  strconv.FormatInt(msg.From.ID, 10),
 		ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
@@ -1234,7 +1238,7 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 			ForceSync:      true,
 			MessageID:      msg.MessageID,
 		},
-	}
+	})
 	return true
 }
 

@@ -182,7 +182,7 @@ func TestWeComCallback_ReceiveTextMessage_OK(t *testing.T) {
 	}
 
 	select {
-	case msg := <-b.Inbound:
+	case msg := <-b.InboundChan():
 		if msg.Channel != "wecom" {
 			t.Errorf("channel = %q, want wecom", msg.Channel)
 		}
@@ -233,7 +233,7 @@ func TestWeComCallback_AllowAllWhenAllowListEmpty(t *testing.T) {
 	}
 
 	select {
-	case msg := <-b.Inbound:
+	case msg := <-b.InboundChan():
 		if msg.Content != "hello" {
 			t.Errorf("Content = %q, want %q", msg.Content, "hello")
 		}
@@ -281,7 +281,7 @@ func TestWeComCallback_DuplicateMsgID_Dropped(t *testing.T) {
 	count := 0
 	for {
 		select {
-		case <-b.Inbound:
+		case <-b.InboundChan():
 			count++
 		default:
 			if count != 1 {

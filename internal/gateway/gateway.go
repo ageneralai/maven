@@ -17,13 +17,13 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
@@ -253,6 +253,9 @@ func (g *Gateway) Shutdown() error {
 		if rt := g.pipe.TakeRuntimeForShutdown(); rt != nil {
 			rt.Close()
 		}
+	}
+	if g.bus != nil {
+		g.bus.Close()
 	}
 	g.logger.Printf("[gateway] shutdown complete")
 	return nil

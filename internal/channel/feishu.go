@@ -315,7 +315,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		metadata[k] = v
 	}
 
-	f.bus.Inbound <- bus.InboundMessage{
+	_ = f.bus.PublishInbound(r.Context(), bus.InboundMessage{
 		Channel:       feishuChannelName,
 		SenderID:      senderID,
 		ChatID:        event.Event.Message.ChatID,
@@ -323,7 +323,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		Timestamp:     time.Now(),
 		ContentBlocks: contentBlocks,
 		TransportMeta: metadata,
-	}
+	})
 }
 
 func (f *FeishuChannel) parseFeishuInboundMessage(ctx context.Context, messageType, rawContent string) (string, []model.ContentBlock, map[string]any, error) {

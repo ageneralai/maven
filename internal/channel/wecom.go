@@ -20,10 +20,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 )
 
 const wecomChannelName = "wecom"
@@ -685,7 +685,7 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 		return
 	}
 
-	w.bus.Inbound <- bus.InboundMessage{
+	_ = w.bus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:       wecomChannelName,
 		SenderID:      senderID,
 		ChatID:        chatID,
@@ -702,7 +702,7 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 			"image_media_id": strings.TrimSpace(message.Image.MediaID),
 			"response_url":   responseURL,
 		},
-	}
+	})
 }
 
 func (w *WeComChannel) resolveSenderID(message weComInboundMessage) string {

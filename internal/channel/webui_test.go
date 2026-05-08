@@ -96,7 +96,7 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 	}
 
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if inbound.Channel != "webui" {
 			t.Errorf("channel = %q, want %q", inbound.Channel, "webui")
 		}

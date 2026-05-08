@@ -8,8 +8,8 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/cron"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/pipeline"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/google/uuid"
 )
 
@@ -53,11 +53,13 @@ func (e *gatewayTurnExecutor) RunTurn(ctx context.Context, prompt, sessionID str
 		e.log.Printf("[gateway] cron deliver skipped: channel %q is reactive-only", job.Payload.Channel)
 		return out, nil
 	}
-	e.bus.Outbound <- bus.OutboundMessage{
+	msg := bus.OutboundMessage{
 		Channel: job.Payload.Channel,
 		ChatID:  job.Payload.To,
 		Content: out,
 	}
+	// Bus logs publish failures (metric=publish_failure).
+	_ = e.bus.PublishOutbound(ctx, msg)
 	return out, nil
 }
 

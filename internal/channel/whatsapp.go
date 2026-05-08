@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
-	qrterminal "github.com/mdp/qrterminal/v3"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	qrterminal "github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -224,7 +224,8 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 		return
 	}
 
-	w.bus.Inbound <- bus.InboundMessage{
+	wIn := context.Background()
+	_ = w.bus.PublishInbound(wIn, bus.InboundMessage{
 		Channel:       whatsappChannelName,
 		SenderID:      sender,
 		ChatID:        evt.Info.Chat.String(),
@@ -237,7 +238,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 			"sender_jid": evt.Info.Sender.String(),
 			"push_name":  evt.Info.PushName,
 		},
-	}
+	})
 }
 
 func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.ContentBlock) {

@@ -2,20 +2,31 @@ package bus
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
 
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
-// MessageBus carries pipeline Inbound work and fans out Outbound to at most one
-// subscriber per channel name. Outbound has no delivery acknowledgement — see OutboundMessage.
+var ErrBusClosed = errors.New("bus closed")
+
+// MessageBus carries pipeline inbound work and fans out outbound to at most one
+// subscriber per channel name ([SetOutboundSubscriber] keys match trimmed [OutboundMessage.Channel]).
+//
+// Publish methods use strict blocking backpressure — see package comment.
 type MessageBus struct {
-	Inbound  chan InboundMessage
-	Outbound chan OutboundMessage
-	log      mavenlog.PrintLogger
+	inbound   chan InboundMessage
+	outbound  chan OutboundMessage
+	closeOnce sync.Once
+	done      chan struct{}
+	closed    atomic.Bool
+	wg        sync.WaitGroup
+	pubMu     sync.Mutex
 
 	mu   sync.RWMutex
 	subs map[string]func(OutboundMessage)
+	log  mavenlog.PrintLogger
 }
 
 func NewMessageBus(bufSize int, log mavenlog.PrintLogger) *MessageBus {
@@ -23,18 +34,97 @@ func NewMessageBus(bufSize int, log mavenlog.PrintLogger) *MessageBus {
 		bufSize = 100
 	}
 	return &MessageBus{
-		Inbound:  make(chan InboundMessage, bufSize),
-		Outbound: make(chan OutboundMessage, bufSize),
+		inbound:  make(chan InboundMessage, bufSize),
+		outbound: make(chan OutboundMessage, bufSize),
+		done:     make(chan struct{}),
 		log:      log,
 		subs:     make(map[string]func(OutboundMessage)),
 	}
 }
 
-// SetOutboundSubscriber registers the single outbound handler for channel.
+func (b *MessageBus) InboundChan() <-chan InboundMessage {
+	return b.inbound
+}
+
+func (b *MessageBus) OutboundChan() <-chan OutboundMessage {
+	return b.outbound
+}
+
+// PublishInbound enqueues msg on the inbound buffer (strict blocking until space, ctx done, or Close).
+func (b *MessageBus) PublishInbound(ctx context.Context, msg InboundMessage) error {
+	msg, normErr := normalizeInboundMessage(msg)
+	if normErr != nil {
+		return normErr
+	}
+	return publishEnqueue(b, ctx, "inbound", msg.Channel, b.inbound, msg)
+}
+
+// PublishOutbound enqueues msg on the outbound buffer (same blocking contract as PublishInbound).
+// Downstream latency is bounded only by ctx; use [context.WithTimeout] when callers require it.
+func (b *MessageBus) PublishOutbound(ctx context.Context, msg OutboundMessage) error {
+	msg, normErr := normalizeOutboundMessage(msg)
+	if normErr != nil {
+		return normErr
+	}
+	return publishEnqueue(b, ctx, "outbound", msg.Channel, b.outbound, msg)
+}
+
+func publishEnqueue[T any](b *MessageBus, ctx context.Context, stream, routingKey string, ch chan T, msg T) error {
+	b.pubMu.Lock()
+	if b.closed.Load() {
+		b.pubMu.Unlock()
+		b.logPublishFailure(stream, routingKey, ErrBusClosed)
+		return ErrBusClosed
+	}
+	b.wg.Add(1)
+	b.pubMu.Unlock()
+	defer b.wg.Done()
+	select {
+	case <-ctx.Done():
+		err := ctx.Err()
+		b.logPublishFailure(stream, routingKey, err)
+		return err
+	case <-b.done:
+		b.logPublishFailure(stream, routingKey, ErrBusClosed)
+		return ErrBusClosed
+	case ch <- msg:
+		return nil
+	}
+}
+
+func (b *MessageBus) logPublishFailure(stream, routingKey string, err error) {
+	b.log.Printf("[bus] metric=publish_failure stream=%s channel=%q err=%v", stream, routingKey, err)
+}
+
+// Close shuts down the bus: rejects new publishes with [ErrBusClosed], unblocks blocked
+// publishers via the internal done signal, waits for every in-flight [publishEnqueue]
+// goroutine (each holds a [sync.WaitGroup] count from publish to select completion), then
+// closes inbound and outbound channels.
+//
+// After Close returns, [PublishInbound] and [PublishOutbound] always return ErrBusClosed
+// (before or inside publish). Readers on [InboundChan] or [OutboundChan] observe channel
+// close: receive yields (zero value, ok=false).
+//
+// [DispatchOutbound] exits when ctx is canceled, or after Close closes outbound (receive !ok).
+// It does not run after outbound is closed unless a reader already blocked on ctx.Done().
+func (b *MessageBus) Close() {
+	b.closeOnce.Do(func() {
+		b.pubMu.Lock()
+		b.closed.Store(true)
+		close(b.done)
+		b.pubMu.Unlock()
+		b.wg.Wait()
+		close(b.inbound)
+		close(b.outbound)
+	})
+}
+
+// SetOutboundSubscriber registers the single outbound handler for channel (trimmed for map keys).
 // Passing nil removes the subscriber.
 func (b *MessageBus) SetOutboundSubscriber(channel string, fn func(OutboundMessage)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	channel = trim(channel)
 	if fn == nil {
 		delete(b.subs, channel)
 		return
@@ -45,7 +135,12 @@ func (b *MessageBus) SetOutboundSubscriber(channel string, fn func(OutboundMessa
 func (b *MessageBus) DispatchOutbound(ctx context.Context) {
 	for {
 		select {
-		case msg := <-b.Outbound:
+		case <-ctx.Done():
+			return
+		case msg, ok := <-b.outbound:
+			if !ok {
+				return
+			}
 			b.mu.RLock()
 			cb := b.subs[msg.Channel]
 			b.mu.RUnlock()
@@ -54,8 +149,6 @@ func (b *MessageBus) DispatchOutbound(ctx context.Context) {
 			} else {
 				b.log.Printf("[bus] no subscriber for channel %q, dropping message", msg.Channel)
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }

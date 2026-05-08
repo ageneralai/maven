@@ -115,7 +115,7 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 		ch.handleMessage(makeEvent(sender))
 
 		select {
-		case <-b.Inbound:
+		case <-b.InboundChan():
 			return true
 		default:
 			return false

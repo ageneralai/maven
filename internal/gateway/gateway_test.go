@@ -265,16 +265,18 @@ func TestGateway_ProcessLoop(t *testing.T) {
 	go g.pipe.Run(ctx)
 
 	// Send inbound message
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:  "test",
 		SenderID: "user1",
 		ChatID:   "chat1",
 		Content:  "hello",
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	// Wait for outbound message
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		if outMsg.Content != "response" {
 			t.Errorf("outbound content = %q, want 'response'", outMsg.Content)
 		}
@@ -326,12 +328,14 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 
 	go g.pipe.Run(ctx)
 
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:       "telegram",
 		SenderID:      "123",
 		ChatID:        "456",
 		Content:       "caption text",
 		ContentBlocks: blocks,
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	select {
@@ -358,7 +362,7 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 	}
 
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		if outMsg.Channel != "telegram" {
 			t.Errorf("outbound channel = %q, want telegram", outMsg.Channel)
 		}
@@ -422,15 +426,17 @@ func TestGateway_ProcessLoop_AgentError(t *testing.T) {
 
 	go g.pipe.Run(ctx)
 
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:  "test",
 		SenderID: "user1",
 		ChatID:   "chat1",
 		Content:  "hello",
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		if outMsg.Content != "Sorry, I encountered an error processing your message." {
 			t.Errorf("expected error message, got %q", outMsg.Content)
 		}
@@ -470,16 +476,18 @@ func TestGateway_ProcessLoop_EmptyResult(t *testing.T) {
 
 	go g.pipe.Run(ctx)
 
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:  "test",
 		SenderID: "user1",
 		ChatID:   "chat1",
 		Content:  "hello",
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	// Should NOT receive outbound message when result is empty
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		t.Errorf("should not send empty result, got %q", outMsg.Content)
 	case <-time.After(100 * time.Millisecond):
 		// Expected - no message sent
@@ -847,7 +855,7 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		select {
-		case msg := <-g.bus.Outbound:
+		case msg := <-g.bus.OutboundChan():
 			if msg.Content != "delivered result" {
 				t.Errorf("outbound content = %q, want 'delivered result'", msg.Content)
 			}
@@ -964,7 +972,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	defer cancel()
 	go g.pipe.Run(ctx)
 
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:  "telegram",
 		SenderID: "user1",
 		ChatID:   "chat1",
@@ -974,10 +982,12 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 			SlashType:    "pipeline",
 			ForceSync:    true,
 		},
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		if outMsg.Content != "✅ Conversation compacted and continued in a fresh session." {
 			t.Fatalf("unexpected outbound content: %q", outMsg.Content)
 		}
@@ -1022,7 +1032,7 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	defer cancel()
 	go g.pipe.Run(ctx)
 
-	msgBus.Inbound <- bus.InboundMessage{
+	if err := msgBus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:  "telegram",
 		SenderID: "user1",
 		ChatID:   "chat1",
@@ -1030,10 +1040,12 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 			BuiltinCommand: "new",
 			ForceSync:      true,
 		},
+	}); err != nil {
+		t.Fatalf("publish inbound: %v", err)
 	}
 
 	select {
-	case outMsg := <-msgBus.Outbound:
+	case outMsg := <-msgBus.OutboundChan():
 		if outMsg.Content != "✅ Started a fresh session." {
 			t.Fatalf("unexpected outbound content: %q", outMsg.Content)
 		}

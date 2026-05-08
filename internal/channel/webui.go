@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/coder/websocket"
 )
 
 //go:embed static
@@ -118,13 +118,13 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		w.bus.Inbound <- bus.InboundMessage{
+		_ = w.bus.PublishInbound(r.Context(), bus.InboundMessage{
 			Channel:   webUIChannelName,
 			SenderID:  clientID,
 			ChatID:    clientID,
 			Content:   msg.Content,
 			Timestamp: time.Now(),
-		}
+		})
 	}
 }
 

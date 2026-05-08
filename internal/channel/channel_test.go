@@ -450,7 +450,7 @@ func TestTelegramChannel_HandleMessage_Allowed(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if inbound.Content != "hello" {
 			t.Errorf("content = %q, want hello", inbound.Content)
 		}
@@ -478,7 +478,7 @@ func TestTelegramChannel_HandleMessage_Rejected(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive message from rejected user")
 	default:
 	}
@@ -493,7 +493,7 @@ func TestTelegramChannel_HandleMessage_EmptyText(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not send message with empty content")
 	default:
 	}
@@ -509,7 +509,7 @@ func TestTelegramChannel_HandleMessage_Caption(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if inbound.Content != "image caption" {
 			t.Errorf("content = %q, want 'image caption'", inbound.Content)
 		}
@@ -538,7 +538,7 @@ func TestTelegramChannel_HandleMessage_Photo(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.bus.Inbound:
+	case inbound := <-ch.bus.InboundChan():
 		if inbound.Content != "photo caption" {
 			t.Errorf("content = %q, want 'photo caption'", inbound.Content)
 		}
@@ -586,7 +586,7 @@ func TestTelegramChannel_HandleMessage_PhotoWithCaption(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.bus.Inbound:
+	case inbound := <-ch.bus.InboundChan():
 		if inbound.Content != "photo caption via server" {
 			t.Errorf("content = %q, want 'photo caption via server'", inbound.Content)
 		}
@@ -623,7 +623,7 @@ func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.bus.Inbound:
+	case inbound := <-ch.bus.InboundChan():
 		if !strings.Contains(inbound.Content, "[File saved to:") {
 			t.Errorf("content = %q, want file path reference", inbound.Content)
 		}
@@ -651,7 +651,7 @@ func TestTelegramChannel_HandleMessage_ReplyContext(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Replying to Alice B]") {
 			t.Errorf("missing reply context header, got: %q", inbound.Content)
 		}
@@ -680,7 +680,7 @@ func TestTelegramChannel_HandleMessage_ReplyToPhoto(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Replying to Bob]") {
 			t.Errorf("missing reply header, got: %q", inbound.Content)
 		}
@@ -708,7 +708,7 @@ func TestTelegramChannel_HandleMessage_ExternalReply(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Replying to channel: Tech News]") {
 			t.Errorf("missing external reply header, got: %q", inbound.Content)
 		}
@@ -759,7 +759,7 @@ func TestTelegramChannel_HandleMessage_ExternalReplyWithPhoto(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.bus.Inbound:
+	case inbound := <-ch.bus.InboundChan():
 		if !strings.Contains(inbound.Content, "[Replying to channel: Linux.do 热门话题]") {
 			t.Errorf("missing external reply header, got: %q", inbound.Content)
 		}
@@ -792,7 +792,7 @@ func TestTelegramChannel_HandleMessage_ForwardWithText(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Forwarded from Charlie D]") {
 			t.Errorf("missing forward label, got: %q", inbound.Content)
 		}
@@ -816,7 +816,7 @@ func TestTelegramChannel_HandleMessage_ForwardNoComment(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Forwarded from channel: Tech News]") {
 			t.Errorf("missing forward label, got: %q", inbound.Content)
 		}
@@ -864,7 +864,7 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 	}
 	// Should produce exactly ONE inbound message after flush.
 	select {
-	case inbound := <-ch.bus.Inbound:
+	case inbound := <-ch.bus.InboundChan():
 		if !strings.Contains(inbound.Content, "album caption") {
 			t.Errorf("missing caption, got: %q", inbound.Content)
 		}
@@ -881,7 +881,7 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 	}
 	// Verify no second message arrives.
 	select {
-	case extra := <-ch.bus.Inbound:
+	case extra := <-ch.bus.InboundChan():
 		t.Fatalf("unexpected second inbound message: %+v", extra)
 	case <-time.After(300 * time.Millisecond):
 		// Good — no duplicate.
@@ -921,7 +921,7 @@ func TestWeComCallback_ImageMessage(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	select {
-	case inbound := <-b.Inbound:
+	case inbound := <-b.InboundChan():
 		if inbound.Content != "[image]" {
 			t.Errorf("content = %q, want [image]", inbound.Content)
 		}

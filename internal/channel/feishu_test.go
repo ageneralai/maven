@@ -276,7 +276,7 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 	}
 
 	select {
-	case msg := <-b.Inbound:
+	case msg := <-b.InboundChan():
 		if msg.Content != "hello maven" {
 			t.Errorf("content = %q, want 'hello maven'", msg.Content)
 		}
@@ -326,7 +326,7 @@ func TestFeishuWebhook_RejectedSender(t *testing.T) {
 	ch.handleWebhook(w, req)
 
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive message from rejected sender")
 	default:
 		// OK
@@ -372,7 +372,7 @@ func TestFeishuWebhook_ImageMessage(t *testing.T) {
 	ch.handleWebhook(w, req)
 
 	select {
-	case msg := <-b.Inbound:
+	case msg := <-b.InboundChan():
 		if msg.Content != "[image]" {
 			t.Errorf("content = %q, want [image]", msg.Content)
 		}
@@ -427,7 +427,7 @@ func TestFeishuWebhook_UnsupportedMessageType(t *testing.T) {
 	ch.handleWebhook(w, req)
 
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive unsupported message type")
 	default:
 		// OK
@@ -464,7 +464,7 @@ func TestFeishuWebhook_EmptyText(t *testing.T) {
 	ch.handleWebhook(w, req)
 
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive empty text message")
 	default:
 		// OK
@@ -501,7 +501,7 @@ func TestFeishuWebhook_InvalidContent(t *testing.T) {
 	ch.handleWebhook(w, req)
 
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive message with invalid content JSON")
 	default:
 		// OK
@@ -524,7 +524,7 @@ func TestFeishuWebhook_NonMessageEvent(t *testing.T) {
 	}
 
 	select {
-	case <-b.Inbound:
+	case <-b.InboundChan():
 		t.Error("should not receive non-message event")
 	default:
 		// OK
