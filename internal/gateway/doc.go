@@ -7,4 +7,7 @@
 //   - Pipeline reload and shutdown drain via turnMu (pipeline.Pipeline).
 //   - Gateway.Apply is the single declarative path: ChannelManager.Apply, new runtime via factory,
 //     pipeline.Reload (no separate “first start” branch). Cron proactive delivery is cron.Deliver.AfterSuccessfulRun after a successful job run; TurnExecutor stays pipeline-only.
+//   - The message bus (internal/bus.NewMessageBus) defaults to internal/events.NoOp for EventPublisher.
+//     Wire internal/bus.WithEventPublisher to observe events.EventBusPublishFailure and
+//     events.EventBusClosed emits.
 package gateway

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/events"
+	"github.com/ageneralai/maven/internal/events/eventstest"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -231,4 +233,52 @@ func TestClose_IdempotentWithDispatch(t *testing.T) {
 	cancel()
 	b.Close()
 	b.Close()
+}
+
+func TestWithEventPublisher_PublishFailureEmits(t *testing.T) {
+	capture := &eventstest.CapturePublisher{}
+	b := NewMessageBus(1, testLG, WithEventPublisher(capture))
+	defer b.Close()
+	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "a", ChatID: "1", Content: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_ = b.PublishOutbound(ctx, OutboundMessage{Channel: "a", ChatID: "1", Content: "y"})
+	evts := capture.Snapshot()
+	var found bool
+	for _, e := range evts {
+		if e.Type == events.EventBusPublishFailure && e.Attrs["stream"] == "outbound" && e.Attrs["channel"] == "a" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("want %s event with outbound/a, got %#v", events.EventBusPublishFailure, evts)
+	}
+}
+
+func TestWithEventPublisher_CloseEmits(t *testing.T) {
+	capture := &eventstest.CapturePublisher{}
+	b := NewMessageBus(10, testLG, WithEventPublisher(capture))
+	b.Close()
+	evts := capture.Snapshot()
+	var found bool
+	for _, e := range evts {
+		if e.Type == events.EventBusClosed {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("want %s event, got %#v", events.EventBusClosed, evts)
+	}
+}
+
+func TestWithEventPublisher_NilMeansNoOp(t *testing.T) {
+	b := NewMessageBus(2, testLG, WithEventPublisher(nil))
+	defer b.Close()
+	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "x", Content: "a"}); err != nil {
+		t.Fatal(err)
+	}
 }

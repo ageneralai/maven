@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/ageneralai/maven/internal/events"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -24,22 +25,42 @@ type MessageBus struct {
 	wg        sync.WaitGroup
 	pubMu     sync.Mutex
 
+	publisher events.EventPublisher
+
 	mu   sync.RWMutex
 	subs map[string]func(OutboundMessage)
 	log  mavenlog.PrintLogger
 }
 
-func NewMessageBus(bufSize int, log mavenlog.PrintLogger) *MessageBus {
+// Option configures MessageBus construction.
+type Option func(*MessageBus)
+
+// WithEventPublisher wires lifecycle/diagnostic emits (publish failures, bus closed).
+// Passing nil behaves like internal/events.NoOp.
+func WithEventPublisher(p events.EventPublisher) Option {
+	return func(b *MessageBus) {
+		b.publisher = events.OrPublisher(p)
+	}
+}
+
+func NewMessageBus(bufSize int, log mavenlog.PrintLogger, opts ...Option) *MessageBus {
 	if bufSize <= 0 {
 		bufSize = 100
 	}
-	return &MessageBus{
-		inbound:  make(chan InboundMessage, bufSize),
-		outbound: make(chan OutboundMessage, bufSize),
-		done:     make(chan struct{}),
-		log:      log,
-		subs:     make(map[string]func(OutboundMessage)),
+	b := &MessageBus{
+		inbound:   make(chan InboundMessage, bufSize),
+		outbound:  make(chan OutboundMessage, bufSize),
+		done:      make(chan struct{}),
+		log:       log,
+		subs:      make(map[string]func(OutboundMessage)),
+		publisher: events.NoOp{},
 	}
+	for _, o := range opts {
+		if o != nil {
+			o(b)
+		}
+	}
+	return b
 }
 
 func (b *MessageBus) InboundChan() <-chan InboundMessage {
@@ -73,7 +94,7 @@ func publishEnqueue[T any](b *MessageBus, ctx context.Context, stream, routingKe
 	b.pubMu.Lock()
 	if b.closed.Load() {
 		b.pubMu.Unlock()
-		b.logPublishFailure(stream, routingKey, ErrBusClosed)
+		b.reportPublishFailure(stream, routingKey, ErrBusClosed)
 		return ErrBusClosed
 	}
 	b.wg.Add(1)
@@ -82,18 +103,34 @@ func publishEnqueue[T any](b *MessageBus, ctx context.Context, stream, routingKe
 	select {
 	case <-ctx.Done():
 		err := ctx.Err()
-		b.logPublishFailure(stream, routingKey, err)
+		b.reportPublishFailure(stream, routingKey, err)
 		return err
 	case <-b.done:
-		b.logPublishFailure(stream, routingKey, ErrBusClosed)
+		b.reportPublishFailure(stream, routingKey, ErrBusClosed)
 		return ErrBusClosed
 	case ch <- msg:
 		return nil
 	}
 }
 
-func (b *MessageBus) logPublishFailure(stream, routingKey string, err error) {
+func (b *MessageBus) reportPublishFailure(stream, routingKey string, err error) {
 	b.log.Printf("[bus] metric=publish_failure stream=%s channel=%q err=%v", stream, routingKey, err)
+	b.publisher.Publish(context.Background(), busPublishFailureEvent(stream, routingKey, err))
+}
+
+func busPublishFailureEvent(stream, routingKey string, err error) events.Event {
+	return events.Event{
+		Type: events.EventBusPublishFailure,
+		Attrs: map[string]string{
+			"stream":  stream,
+			"channel": routingKey,
+			"error":   err.Error(),
+		},
+	}
+}
+
+func busClosedEvent() events.Event {
+	return events.Event{Type: events.EventBusClosed}
 }
 
 // Close shuts down the bus: rejects new publishes with [ErrBusClosed], unblocks blocked
@@ -106,7 +143,7 @@ func (b *MessageBus) logPublishFailure(stream, routingKey string, err error) {
 // close: receive yields (zero value, ok=false).
 //
 // [DispatchOutbound] exits when ctx is canceled, or after Close closes outbound (receive !ok).
-// It does not run after outbound is closed unless a reader already blocked on ctx.Done().
+// Emits events.EventBusClosed after queues are closed.
 func (b *MessageBus) Close() {
 	b.closeOnce.Do(func() {
 		b.pubMu.Lock()
@@ -116,6 +153,7 @@ func (b *MessageBus) Close() {
 		b.wg.Wait()
 		close(b.inbound)
 		close(b.outbound)
+		b.publisher.Publish(context.Background(), busClosedEvent())
 	})
 }
 

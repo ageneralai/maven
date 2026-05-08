@@ -8,7 +8,8 @@
 // must use a bounded context deadline; otherwise a full buffer blocks until consumers drain.
 //
 // Publish failures from enqueue (ErrBusClosed, context.Canceled, context.DeadlineExceeded)
-// are logged by the bus with stream and routing channel keys.
+// are logged by the bus with stream and routing channel keys and emitted as
+// events.EventBusPublishFailure when an EventPublisher is wired via WithEventPublisher.
 //
 // Shutdown semantics are documented on MessageBus.Close.
 package bus
