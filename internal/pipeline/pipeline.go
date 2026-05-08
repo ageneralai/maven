@@ -177,14 +177,19 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
-			events, err := agent.RunStreamWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
+			streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
+			streamCtx := p.Bus.OnStreamBegin(msgCtx, streamHints)
+			streamEvents, err := agent.RunStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
 			if err != nil {
+				p.Bus.OnStreamEnd(streamCtx, streamHints, err)
 				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 				return
 			}
 			meta := cloneTransportMeta(msg.TransportMeta)
-			if err := sc.SendStream(ctx, msg.ChatID, meta, events); err != nil {
-				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
+			sendErr := sc.SendStream(ctx, msg.ChatID, meta, streamEvents)
+			p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
+			if sendErr != nil {
+				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, sendErr)
 				return
 			}
 			return

@@ -10,4 +10,6 @@
 //   - The message bus (internal/bus.NewMessageBus) defaults to internal/events.NoOp for EventPublisher.
 //     Wire internal/bus.WithEventPublisher to observe events.EventBusPublishFailure and
 //     events.EventBusClosed emits.
+//   - Streaming: internal/bus.StreamDelegate defaults to noop; wire WithStreamDelegate or
+//     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
 package gateway

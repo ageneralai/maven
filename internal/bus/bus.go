@@ -16,6 +16,9 @@ var ErrBusClosed = errors.New("bus closed")
 // subscriber per channel name ([SetOutboundSubscriber] keys match trimmed [OutboundMessage.Channel]).
 //
 // Publish methods use strict blocking backpressure — see package comment.
+//
+// Streaming: optional [StreamDelegate] via [WithStreamDelegate] or [MessageBus.SetStreamDelegate];
+// the pipeline invokes [MessageBus.OnStreamBegin] / [MessageBus.OnStreamEnd] around channel SendStream.
 type MessageBus struct {
 	inbound   chan InboundMessage
 	outbound  chan OutboundMessage
@@ -26,6 +29,9 @@ type MessageBus struct {
 	pubMu     sync.Mutex
 
 	publisher events.EventPublisher
+
+	streamMu sync.RWMutex
+	streamDel StreamDelegate
 
 	mu   sync.RWMutex
 	subs map[string]func(OutboundMessage)
@@ -43,6 +49,13 @@ func WithEventPublisher(p events.EventPublisher) Option {
 	}
 }
 
+// WithStreamDelegate wires streaming lifecycle hooks ([OnStreamBegin] / [OnStreamEnd]); nil ⇒ noop delegate.
+func WithStreamDelegate(d StreamDelegate) Option {
+	return func(b *MessageBus) {
+		b.streamDel = OrStreamDelegate(d)
+	}
+}
+
 func NewMessageBus(bufSize int, log mavenlog.PrintLogger, opts ...Option) *MessageBus {
 	if bufSize <= 0 {
 		bufSize = 100
@@ -54,6 +67,7 @@ func NewMessageBus(bufSize int, log mavenlog.PrintLogger, opts ...Option) *Messa
 		log:       log,
 		subs:      make(map[string]func(OutboundMessage)),
 		publisher: events.NoOp{},
+		streamDel: noopStreamDelegate{},
 	}
 	for _, o := range opts {
 		if o != nil {

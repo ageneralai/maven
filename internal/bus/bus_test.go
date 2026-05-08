@@ -282,3 +282,91 @@ func TestWithEventPublisher_NilMeansNoOp(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type recordingStreamDelegate struct {
+	begins int
+	ends   int
+	last   error
+}
+
+func (r *recordingStreamDelegate) NotifyStreamBegin(ctx context.Context, _ StreamHints) context.Context {
+	r.begins++
+	return ctx
+}
+
+func (r *recordingStreamDelegate) NotifyStreamEnd(_ context.Context, _ StreamHints, err error) {
+	r.ends++
+	r.last = err
+}
+
+func TestWithStreamDelegate_OnStreamBegin_OnStreamEnd(t *testing.T) {
+	d := &recordingStreamDelegate{}
+	b := NewMessageBus(2, testLG, WithStreamDelegate(d))
+	defer b.Close()
+	h := StreamHints{Channel: "telegram", ChatID: "c1"}
+	ctx := context.Background()
+	sctx := b.OnStreamBegin(ctx, h)
+	if d.begins != 1 {
+		t.Fatalf("begins = %d want 1", d.begins)
+	}
+	if sctx != ctx {
+		t.Fatal("delegate should pass through context when unchanged")
+	}
+	wantErr := errors.New("boom")
+	b.OnStreamEnd(sctx, h, wantErr)
+	if d.ends != 1 || d.last != wantErr {
+		t.Fatalf("ends = %d last = %v", d.ends, d.last)
+	}
+}
+
+func TestSetStreamDelegate_replacesPrevious(t *testing.T) {
+	d1 := &recordingStreamDelegate{}
+	d2 := &recordingStreamDelegate{}
+	b := NewMessageBus(2, testLG, WithStreamDelegate(d1))
+	defer b.Close()
+	b.SetStreamDelegate(d2)
+	b.OnStreamBegin(context.Background(), StreamHints{})
+	if d1.begins != 0 || d2.begins != 1 {
+		t.Fatalf("d1 begins=%d d2 begins=%d", d1.begins, d2.begins)
+	}
+}
+
+func TestSetStreamDelegate_nilNoOp(t *testing.T) {
+	d := &recordingStreamDelegate{}
+	b := NewMessageBus(2, testLG, WithStreamDelegate(d))
+	defer b.Close()
+	b.SetStreamDelegate(nil)
+	h := StreamHints{Channel: "x", ChatID: "y"}
+	b.OnStreamBegin(context.Background(), h)
+	b.OnStreamEnd(context.Background(), h, nil)
+	if d.begins != 0 || d.ends != 0 {
+		t.Fatalf("after noop replace: begins=%d ends=%d want 0,0", d.begins, d.ends)
+	}
+}
+
+type streamWrapCtxKey struct{}
+
+type wrapCtxStreamDel struct{}
+
+func (wrapCtxStreamDel) NotifyStreamBegin(ctx context.Context, _ StreamHints) context.Context {
+	return context.WithValue(ctx, streamWrapCtxKey{}, 42)
+}
+
+func (wrapCtxStreamDel) NotifyStreamEnd(context.Context, StreamHints, error) {}
+
+func TestOnStreamBegin_delegateWrapsContext(t *testing.T) {
+	b := NewMessageBus(2, testLG, WithStreamDelegate(wrapCtxStreamDel{}))
+	defer b.Close()
+	out := b.OnStreamBegin(context.Background(), StreamHints{})
+	got, ok := out.Value(streamWrapCtxKey{}).(int)
+	if !ok || got != 42 {
+		t.Fatalf("value = %v ok=%v want 42,true", got, ok)
+	}
+}
+
+func TestWithStreamDelegate_NilMeansNoOp(t *testing.T) {
+	b := NewMessageBus(2, testLG, WithStreamDelegate(nil))
+	defer b.Close()
+	_ = b.OnStreamBegin(context.Background(), StreamHints{})
+	b.OnStreamEnd(context.Background(), StreamHints{}, errors.New("e"))
+}

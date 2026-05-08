@@ -11,5 +11,8 @@
 // are logged by the bus with stream and routing channel keys and emitted as
 // events.EventBusPublishFailure when an EventPublisher is wired via WithEventPublisher.
 //
+// Streaming outbound: optional StreamDelegate ([WithStreamDelegate], [MessageBus.SetStreamDelegate]);
+// the pipeline calls OnStreamBegin/OnStreamEnd around SendStream. Default is a noop delegate.
+//
 // Shutdown semantics are documented on MessageBus.Close.
 package bus
