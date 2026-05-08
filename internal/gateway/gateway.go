@@ -25,7 +25,7 @@ import (
 	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
-	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 )
 
 const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"

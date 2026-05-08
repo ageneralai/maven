@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
-	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 )
 
 // RunResponse executes a non-streaming turn with the same ContentBlocks + prompt merge rules as the gateway pipeline.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
-	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 
 	mavenlog "github.com/ageneralai/maven/internal/log"
 )

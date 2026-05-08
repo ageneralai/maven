@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 )
 
 // Runtime is the agent execution surface (typically agentsdk-go).

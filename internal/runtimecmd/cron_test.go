@@ -8,7 +8,7 @@ import (
 
 	"github.com/ageneralai/maven/internal/cron"
 	mavenlog "github.com/ageneralai/maven/internal/log"
-	"github.com/cexll/agentsdk-go/pkg/runtime/commands"
+	"github.com/ageneralai/ageneral-agents-go/pkg/runtime/commands"
 )
 
 var testLG = mavenlog.Std()

@@ -3,7 +3,7 @@ package channel
 import (
 	"context"
 
-	"github.com/cexll/agentsdk-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 )
 
 // StreamChannel supports streaming model output to the chat surface.

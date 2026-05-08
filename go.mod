@@ -3,7 +3,7 @@ module github.com/ageneralai/maven
 go 1.25.5
 
 require (
-	github.com/cexll/agentsdk-go v0.9.3
+	github.com/ageneralai/ageneral-agents-go v0.1.0
 	github.com/coder/websocket v1.8.14
 	github.com/google/uuid v1.6.0
 	github.com/mdp/qrterminal/v3 v3.2.1

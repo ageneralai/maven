@@ -10,8 +10,8 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
-	"github.com/cexll/agentsdk-go/pkg/api"
-	"github.com/cexll/agentsdk-go/pkg/message"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/message"
 )
 
 // PostActionHandler applies gateway post-turn effects. HandlePostResponse reads

@@ -13,7 +13,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/internal/log"
-	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 )
 
 var feishuTestLog = mavenlog.Std()

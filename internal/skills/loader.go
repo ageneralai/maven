@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	mavenlog "github.com/ageneralai/maven/internal/log"
-	"github.com/cexll/agentsdk-go/pkg/api"
-	runtimeskills "github.com/cexll/agentsdk-go/pkg/runtime/skills"
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"gopkg.in/yaml.v3"
 )
 

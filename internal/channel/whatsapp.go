@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cexll/agentsdk-go/pkg/model"
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	qrterminal "github.com/mdp/qrterminal/v3"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
