@@ -1,4 +1,4 @@
-package runtimecmd
+package slash
 
 import (
 	"context"
@@ -8,16 +8,15 @@ import (
 
 	"github.com/ageneralai/maven/internal/cron"
 	mavenlog "github.com/ageneralai/maven/internal/log"
-	"github.com/ageneralai/ageneral-agents-go/pkg/runtime/commands"
 )
 
-var testLG = mavenlog.Std()
+var testCronLog = mavenlog.Std()
 
 func TestHandleCronAdd_atDuration(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testLG)
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testCronLog)
 	h := handleCronAddBody(svc)
-	res, err := h(context.Background(), mustParse(t, `/cron-add --name n1 --in 2m --message "ping"`))
+	res, err := h(context.Background(), mustParseCron(t, `/cron-add --name n1 --in 2m --message "ping"`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,9 +36,9 @@ func TestHandleCronAdd_atDuration(t *testing.T) {
 }
 
 func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"), testLG)
+	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"), testCronLog)
 	h := handleCronAddBody(svc)
-	_, err := h(context.Background(), mustParse(t, `/cron-add --name x --in 1s --message hi --deliver true`))
+	_, err := h(context.Background(), mustParseCron(t, `/cron-add --name x --in 1s --message hi --deliver true`))
 	if err == nil || !strings.Contains(err.Error(), "--channel") {
 		t.Fatalf("want channel error, got %v", err)
 	}
@@ -47,14 +46,14 @@ func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
 
 func TestHandleCronRemove(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testLG)
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), testCronLog)
 	add := handleCronAddBody(svc)
-	if _, err := add(context.Background(), mustParse(t, `/cron-add --name z --in 1h --message m`)); err != nil {
+	if _, err := add(context.Background(), mustParseCron(t, `/cron-add --name z --in 1h --message m`)); err != nil {
 		t.Fatal(err)
 	}
 	id := svc.ListJobs()[0].ID
 	rem := handleCronRemoveBody(svc)
-	if _, err := rem(context.Background(), mustParse(t, `/cron-remove --id `+id)); err != nil {
+	if _, err := rem(context.Background(), mustParseCron(t, `/cron-remove --id `+id)); err != nil {
 		t.Fatal(err)
 	}
 	if len(svc.ListJobs()) != 0 {
@@ -62,9 +61,9 @@ func TestHandleCronRemove(t *testing.T) {
 	}
 }
 
-func mustParse(t *testing.T, line string) commands.Invocation {
+func mustParseCron(t *testing.T, line string) Invocation {
 	t.Helper()
-	inv, err := commands.Parse(line)
+	inv, err := Parse(line)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,14 +83,14 @@ func anyStr(v any) string {
 	return ""
 }
 
-func handleCronAddBody(svc *cron.Service) func(context.Context, commands.Invocation) (commands.Result, error) {
-	return func(ctx context.Context, inv commands.Invocation) (commands.Result, error) {
+func handleCronAddBody(svc *cron.Service) func(context.Context, Invocation) (Result, error) {
+	return func(ctx context.Context, inv Invocation) (Result, error) {
 		return handleCronAdd(ctx, svc, inv)
 	}
 }
 
-func handleCronRemoveBody(svc *cron.Service) func(context.Context, commands.Invocation) (commands.Result, error) {
-	return func(ctx context.Context, inv commands.Invocation) (commands.Result, error) {
+func handleCronRemoveBody(svc *cron.Service) func(context.Context, Invocation) (Result, error) {
+	return func(ctx context.Context, inv Invocation) (Result, error) {
 		return handleCronRemove(ctx, svc, inv)
 	}
 }

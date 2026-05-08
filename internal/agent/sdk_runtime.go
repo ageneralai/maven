@@ -9,7 +9,6 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/cronschedule"
-	"github.com/ageneralai/maven/internal/runtimecmd"
 )
 
 type runtimeAdapter struct {
@@ -28,7 +27,7 @@ func (r *runtimeAdapter) Close() {
 	r.rt.Close()
 }
 
-// NewSDKRuntime constructs the default agentsdk-go runtime.
+// NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options.
 func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (Runtime, error) {
 	var provider api.ModelFactory
 	switch cfg.Provider.Type {
@@ -53,14 +52,12 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 		SystemPrompt:  sysPrompt,
 		MaxIterations: cfg.Agent.MaxToolIterations,
 		MCPServers:    cfg.MCP.Servers,
-		TokenTracking: cfg.TokenTracking.Enabled,
 		AutoCompact: api.CompactConfig{
 			Enabled:       cfg.AutoCompact.Enabled,
 			Threshold:     cfg.AutoCompact.Threshold,
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
 		Skills:      skillRegs,
-		Commands:    runtimecmd.Build(cronSvc),
 		CustomTools: cronschedule.Tools(cronSvc),
 	})
 	if err != nil {

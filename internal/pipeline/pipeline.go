@@ -10,6 +10,7 @@ import (
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/inboundctx"
 	mavenlog "github.com/ageneralai/maven/internal/log"
+	"github.com/ageneralai/maven/internal/slash"
 	"github.com/ageneralai/maven/internal/stringutil"
 )
 
@@ -17,13 +18,14 @@ const userErrMessage = "Sorry, I encountered an error processing your message."
 const userErrCommand = "Sorry, I encountered an error processing your command."
 
 type Pipeline struct {
-	Log      mavenlog.PrintLogger
-	Bus      *bus.MessageBus
-	Channels *channel.ChannelManager
-	rtMu     sync.RWMutex
-	Runtime  agent.Runtime
-	Sessions *agent.SessionResolver
-	Posts    *agent.PostActionHandler
+	Log           mavenlog.PrintLogger
+	Bus           *bus.MessageBus
+	Channels      *channel.ChannelManager
+	SlashRegistry *slash.Registry
+	rtMu          sync.RWMutex
+	Runtime       agent.Runtime
+	Sessions      *agent.SessionResolver
+	Posts         *agent.PostActionHandler
 }
 
 // New builds a pipeline with required dependencies. Optional fields (e.g. Channels)
@@ -107,10 +109,27 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			}
 		}
 	}
+	slashOut, err := slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
+		Text:              msg.Content,
+		ExpectedSlashName: msg.Hints.SlashCommand,
+	})
+	if err != nil {
+		p.sendError(msg.Channel, msg.ChatID, userErrCommand, err)
+		return
+	}
+	if !slashOut.ContinueToModel {
+		p.Bus.Outbound <- bus.OutboundMessage{
+			Channel:  msg.Channel,
+			ChatID:   msg.ChatID,
+			Content:  slashOut.DirectReply,
+			Metadata: cloneTransportMeta(msg.TransportMeta),
+		}
+		return
+	}
+	rt := p.CurrentRuntime()
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
-			rt := p.CurrentRuntime()
-			events, err := agent.RunStream(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks)
+			events, err := agent.RunStreamWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
 			if err != nil {
 				p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
 				return
@@ -123,7 +142,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			return
 		}
 	}
-	resp, err := agent.RunResponse(msgCtx, p.CurrentRuntime(), msg.Content, sessionKey, msg.ContentBlocks)
+	resp, err := agent.RunResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
 	if err != nil {
 		p.sendError(msg.Channel, msg.ChatID, userErrMessage, err)
 		return
@@ -132,7 +151,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	if resp != nil && resp.Result != nil {
 		result = resp.Result.Output
 	}
-	if postResult, handled, postErr := p.Posts.HandlePostResponse(msg.StableRouteKey(), resp); handled || postErr != nil {
+	if postResult, handled, postErr := p.Posts.HandlePostResponse(msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
 		if postErr != nil {
 			p.sendError(msg.Channel, msg.ChatID, userErrCommand, postErr)
 			return

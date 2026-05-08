@@ -7,16 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/runtimecmd"
-	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/message"
+	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/session"
+	"github.com/ageneralai/maven/internal/slash"
 )
 
-// PostActionHandler applies gateway post-turn effects. HandlePostResponse reads
-// maven.post_action and maven.response_mode from CommandResults metadata;
-// when agentsdk adds a typed post-action on api.Response, switch to that field and drop metadata scraping.
+// PostActionHandler applies gateway post-turn effects using slash.PreTurn trail metadata.
 type PostActionHandler struct {
 	Sessions  *session.Router
 	Workspace string
@@ -35,13 +33,13 @@ func (h *PostActionHandler) HandleBuiltin(msg bus.InboundMessage) (bool, error) 
 	}
 }
 
-func (h *PostActionHandler) HandlePostResponse(chatRouteKey string, resp *api.Response) (string, bool, error) {
-	action := responseMetadata(resp, runtimecmd.MetaPostAction)
+func (h *PostActionHandler) HandlePostResponse(chatRouteKey string, resp *api.Response, trail []slash.Execution) (string, bool, error) {
+	action := trailMeta(trail, slash.MetaPostAction)
 	if action == "" {
 		return "", false, nil
 	}
 	switch action {
-	case runtimecmd.PostActionCompactRotate:
+	case slash.PostActionCompactRotate:
 		summary := strings.TrimSpace(resultOutput(resp))
 		if summary == "" {
 			return "", true, fmt.Errorf("compact summary is empty")
@@ -57,7 +55,7 @@ func (h *PostActionHandler) HandlePostResponse(chatRouteKey string, resp *api.Re
 			_ = h.Sessions.Set(chatRouteKey, oldSessionID)
 			return "", true, err
 		}
-		if responseMetadata(resp, runtimecmd.MetaResponse) == runtimecmd.ResponseCompactAck {
+		if trailMeta(trail, slash.MetaResponse) == slash.ResponseCompactAck {
 			return "✅ Conversation compacted and continued in a fresh session.", true, nil
 		}
 		return summary, true, nil
@@ -66,15 +64,15 @@ func (h *PostActionHandler) HandlePostResponse(chatRouteKey string, resp *api.Re
 	}
 }
 
-func responseMetadata(resp *api.Response, key string) string {
-	if resp == nil || key == "" {
+func trailMeta(trail []slash.Execution, key string) string {
+	if key == "" {
 		return ""
 	}
-	for _, exec := range resp.CommandResults {
-		if exec.Result.Metadata == nil {
+	for _, ex := range trail {
+		if ex.Result.Metadata == nil {
 			continue
 		}
-		if value, ok := exec.Result.Metadata[key]; ok {
+		if value, ok := ex.Result.Metadata[key]; ok {
 			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
 				return text
 			}

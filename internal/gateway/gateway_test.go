@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
@@ -19,11 +21,8 @@ import (
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/ageneralai/maven/internal/prompt"
-	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/session"
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
-	"github.com/ageneralai/ageneral-agents-go/pkg/runtime/commands"
+	"github.com/ageneralai/maven/internal/slash"
 )
 
 var testLG = mavenlog.Std()
@@ -70,7 +69,9 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 var _ agent.Runtime = (*mockRuntime)(nil)
 
 func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
-	return pipeline.New(testLG, b, rt, &agent.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
+	p := pipeline.New(testLG, b, rt, &agent.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
+	p.SlashRegistry = slash.BuiltIns(nil)
+	return p
 }
 
 func TestGateway_BuildSystemPrompt(t *testing.T) {
@@ -963,12 +964,6 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "important user goals and pending tasks"},
-			CommandResults: []api.CommandExecution{{
-				Result: commands.Result{Metadata: map[string]any{
-					runtimecmd.MetaPostAction: runtimecmd.PostActionCompactRotate,
-					runtimecmd.MetaResponse:   runtimecmd.ResponseCompactAck,
-				}},
-			}},
 		},
 	}
 

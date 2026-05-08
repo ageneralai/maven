@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/automation"
 	"github.com/ageneralai/maven/internal/bus"
@@ -25,7 +26,7 @@ import (
 	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/maven/internal/slash"
 )
 
 const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"
@@ -114,6 +115,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g.pipe = pipeline.New(g.logger, g.bus, rt, sessRes, posts)
 	g.channels = channel.NewChannelManager(g.bus, g.logger)
 	g.pipe.Channels = g.channels
+	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.cron.OnJob = func(job cron.CronJob) (string, error) {
 		if err := job.Payload.Validate(); err != nil {
 			return "", err
@@ -194,6 +196,7 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	}
 	g.skillRegs = skillRegs
 	g.cfg = cfg
+	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.startHeartbeat(ctx)
 	return nil
 }

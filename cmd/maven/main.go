@@ -14,13 +14,12 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
-	"github.com/spf13/cobra"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
 	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/memory"
-	"github.com/ageneralai/maven/internal/runtimecmd"
 	"github.com/ageneralai/maven/internal/skills"
+	"github.com/spf13/cobra"
 )
 
 // Runtime interface for agent runtime (allows mocking in tests)
@@ -79,14 +78,12 @@ func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
 		SystemPrompt:  sysPrompt,
 		MaxIterations: cfg.Agent.MaxToolIterations,
 		MCPServers:    cfg.MCP.Servers,
-		TokenTracking: cfg.TokenTracking.Enabled,
 		AutoCompact: api.CompactConfig{
 			Enabled:       cfg.AutoCompact.Enabled,
 			Threshold:     cfg.AutoCompact.Threshold,
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
-		Skills:   skillRegs,
-		Commands: runtimecmd.Build(nil),
+		Skills: skillRegs,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)
