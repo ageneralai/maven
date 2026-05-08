@@ -3,33 +3,47 @@ package cron
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/adhocore/gronx"
+	"github.com/ageneralai/maven/internal/cronsession"
+	"github.com/ageneralai/maven/internal/executor"
 	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/stringutil"
-	rcron "github.com/robfig/cron/v3"
+	"golang.org/x/sync/semaphore"
 )
 
 type Service struct {
 	storePath string
+	exec      executor.TurnExecutor
+	sem       *semaphore.Weighted
 	log       mavenlog.PrintLogger
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	jobs      []CronJob
-	OnJob     func(job CronJob) (string, error)
-	cron      *rcron.Cron
-	entryMap  map[string]rcron.EntryID
+	stopChan  chan struct{}
+	stopOnce  sync.Once
 	wakeChan  chan struct{}
 }
 
-func NewService(storePath string, lg mavenlog.PrintLogger) *Service {
+func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg mavenlog.PrintLogger) *Service {
+	if exec == nil {
+		panic("cron: TurnExecutor is required")
+	}
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
 	return &Service{
 		storePath: storePath,
+		exec:      exec,
+		sem:       semaphore.NewWeighted(int64(maxConcurrent)),
 		log:       lg,
-		entryMap:  make(map[string]rcron.EntryID),
+		stopChan:  make(chan struct{}),
 		wakeChan:  make(chan struct{}, 1),
 	}
 }
@@ -41,22 +55,239 @@ func (s *Service) notify() {
 	}
 }
 
+func (s *Service) JobByID(id string) (CronJob, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.jobs {
+		if s.jobs[i].ID == id {
+			return s.jobs[i], true
+		}
+	}
+	return CronJob{}, false
+}
+
+func (s *Service) findJobIndex(id string) int {
+	for i := range s.jobs {
+		if s.jobs[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Service) ensureNextRunLocked(now int64) {
+	for i := range s.jobs {
+		j := &s.jobs[i]
+		if !j.Enabled || j.State.NextRunAtMs > 0 {
+			continue
+		}
+		switch j.Schedule.Kind {
+		case "every":
+			if j.Schedule.EveryMs <= 0 {
+				continue
+			}
+			if j.State.LastRunAtMs == 0 {
+				j.State.NextRunAtMs = now + j.Schedule.EveryMs
+			} else {
+				j.State.NextRunAtMs = j.State.LastRunAtMs + j.Schedule.EveryMs
+			}
+		case "at":
+			j.State.NextRunAtMs = j.Schedule.AtMs
+		case "cron":
+			next, err := gronx.NextTickAfter(j.Schedule.Expr, time.UnixMilli(now), false)
+			if err != nil {
+				s.log.Printf("[cron] job %s invalid cron expr: %v", j.Name, err)
+				continue
+			}
+			j.State.NextRunAtMs = next.UnixMilli()
+		}
+	}
+}
+
+func computeNextScheduleRun(sch Schedule, fromMs int64) int64 {
+	switch sch.Kind {
+	case "at":
+		if sch.AtMs > fromMs {
+			return sch.AtMs
+		}
+		return 0
+	case "every":
+		if sch.EveryMs <= 0 {
+			return 0
+		}
+		return fromMs + sch.EveryMs
+	case "cron":
+		next, err := gronx.NextTickAfter(sch.Expr, time.UnixMilli(fromMs), false)
+		if err != nil {
+			return 0
+		}
+		return next.UnixMilli()
+	}
+	return 0
+}
+
+func (s *Service) nextDelayLocked() time.Duration {
+	now := time.Now().UnixMilli()
+	var minRem int64 = -1
+	for i := range s.jobs {
+		j := &s.jobs[i]
+		if !j.Enabled || j.State.NextRunAtMs <= 0 {
+			continue
+		}
+		rem := j.State.NextRunAtMs - now
+		if rem < 0 {
+			rem = 0
+		}
+		if minRem < 0 || rem < minRem {
+			minRem = rem
+		}
+	}
+	if minRem < 0 {
+		return time.Hour
+	}
+	if minRem == 0 {
+		return time.Millisecond
+	}
+	return time.Duration(minRem) * time.Millisecond
+}
+
+func drainTimer(t *time.Timer) {
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+}
+
+func resetTimer(t *time.Timer, d time.Duration) {
+	drainTimer(t)
+	t.Reset(d)
+}
+
+func (s *Service) runLoop() {
+	timer := time.NewTimer(time.Hour)
+	defer timer.Stop()
+	for {
+		s.mu.RLock()
+		delay := s.nextDelayLocked()
+		s.mu.RUnlock()
+		resetTimer(timer, delay)
+		select {
+		case <-s.stopChan:
+			return
+		case <-s.wakeChan:
+			drainTimer(timer)
+			continue
+		case <-timer.C:
+			s.checkAndFire()
+		}
+	}
+}
+
+func (s *Service) isDue(j *CronJob, now int64) bool {
+	if !j.Enabled || j.State.NextRunAtMs <= 0 {
+		return false
+	}
+	return now >= j.State.NextRunAtMs
+}
+
+func (s *Service) clearNextRun(j *CronJob) {
+	j.State.NextRunAtMs = 0
+}
+
+func (s *Service) checkAndFire() {
+	s.mu.Lock()
+	now := time.Now().UnixMilli()
+	var due []CronJob
+	for i := range s.jobs {
+		j := &s.jobs[i]
+		if !s.isDue(j, now) {
+			continue
+		}
+		if j.Schedule.Kind == "at" {
+			j.Enabled = false
+		}
+		due = append(due, *j)
+		s.clearNextRun(j)
+	}
+	_ = s.saveAtomicLocked()
+	s.mu.Unlock()
+	for _, job := range due {
+		job := job
+		go s.fire(job)
+	}
+}
+
+func (s *Service) fire(job CronJob) {
+	if err := job.Payload.Validate(); err != nil {
+		s.mu.Lock()
+		s.applyJobValidationFailure(job.ID, err)
+		_ = s.saveAtomicLocked()
+		s.mu.Unlock()
+		return
+	}
+	ctx := context.Background()
+	if err := s.sem.Acquire(ctx, 1); err != nil {
+		return
+	}
+	defer s.sem.Release(1)
+	sessionID := cronsession.SessionKey(job.ID)
+	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
+	doneMs := time.Now().UnixMilli()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := s.findJobIndex(job.ID)
+	if idx < 0 {
+		_ = s.saveAtomicLocked()
+		return
+	}
+	j := &s.jobs[idx]
+	j.State.LastRunAtMs = doneMs
+	if err != nil {
+		j.State.LastStatus = "error"
+		j.State.LastError = err.Error()
+		s.log.Printf("[cron] job %s error: %v", j.Name, err)
+	} else {
+		j.State.LastStatus = "ok"
+		j.State.LastError = ""
+		s.log.Printf("[cron] job %s result: %s", j.Name, stringutil.Truncate(out, 100))
+	}
+	if j.Schedule.Kind == "at" {
+		j.Enabled = false
+		j.State.NextRunAtMs = 0
+	}
+	if j.DeleteAfterRun {
+		s.jobs = append(s.jobs[:idx], s.jobs[idx+1:]...)
+	} else if j.Schedule.Kind != "at" {
+		j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
+	}
+	_ = s.saveAtomicLocked()
+}
+
+func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {
+	idx := s.findJobIndex(jobID)
+	if idx < 0 {
+		return
+	}
+	j := &s.jobs[idx]
+	j.State.LastStatus = "error"
+	j.State.LastError = validateErr.Error()
+	j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, time.Now().UnixMilli())
+}
+
 func (s *Service) Start(ctx context.Context) error {
 	if err := s.load(); err != nil {
 		s.log.Printf("[cron] warning: failed to load jobs: %v", err)
 	}
-	s.initNextRun()
-	s.cron = rcron.New(rcron.WithSeconds())
 	s.mu.Lock()
-	for i := range s.jobs {
-		if s.jobs[i].Enabled && s.jobs[i].Schedule.Kind == "cron" {
-			s.registerJob(&s.jobs[i])
-		}
-	}
+	now := time.Now().UnixMilli()
+	s.ensureNextRunLocked(now)
+	_ = s.saveAtomicLocked()
+	n := len(s.jobs)
 	s.mu.Unlock()
-	s.cron.Start()
-	s.log.Printf("[cron] started with %d jobs", len(s.jobs))
-	go s.tickLoop(ctx)
+	s.log.Printf("[cron] started with %d jobs", n)
+	go s.runLoop()
 	go func() {
 		<-ctx.Done()
 		s.Stop()
@@ -64,218 +295,31 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) initNextRun() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now().UnixMilli()
-	for i := range s.jobs {
-		j := &s.jobs[i]
-		if !j.Enabled || j.Schedule.Kind != "every" || j.Schedule.EveryMs <= 0 {
-			continue
-		}
-		if j.State.LastRunAtMs == 0 && j.State.NextRunAtMs == 0 {
-			j.State.NextRunAtMs = now + j.Schedule.EveryMs
-		}
-	}
-}
-
-func (s *Service) registerJob(job *CronJob) {
-	if s.cron == nil {
-		return
-	}
-	if id, ok := s.entryMap[job.ID]; ok {
-		s.cron.Remove(id)
-		delete(s.entryMap, job.ID)
-	}
-	jobCopy := *job
-	entryID, err := s.cron.AddFunc(job.Schedule.Expr, func() {
-		s.executeJob(jobCopy)
-	})
-	if err != nil {
-		s.log.Printf("[cron] failed to register job %s (%s): %v", job.Name, job.Schedule.Expr, err)
-		return
-	}
-	s.entryMap[job.ID] = entryID
-}
-
-func (s *Service) executeJob(job CronJob) {
-	s.log.Printf("[cron] executing job %s (%s)", job.Name, job.ID)
-	if s.OnJob == nil {
-		s.log.Printf("[cron] no OnJob handler set")
-		return
-	}
-	result, err := s.OnJob(job)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i := range s.jobs {
-		if s.jobs[i].ID != job.ID {
-			continue
-		}
-		s.jobs[i].State.LastRunAtMs = time.Now().UnixMilli()
-		if s.jobs[i].Schedule.Kind == "every" {
-			s.jobs[i].State.NextRunAtMs = 0
-		}
-		if err != nil {
-			s.jobs[i].State.LastStatus = "error"
-			s.jobs[i].State.LastError = err.Error()
-			s.log.Printf("[cron] job %s error: %v", job.Name, err)
-		} else {
-			s.jobs[i].State.LastStatus = "ok"
-			s.jobs[i].State.LastError = ""
-			s.log.Printf("[cron] job %s result: %s", job.Name, stringutil.Truncate(result, 100))
-		}
-		if s.jobs[i].DeleteAfterRun {
-			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
-		}
-		break
-	}
-	_ = s.save()
-}
-
-func (s *Service) computeMinDelay() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now().UnixMilli()
-	var minRemaining int64 = -1
-	for i := range s.jobs {
-		job := &s.jobs[i]
-		if !job.Enabled {
-			continue
-		}
-		switch job.Schedule.Kind {
-		case "every":
-			if job.Schedule.EveryMs <= 0 {
-				continue
-			}
-			var rem int64
-			if job.State.LastRunAtMs == 0 {
-				if job.State.NextRunAtMs > 0 {
-					rem = job.State.NextRunAtMs - now
-				} else {
-					rem = job.Schedule.EveryMs
-				}
-			} else {
-				rem = job.State.LastRunAtMs + job.Schedule.EveryMs - now
-			}
-			if rem <= 0 {
-				rem = 1
-			}
-			if minRemaining < 0 || rem < minRemaining {
-				minRemaining = rem
-			}
-		case "at":
-			if job.Schedule.AtMs <= 0 {
-				continue
-			}
-			rem := job.Schedule.AtMs - now
-			if rem <= 0 {
-				rem = 1
-			}
-			if minRemaining < 0 || rem < minRemaining {
-				minRemaining = rem
-			}
-		}
-	}
-	if minRemaining < 0 {
-		return time.Hour
-	}
-	return time.Duration(minRemaining) * time.Millisecond
-}
-
-func (s *Service) checkDueJobs(now int64) {
-	s.mu.Lock()
-	var toRun []CronJob
-	for i := range s.jobs {
-		job := &s.jobs[i]
-		if !job.Enabled {
-			continue
-		}
-		switch job.Schedule.Kind {
-		case "every":
-			var due bool
-			if job.State.LastRunAtMs == 0 {
-				due = job.State.NextRunAtMs > 0 && now >= job.State.NextRunAtMs
-			} else {
-				due = now >= job.State.LastRunAtMs+job.Schedule.EveryMs
-			}
-			if due {
-				toRun = append(toRun, *job)
-			}
-		case "at":
-			if job.Schedule.AtMs > 0 && now >= job.Schedule.AtMs {
-				job.Enabled = false
-				job.State.NextRunAtMs = 0
-				toRun = append(toRun, *job)
-			}
-		}
-	}
-	if len(toRun) > 0 {
-		_ = s.save()
-	}
-	s.mu.Unlock()
-	for _, job := range toRun {
-		s.executeJob(job)
-	}
-}
-
-func (s *Service) tickLoop(ctx context.Context) {
-	timer := time.NewTimer(time.Hour)
-	defer func() {
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-	}()
-	resetTimer := func() {
-		d := s.computeMinDelay()
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-		timer.Reset(d)
-	}
-	resetTimer()
-	for {
-		select {
-		case <-timer.C:
-			s.checkDueJobs(time.Now().UnixMilli())
-			resetTimer()
-		case <-s.wakeChan:
-			resetTimer()
-		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			return
-		}
-	}
-}
-
 func (s *Service) Stop() {
-	if s.cron != nil {
-		s.cron.Stop()
-	}
+	s.stopOnce.Do(func() { close(s.stopChan) })
 	s.log.Printf("[cron] stopped")
 }
 
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {
 	s.mu.Lock()
 	job := NewCronJob(name, schedule, payload)
-	if job.Schedule.Kind == "every" && job.Schedule.EveryMs > 0 && job.State.LastRunAtMs == 0 {
-		job.State.NextRunAtMs = time.Now().UnixMilli() + job.Schedule.EveryMs
+	switch job.Schedule.Kind {
+	case "every":
+		if job.Schedule.EveryMs > 0 && job.State.LastRunAtMs == 0 {
+			job.State.NextRunAtMs = time.Now().UnixMilli() + job.Schedule.EveryMs
+		}
+	case "at":
+		job.State.NextRunAtMs = job.Schedule.AtMs
+	case "cron":
+		next, err := gronx.NextTickAfter(job.Schedule.Expr, time.Now(), false)
+		if err != nil {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("cron expr: %w", err)
+		}
+		job.State.NextRunAtMs = next.UnixMilli()
 	}
 	s.jobs = append(s.jobs, job)
-	if job.Schedule.Kind == "cron" && s.cron != nil {
-		s.registerJob(&s.jobs[len(s.jobs)-1])
-	}
-	err := s.save()
+	err := s.saveAtomicLocked()
 	out := s.jobs[len(s.jobs)-1]
 	s.mu.Unlock()
 	if err != nil {
@@ -292,12 +336,8 @@ func (s *Service) RemoveJob(id string) bool {
 		if job.ID != id {
 			continue
 		}
-		if entryID, ok := s.entryMap[id]; ok && s.cron != nil {
-			s.cron.Remove(entryID)
-			delete(s.entryMap, id)
-		}
 		s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
-		_ = s.save()
+		_ = s.saveAtomicLocked()
 		removed = true
 		break
 	}
@@ -309,8 +349,8 @@ func (s *Service) RemoveJob(id string) bool {
 }
 
 func (s *Service) ListJobs() []CronJob {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	result := make([]CronJob, len(s.jobs))
 	copy(result, s.jobs)
 	return result
@@ -324,15 +364,31 @@ func (s *Service) EnableJob(id string, enabled bool) (*CronJob, error) {
 			continue
 		}
 		s.jobs[i].Enabled = enabled
-		if s.jobs[i].Schedule.Kind == "cron" && s.cron != nil {
-			if enabled {
-				s.registerJob(&s.jobs[i])
-			} else if entryID, ok := s.entryMap[id]; ok {
-				s.cron.Remove(entryID)
-				delete(s.entryMap, id)
+		if enabled {
+			if s.jobs[i].State.NextRunAtMs == 0 {
+				now := time.Now().UnixMilli()
+				switch s.jobs[i].Schedule.Kind {
+				case "every":
+					if s.jobs[i].Schedule.EveryMs > 0 {
+						if s.jobs[i].State.LastRunAtMs == 0 {
+							s.jobs[i].State.NextRunAtMs = now + s.jobs[i].Schedule.EveryMs
+						} else {
+							s.jobs[i].State.NextRunAtMs = s.jobs[i].State.LastRunAtMs + s.jobs[i].Schedule.EveryMs
+						}
+					}
+				case "at":
+					s.jobs[i].State.NextRunAtMs = s.jobs[i].Schedule.AtMs
+				case "cron":
+					next, err := gronx.NextTickAfter(s.jobs[i].Schedule.Expr, time.UnixMilli(now), false)
+					if err == nil {
+						s.jobs[i].State.NextRunAtMs = next.UnixMilli()
+					}
+				}
 			}
+		} else {
+			s.jobs[i].State.NextRunAtMs = 0
 		}
-		_ = s.save()
+		_ = s.saveAtomicLocked()
 		job := s.jobs[i]
 		out = &job
 		break
@@ -356,14 +412,37 @@ func (s *Service) load() error {
 	return json.Unmarshal(data, &s.jobs)
 }
 
-func (s *Service) save() error {
-	dir := filepath.Dir(s.storePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
+func (s *Service) saveAtomicLocked() error {
 	data, err := json.MarshalIndent(s.jobs, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.storePath, data, 0644)
+	return writeAtomic(s.storePath, data, 0o600)
+}
+
+func writeAtomic(path string, data []byte, perm fs.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".cron-jobs-*.json")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	_, werr := tmp.Write(data)
+	serr := tmp.Sync()
+	cerr := tmp.Close()
+	if werr != nil || serr != nil || cerr != nil {
+		os.Remove(tmpName)
+		return errors.Join(werr, serr, cerr)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if perm != 0 {
+		_ = os.Chmod(path, perm)
+	}
+	return nil
 }

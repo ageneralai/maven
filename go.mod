@@ -3,13 +3,13 @@ module github.com/ageneralai/maven
 go 1.25.5
 
 require (
+	github.com/adhocore/gronx v1.19.6
 	github.com/ageneralai/ageneral-agents-go v0.1.0
 	github.com/coder/websocket v1.8.14
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/mymmrac/telego v1.6.0
-	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	go.mau.fi/whatsmeow v0.0.0-20260129212019-7787ab952245
 	golang.org/x/sync v0.20.0

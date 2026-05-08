@@ -7,39 +7,57 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/internal/heartbeatsession"
 	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/stringutil"
+	"golang.org/x/sync/semaphore"
 )
 
 type Service struct {
-	workspace   string
-	onHeartbeat func(prompt string) (string, error)
-	interval    time.Duration
-	log         mavenlog.PrintLogger
+	workspace string
+	exec      executor.TurnExecutor
+	sem       *semaphore.Weighted
+	interval  time.Duration
+	log       mavenlog.PrintLogger
 }
 
-func New(workspace string, onHB func(string) (string, error), interval time.Duration, log mavenlog.PrintLogger) *Service {
+func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log mavenlog.PrintLogger) *Service {
+	if exec == nil {
+		panic("heartbeat: TurnExecutor is required")
+	}
 	if interval <= 0 {
 		interval = 30 * time.Minute
 	}
 	return &Service{
-		workspace:   workspace,
-		onHeartbeat: onHB,
-		interval:    interval,
-		log:         log,
+		workspace: workspace,
+		exec:      exec,
+		sem:       semaphore.NewWeighted(1),
+		interval:  interval,
+		log:       log,
 	}
+}
+
+func (s *Service) buildPrompt() string {
+	hbPath := filepath.Join(s.workspace, "HEARTBEAT.md")
+	data, err := os.ReadFile(hbPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			s.log.Printf("[heartbeat] read error: %v", err)
+		}
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func (s *Service) Start(ctx context.Context) error {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
-
 	s.log.Printf("[heartbeat] started, interval=%s", s.interval)
-
 	for {
 		select {
 		case <-ticker.C:
-			s.tick()
+			s.tick(ctx)
 		case <-ctx.Done():
 			s.log.Printf("[heartbeat] stopped")
 			return nil
@@ -47,34 +65,29 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 }
 
-func (s *Service) tick() {
-	hbPath := filepath.Join(s.workspace, "HEARTBEAT.md")
-	data, err := os.ReadFile(hbPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			s.log.Printf("[heartbeat] read error: %v", err)
-		}
+func (s *Service) tick(ctx context.Context) {
+	if !s.sem.TryAcquire(1) {
+		s.log.Printf("[heartbeat] skipped: previous tick still running")
 		return
 	}
+	go func() {
+		defer s.sem.Release(1)
+		s.execute(ctx)
+	}()
+}
 
-	content := strings.TrimSpace(string(data))
-	if content == "" {
+func (s *Service) execute(ctx context.Context) {
+	prompt := s.buildPrompt()
+	if prompt == "" {
 		return
 	}
-
-	s.log.Printf("[heartbeat] triggering with prompt (%d chars)", len(content))
-
-	if s.onHeartbeat == nil {
-		s.log.Printf("[heartbeat] no handler set")
-		return
-	}
-
-	result, err := s.onHeartbeat(content)
+	s.log.Printf("[heartbeat] triggering with prompt (%d chars)", len(prompt))
+	sessionID := heartbeatsession.SessionKey()
+	result, err := s.exec.RunTurn(ctx, prompt, sessionID)
 	if err != nil {
 		s.log.Printf("[heartbeat] error: %v", err)
 		return
 	}
-
 	if strings.Contains(result, "HEARTBEAT_OK") {
 		s.log.Printf("[heartbeat] nothing to do")
 	} else {

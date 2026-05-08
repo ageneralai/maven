@@ -12,14 +12,11 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
-	"github.com/ageneralai/maven/internal/automation"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	"github.com/ageneralai/maven/internal/heartbeatsession"
 	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
@@ -29,9 +26,7 @@ import (
 	"github.com/ageneralai/maven/internal/slash"
 )
 
-const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"
-
-// RuntimeFactory builds the agent runtime used by the gateway pipeline and automation queues.
+// RuntimeFactory builds the agent runtime used by the gateway pipeline.
 type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error)
 
 // Options for creating a Gateway.
@@ -55,8 +50,6 @@ type Gateway struct {
 	channels            *channel.ChannelManager
 	cron                *cron.Service
 	hb                  *heartbeat.Service
-	cronQ               *automation.Queue
-	heartbeatQ          *automation.Queue
 	runtimeFactory      RuntimeFactory
 	mem                 *memory.MemoryStore
 	skillRegs           []api.SkillRegistration
@@ -101,64 +94,33 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g.skillRegs = g.loadSkillRegs(cfg)
 	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
 	cronStorePath := filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json")
-	g.cron = cron.NewService(cronStorePath, g.logger)
-	g.cronQ = automation.NewQueue(cfg.Gateway.Cron.MaxConcurrentRuns)
-	g.heartbeatQ = automation.NewQueue(1)
 	factory := opts.RuntimeFactory
 	if factory == nil {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
+	g.channels = channel.NewChannelManager(g.bus, g.logger)
+	var pipe *pipeline.Pipeline
+	exec := &gatewayTurnExecutor{
+		pipeFn:   func() *pipeline.Pipeline { return pipe },
+		bus:      g.bus,
+		channels: g.channels,
+		log:      g.logger,
+	}
+	g.cron = cron.NewService(cronStorePath, exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger)
+	exec.cron = g.cron
+	g.signalChan = opts.SignalChan
+	sessRes := &agent.SessionResolver{Router: g.sessions}
+	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
 	rt, err := factory(cfg, sysPrompt, g.skillRegs, g.cron)
 	if err != nil {
 		return nil, err
 	}
-	g.signalChan = opts.SignalChan
-	sessRes := &agent.SessionResolver{Router: g.sessions}
-	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
-	g.pipe = pipeline.New(g.logger, g.bus, rt, sessRes, posts)
-	g.channels = channel.NewChannelManager(g.bus, g.logger)
-	g.pipe.Channels = g.channels
-	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)
-	g.cron.OnJob = func(job cron.CronJob) (string, error) {
-		if err := job.Payload.Validate(); err != nil {
-			return "", err
-		}
-		var out string
-		if err := g.cronQ.Run(context.Background(), func(ctx context.Context) error {
-			var runErr error
-			out, runErr = g.pipe.RunText(ctx, job.Payload.Message, cronsession.SessionKey(job.ID), nil)
-			return runErr
-		}); err != nil {
-			return "", err
-		}
-		if job.Payload.Deliver {
-			ch := g.channels.GetChannel(job.Payload.Channel)
-			if ch != nil && ch.Capabilities().ReactiveOnly {
-				g.logger.Printf("[gateway] cron deliver skipped: channel %q is reactive-only", job.Payload.Channel)
-			} else {
-				g.bus.Outbound <- bus.OutboundMessage{
-					Channel: job.Payload.Channel,
-					ChatID:  job.Payload.To,
-					Content: out,
-				}
-			}
-		}
-		return out, nil
-	}
-	g.hb = heartbeat.New(cfg.Agent.Workspace, func(hbPrompt string) (string, error) {
-		var out string
-		ran, err := g.heartbeatQ.TryRun(context.Background(), func(ctx context.Context) error {
-			var runErr error
-			out, runErr = g.pipe.RunText(ctx, hbPrompt, heartbeatsession.SessionKey(), nil)
-			return runErr
-		})
-		if !ran {
-			g.logger.Printf("[heartbeat] skipped: %s", heartbeatSkipReasonAutomationLaneBusy)
-			return "", nil
-		}
-		return out, err
-	}, 0, g.logger)
+	pipe = pipeline.New(g.logger, g.bus, rt, sessRes, posts)
+	pipe.Channels = g.channels
+	pipe.SlashRegistry = slash.BuiltIns(g.cron)
+	g.pipe = pipe
+	g.hb = heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger)
 	return g, nil
 }
 

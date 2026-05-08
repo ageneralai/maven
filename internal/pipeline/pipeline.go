@@ -9,6 +9,7 @@ import (
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/inboundctx"
 	mavenlog "github.com/ageneralai/maven/internal/log"
 	"github.com/ageneralai/maven/internal/slash"
@@ -54,6 +55,13 @@ func (p *Pipeline) RunText(ctx context.Context, prompt, sessionID string, conten
 	rt := p.rt
 	return agent.RunText(ctx, rt, prompt, sessionID, contentBlocks)
 }
+
+// RunTurn implements executor.TurnExecutor.
+func (p *Pipeline) RunTurn(ctx context.Context, prompt, sessionID string) (string, error) {
+	return p.RunText(ctx, prompt, sessionID, nil)
+}
+
+var _ executor.TurnExecutor = (*Pipeline)(nil)
 
 // Reload runs applyChannels first (no lock; channels do not touch rt). Then it takes
 // the write lock, swaps rt and workspace under exclusion, unlocks, and closes the old
