@@ -42,23 +42,22 @@ func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api
 
 // Gateway wires channels, bus, cron, heartbeat, and the inbound pipeline. Business logic lives in internal/pipeline.
 type Gateway struct {
-	cfg                 *config.Config
-	bus                 *bus.MessageBus
-	pipe                *pipeline.Pipeline
-	pipeWg              sync.WaitGroup
-	runCancel           context.CancelFunc
-	channels            *channel.ChannelManager
-	cron                *cron.Service
-	hb                  *heartbeat.Service
-	runtimeFactory      RuntimeFactory
-	mem                 *memory.MemoryStore
-	skillRegs           []api.SkillRegistration
-	sessions            *session.Router
-	signalChan          chan os.Signal
-	logger              mavenlog.PrintLogger
-	hbCancel            context.CancelFunc
-	applyMu             sync.Mutex
-	initialChannelsDone bool
+	cfg            *config.Config
+	bus            *bus.MessageBus
+	pipe           *pipeline.Pipeline
+	pipeWg         sync.WaitGroup
+	runCancel      context.CancelFunc
+	channels       *channel.ChannelManager
+	cron           *cron.Service
+	hb             *heartbeat.Service
+	runtimeFactory RuntimeFactory
+	mem            *memory.MemoryStore
+	skillRegs      []api.SkillRegistration
+	sessions       *session.Router
+	signalChan     chan os.Signal
+	logger         mavenlog.PrintLogger
+	hbCancel       context.CancelFunc
+	applyMu        sync.Mutex
 }
 
 // New creates a Gateway with default options.
@@ -82,6 +81,7 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 }
 
 // NewWithOptions creates a Gateway with a custom runtime factory (for tests).
+// Pipeline runtime is unset until Apply; Run calls Apply before starting cron/pipeline goroutines.
 func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g := &Gateway{cfg: cfg, logger: mavenlog.Std()}
 	g.bus = bus.NewMessageBus(config.DefaultBufSize, g.logger)
@@ -91,9 +91,6 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		return nil, routerErr
 	}
 	g.sessions = router
-	g.skillRegs = g.loadSkillRegs(cfg)
-	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	cronStorePath := filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json")
 	factory := opts.RuntimeFactory
 	if factory == nil {
 		factory = DefaultRuntimeFactory
@@ -101,22 +98,13 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g.runtimeFactory = factory
 	g.channels = channel.NewChannelManager(g.bus, g.logger)
 	var pipe *pipeline.Pipeline
-	exec := &gatewayTurnExecutor{
-		pipeFn:   func() *pipeline.Pipeline { return pipe },
-		bus:      g.bus,
-		channels: g.channels,
-		log:      g.logger,
-	}
-	g.cron = cron.NewService(cronStorePath, exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger)
-	exec.cron = g.cron
+	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
+	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channels, Log: g.logger}
+	g.cron = cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
 	g.signalChan = opts.SignalChan
 	sessRes := &agent.SessionResolver{Router: g.sessions}
 	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
-	rt, err := factory(cfg, sysPrompt, g.skillRegs, g.cron)
-	if err != nil {
-		return nil, err
-	}
-	pipe = pipeline.New(g.logger, g.bus, rt, sessRes, posts)
+	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
 	pipe.Channels = g.channels
 	pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.pipe = pipe
@@ -124,26 +112,18 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	return g, nil
 }
 
-// Apply rebuilds the runtime from cfg, swaps the pipeline runtime, replaces channels, and restarts heartbeat.
+// Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
+// runtime from the factory, swaps it into the pipeline under Reload semantics, refreshes SlashRegistry from cron,
+// and restarts the heartbeat ticker tree. Idempotent retries use the same path.
 func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	g.applyMu.Lock()
 	defer g.applyMu.Unlock()
 	if g.cfg != nil && cfg.Agent.Workspace != g.cfg.Agent.Workspace {
 		return fmt.Errorf("reload: agent.workspace change not supported")
 	}
-	if !g.initialChannelsDone {
-		if err := g.channels.Apply(ctx, cfg); err != nil {
-			return fmt.Errorf("channels apply: %w", err)
-		}
-		g.skillRegs = g.loadSkillRegs(cfg)
-		g.cfg = cfg
-		g.initialChannelsDone = true
-		g.startHeartbeat(ctx)
-		return nil
-	}
-	skillRegs := g.loadSkillRegs(cfg)
+	g.skillRegs = g.loadSkillRegs(cfg)
 	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	newRt, err := g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron)
+	newRt, err := g.runtimeFactory(cfg, sysPrompt, g.skillRegs, g.cron)
 	if err != nil {
 		return fmt.Errorf("runtime factory: %w", err)
 	}
@@ -151,11 +131,21 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		newRt.Close()
 		return fmt.Errorf("channels apply: %w", reloadErr)
 	}
-	g.skillRegs = skillRegs
 	g.cfg = cfg
 	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.startHeartbeat(ctx)
 	return nil
+}
+
+func (g *Gateway) interruptRunLoops() {
+	if g.hbCancel != nil {
+		g.hbCancel()
+		g.hbCancel = nil
+	}
+	if g.runCancel != nil {
+		g.runCancel()
+		g.runCancel = nil
+	}
 }
 
 func (g *Gateway) startHeartbeat(ctx context.Context) {
@@ -172,7 +162,7 @@ func (g *Gateway) startHeartbeat(ctx context.Context) {
 	}()
 }
 
-// Run starts outbound dispatch, applies config (channels + runtime alignment), cron, heartbeat, the inbound pipeline, and blocks until shutdown or hot reload errors.
+// Run wires the gateway lifecycle: outbound dispatch goroutine → Apply desired config → cron → inbound pipeline goroutine → block on reload/signals/shutdown.
 func (g *Gateway) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -236,16 +226,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 }
 
-// Shutdown stops cron, channels, heartbeat, and closes the agent runtime.
+// Shutdown cancels heartbeat and the pipeline/dispatch ctx, drains the inbound loop, stops cron/channels/closes runtime and bus (order-sensitive).
 func (g *Gateway) Shutdown() error {
-	if g.hbCancel != nil {
-		g.hbCancel()
-		g.hbCancel = nil
-	}
-	if g.runCancel != nil {
-		g.runCancel()
-		g.runCancel = nil
-	}
+	g.interruptRunLoops()
 	g.pipeWg.Wait()
 	g.cron.Stop()
 	_ = g.channels.StopAll()

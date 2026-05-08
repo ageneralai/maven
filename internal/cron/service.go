@@ -22,6 +22,7 @@ import (
 type Service struct {
 	storePath string
 	exec      executor.TurnExecutor
+	deliver   *Deliver
 	sem       *semaphore.Weighted
 	log       mavenlog.PrintLogger
 	mu        sync.RWMutex
@@ -31,7 +32,7 @@ type Service struct {
 	wakeChan  chan struct{}
 }
 
-func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg mavenlog.PrintLogger) *Service {
+func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg mavenlog.PrintLogger, deliver *Deliver) *Service {
 	if exec == nil {
 		panic("cron: TurnExecutor is required")
 	}
@@ -41,6 +42,7 @@ func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int,
 	return &Service{
 		storePath: storePath,
 		exec:      exec,
+		deliver:   deliver,
 		sem:       semaphore.NewWeighted(int64(maxConcurrent)),
 		log:       lg,
 		stopChan:  make(chan struct{}),
@@ -236,10 +238,10 @@ func (s *Service) fire(job CronJob) {
 	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	idx := s.findJobIndex(job.ID)
 	if idx < 0 {
 		_ = s.saveAtomicLocked()
+		s.mu.Unlock()
 		return
 	}
 	j := &s.jobs[idx]
@@ -263,6 +265,10 @@ func (s *Service) fire(job CronJob) {
 		j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
 	}
 	_ = s.saveAtomicLocked()
+	s.mu.Unlock()
+	if err == nil && s.deliver != nil {
+		s.deliver.AfterSuccessfulRun(ctx, job, out)
+	}
 }
 
 func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {

@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,12 +19,12 @@ import (
 	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 var testLG = mavenlog.Std()
@@ -163,7 +164,7 @@ func TestGateway_Shutdown(t *testing.T) {
 
 	msgBus := bus.NewMessageBus(10, testLG)
 	chMgr := channel.NewChannelManager(msgBus, testLG)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG)
+	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	mockRt := &mockRuntime{}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
@@ -546,7 +547,7 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 
 	msgBus := bus.NewMessageBus(10, testLG)
 	chMgr := channel.NewChannelManager(msgBus, testLG)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG)
+	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
 		t.Fatalf("session.New: %v", rerr)
@@ -639,11 +640,15 @@ func TestNewWithOptions_RuntimeFactoryError(t *testing.T) {
 		},
 	}
 
-	_, err := NewWithOptions(cfg, Options{
+	g, err := NewWithOptions(cfg, Options{
 		RuntimeFactory: errorRuntimeFactory(context.DeadlineExceeded),
 	})
-	if err != context.DeadlineExceeded {
-		t.Errorf("expected DeadlineExceeded, got %v", err)
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+	defer g.Shutdown()
+	if err := g.Apply(context.Background(), cfg); !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Apply expected DeadlineExceeded, got %v", err)
 	}
 }
 
@@ -799,11 +804,15 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	}
 	defer g.Shutdown()
 
+	if err := g.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
 	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{Message: "test message", Deliver: false})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }, bus: g.bus, channels: g.channels, log: g.logger, cron: g.cron}
+	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
 	sid := cronsession.SessionKey(j.ID)
 	result, err := ge.RunTurn(context.Background(), j.Payload.Message, sid)
 	if err != nil {
@@ -846,6 +855,10 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 	}
 	defer g.Shutdown()
 
+	if err := g.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
 	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{
 		Message: "test message", Deliver: true, Channel: "telegram", To: "12345",
 	})
@@ -870,15 +883,8 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 		}
 		close(done)
 	}()
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }, bus: g.bus, channels: g.channels, log: g.logger, cron: g.cron}
-	sid := cronsession.SessionKey(j.ID)
-	result, err := ge.RunTurn(context.Background(), j.Payload.Message, sid)
-	if err != nil {
-		t.Errorf("RunTurn error: %v", err)
-	}
-	if result != "delivered result" {
-		t.Errorf("result = %q, want 'delivered result'", result)
-	}
+	deliver := &cron.Deliver{Bus: g.bus, Channels: g.channels, Log: g.logger}
+	deliver.AfterSuccessfulRun(context.Background(), *j, "delivered result")
 	<-done
 }
 
@@ -902,16 +908,17 @@ func TestGateway_CronRunTurn_InvalidDeliverPayload(t *testing.T) {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
 	defer g.Shutdown()
+	if err := g.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
 	j, err := g.cron.AddJob("bad", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{
 		Message: "test", Deliver: true, Channel: "telegram", To: "",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }, bus: g.bus, channels: g.channels, log: g.logger, cron: g.cron}
-	_, err = ge.RunTurn(context.Background(), j.Payload.Message, cronsession.SessionKey(j.ID))
-	if err == nil {
-		t.Fatal("expected payload validation error")
+	if err := j.Payload.Validate(); err == nil {
+		t.Fatal("expected payload validation error for empty To")
 	}
 }
 
@@ -936,12 +943,15 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
 	defer g.Shutdown()
+	if err := g.Apply(context.Background(), cfg); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
 
 	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{Message: "test message"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }, bus: g.bus, channels: g.channels, log: g.logger, cron: g.cron}
+	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
 	_, err = ge.RunTurn(context.Background(), j.Payload.Message, cronsession.SessionKey(j.ID))
 	if err != context.DeadlineExceeded {
 		t.Errorf("expected DeadlineExceeded, got %v", err)

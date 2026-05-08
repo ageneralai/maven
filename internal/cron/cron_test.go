@@ -17,7 +17,7 @@ var testLG = mavenlog.Std()
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	return NewService(filepath.Join(t.TempDir(), "jobs.json"), executor.Nop{}, 1, testLG)
+	return NewService(filepath.Join(t.TempDir(), "jobs.json"), executor.Nop{}, 1, testLG, nil)
 }
 
 func TestNewCronJob(t *testing.T) {
@@ -38,7 +38,7 @@ func TestNewCronJob(t *testing.T) {
 
 func TestEnableJobCron(t *testing.T) {
 	tmpDir := t.TempDir()
-	s := NewService(filepath.Join(tmpDir, "jobs.json"), executor.Nop{}, 1, testLG)
+	s := NewService(filepath.Join(tmpDir, "jobs.json"), executor.Nop{}, 1, testLG, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := s.Start(ctx); err != nil {
@@ -110,7 +110,7 @@ func TestAtJobPersistsDisabledBeforeFire(t *testing.T) {
 		sawDisabled.Store(true)
 		return "ok", nil
 	}}
-	s := NewService(storePath, exec, 1, testLG)
+	s := NewService(storePath, exec, 1, testLG, nil)
 	at := time.Now().UnixMilli()
 	if _, err := s.AddJob("one", Schedule{Kind: "at", AtMs: at}, Payload{Message: "m"}); err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestAtJobPersistsDisabledBeforeFire(t *testing.T) {
 func TestService_AddAndListJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "jobs.json")
-	s := NewService(storePath, executor.Nop{}, 1, testLG)
+	s := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	job, err := s.AddJob("job1", Schedule{Kind: "every", EveryMs: 60000}, Payload{Message: "tick"})
 	if err != nil {
 		t.Fatalf("AddJob error: %v", err)
@@ -208,10 +208,10 @@ func TestService_StartStop(t *testing.T) {
 func TestService_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "jobs.json")
-	s1 := NewService(storePath, executor.Nop{}, 1, testLG)
+	s1 := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	s1.AddJob("persist1", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "p1"})
 	s1.AddJob("persist2", Schedule{Kind: "every", EveryMs: 2000}, Payload{Message: "p2"})
-	s2 := NewService(storePath, executor.Nop{}, 1, testLG)
+	s2 := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s2.Start(ctx)
@@ -226,7 +226,7 @@ func TestService_ExecutePath_Error(t *testing.T) {
 	exec := stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		return "", context.Canceled
 	}}
-	s := NewService(filepath.Join(t.TempDir(), "jobs.json"), exec, 1, testLG)
+	s := NewService(filepath.Join(t.TempDir(), "jobs.json"), exec, 1, testLG, nil)
 	job, _ := s.AddJob("err", Schedule{Kind: "every", EveryMs: 500}, Payload{Message: "x"})
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Start(ctx)
@@ -280,7 +280,7 @@ func TestService_CronJobWithInvalidExpr(t *testing.T) {
 	}}
 	data, _ := json.MarshalIndent(jobs, "", "  ")
 	os.WriteFile(storePath, data, 0o644)
-	s := NewService(storePath, executor.Nop{}, 1, testLG)
+	s := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := s.Start(ctx); err != nil {

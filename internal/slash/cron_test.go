@@ -15,7 +15,7 @@ var testCronLog = mavenlog.Std()
 
 func TestHandleCronAdd_atDuration(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"), executor.Nop{}, 1, testCronLog)
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), executor.Nop{}, 1, testCronLog, nil)
 	h := handleCronAddBody(svc)
 	res, err := h(context.Background(), mustParseCron(t, `/cron-add --name n1 --in 2m --message "ping"`))
 	if err != nil {
@@ -37,7 +37,7 @@ func TestHandleCronAdd_atDuration(t *testing.T) {
 }
 
 func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
-	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"), executor.Nop{}, 1, testCronLog)
+	svc := cron.NewService(filepath.Join(t.TempDir(), "jobs.json"), executor.Nop{}, 1, testCronLog, nil)
 	h := handleCronAddBody(svc)
 	_, err := h(context.Background(), mustParseCron(t, `/cron-add --name x --in 1s --message hi --deliver true`))
 	if err == nil || !strings.Contains(err.Error(), "--channel") {
@@ -47,7 +47,7 @@ func TestHandleCronAdd_deliverRequiresChannel(t *testing.T) {
 
 func TestHandleCronRemove(t *testing.T) {
 	dir := t.TempDir()
-	svc := cron.NewService(filepath.Join(dir, "jobs.json"), executor.Nop{}, 1, testCronLog)
+	svc := cron.NewService(filepath.Join(dir, "jobs.json"), executor.Nop{}, 1, testCronLog, nil)
 	add := handleCronAddBody(svc)
 	if _, err := add(context.Background(), mustParseCron(t, `/cron-add --name z --in 1h --message m`)); err != nil {
 		t.Fatal(err)

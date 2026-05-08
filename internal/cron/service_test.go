@@ -24,7 +24,7 @@ func TestServiceFiresJobViaExecutor(t *testing.T) {
 		gotSID = sessionID
 		return "out", nil
 	}}
-	s := NewService(path, exec, 2, mavenlog.Std())
+	s := NewService(path, exec, 2, mavenlog.Std(), nil)
 	j, err := s.AddJob("j", Schedule{Kind: "every", EveryMs: 50}, Payload{Message: "hi"})
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestServiceSkipsDoubleFire(t *testing.T) {
 		time.Sleep(80 * time.Millisecond)
 		return "", nil
 	}}
-	s := NewService(path, exec, 2, mavenlog.Std())
+	s := NewService(path, exec, 2, mavenlog.Std(), nil)
 	if _, err := s.AddJob("j", Schedule{Kind: "every", EveryMs: 20}, Payload{Message: "x"}); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestServiceSemaphoreBoundsConcurrency(t *testing.T) {
 		cur.Add(-1)
 		return "", nil
 	}}
-	s := NewService(path, exec, 1, mavenlog.Std())
+	s := NewService(path, exec, 1, mavenlog.Std(), nil)
 	for i := 0; i < 3; i++ {
 		if _, err := s.AddJob("x", Schedule{Kind: "every", EveryMs: 15}, Payload{Message: "m"}); err != nil {
 			t.Fatal(err)
@@ -114,7 +114,7 @@ func TestServiceSemaphoreBoundsConcurrency(t *testing.T) {
 func TestServiceAtomicPersist(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "jobs.json")
-	s := NewService(path, executor.Nop{}, 1, mavenlog.Std())
+	s := NewService(path, executor.Nop{}, 1, mavenlog.Std(), nil)
 	if _, err := s.AddJob("n", Schedule{Kind: "every", EveryMs: 3600_000}, Payload{Message: "p"}); err != nil {
 		t.Fatal(err)
 	}
