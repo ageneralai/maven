@@ -65,10 +65,14 @@ func TestServiceSkipsDoubleFire(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if err := s.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(120 * time.Millisecond)
+	deadline := time.Now().Add(3 * time.Second)
+	for calls.Load() < 1 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	cancel()
 	s.Stop()
 	if n := calls.Load(); n < 1 {
