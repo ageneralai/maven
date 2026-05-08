@@ -14,4 +14,7 @@
 //     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
 //   - Per-turn routing: internal/context (package turnctx): pipeline attaches WithInbound,
 //     tools resolve channel/chat with From / Channel / ChatID (single snapshot, no bespoke keys).
+//   - Liveness: internal/health.HealthReporter defaults to NoOp. gateway.Options.HealthReporter receives
+//     SignalGatewayReady after the inbound pipeline goroutine starts; heartbeat.Service pulses
+//     SignalHeartbeatTick on each ticker fire (before tick work). Both share the same reporter when wired from Options.
 package gateway

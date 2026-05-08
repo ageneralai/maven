@@ -16,6 +16,7 @@ import (
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
@@ -33,6 +34,7 @@ type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.S
 type Options struct {
 	RuntimeFactory RuntimeFactory
 	SignalChan     chan os.Signal
+	HealthReporter health.HealthReporter
 }
 
 // DefaultRuntimeFactory wires agentsdk-go with the given skills and cron command/tool registration.
@@ -56,6 +58,7 @@ type Gateway struct {
 	sessions       *session.Router
 	signalChan     chan os.Signal
 	logger         mavenlog.PrintLogger
+	liveness       health.HealthReporter
 	hbCancel       context.CancelFunc
 	applyMu        sync.Mutex
 }
@@ -102,13 +105,15 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channels, Log: g.logger}
 	g.cron = cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
 	g.signalChan = opts.SignalChan
+	liveness := health.OrHealthReporter(opts.HealthReporter)
+	g.liveness = liveness
 	sessRes := &agent.SessionResolver{Router: g.sessions}
 	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
 	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
 	pipe.Channels = g.channels
 	pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.pipe = pipe
-	g.hb = heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger)
+	g.hb = heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger, heartbeat.WithHealthReporter(liveness))
 	return g, nil
 }
 
@@ -180,6 +185,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 		defer g.pipeWg.Done()
 		g.pipe.Run(ctx)
 	}()
+	g.liveness.Pulse(health.SignalGatewayReady)
 	g.logger.Printf("[gateway] running on %s:%d", g.cfg.Gateway.Host, g.cfg.Gateway.Port)
 	debounce := time.Duration(g.cfg.Gateway.ReloadDebounceMs) * time.Millisecond
 	var reloadCh <-chan struct{}

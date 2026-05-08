@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeatsession"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
@@ -214,5 +215,44 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 	}
 	if !heartbeatsession.Matches(ids[0]) || !heartbeatsession.Matches(ids[1]) {
 		t.Fatalf("not heartbeat sessions: %v", ids)
+	}
+}
+
+type hbPulseCapture struct {
+	mu   sync.Mutex
+	sigs []string
+}
+
+func (h *hbPulseCapture) Pulse(s string) {
+	h.mu.Lock()
+	h.sigs = append(h.sigs, s)
+	h.mu.Unlock()
+}
+
+func TestStart_PulsesHeartbeatHealthSignal(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("noop"), 0o644)
+	var rec hbPulseCapture
+	s := New(tmpDir, stubExec{func(context.Context, string, string) (string, error) {
+		return "HEARTBEAT_OK", nil
+	}}, 25*time.Millisecond, testLG, WithHealthReporter(&rec))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Start(ctx)
+	}()
+	time.Sleep(60 * time.Millisecond)
+	cancel()
+	<-done
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var nTick int
+	for _, p := range rec.sigs {
+		if p == health.SignalHeartbeatTick {
+			nTick++
+		}
+	}
+	if nTick == 0 {
+		t.Fatal("want at least one health.SignalHeartbeatTick")
 	}
 }

@@ -158,6 +158,7 @@ internal/
   cronsession/       Stable session keys for cron runs
   executor/          TurnExecutor interface (pipeline implements; mocks in tests)
   gateway/           Gateway (Apply, channels, cron, heartbeat, pipeline wiring)
+  health/            Coarse liveness taps (HealthReporter); gateway + heartbeat
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
   context/           Per-turn routing on context.Context (package turnctx; replaces inbound-only keys)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
@@ -725,6 +727,70 @@ func TestGateway_Run_WithSignalChan(t *testing.T) {
 
 	if !mockRt.closed {
 		t.Error("runtime should be closed after shutdown")
+	}
+}
+
+type healthPulseCapture struct {
+	mu   sync.Mutex
+	sigs []string
+}
+
+func (h *healthPulseCapture) Pulse(s string) {
+	h.mu.Lock()
+	h.sigs = append(h.sigs, s)
+	h.mu.Unlock()
+}
+
+func (h *healthPulseCapture) has(s string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, x := range h.sigs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			Workspace: tmpDir,
+		},
+		Gateway: config.GatewayConfig{
+			Host: "localhost",
+			Port: 8080,
+		},
+		Channels: config.ChannelsConfig{},
+	}
+	mockRt := &mockRuntime{}
+	sigCh := make(chan os.Signal, 1)
+	var rec healthPulseCapture
+	g, err := NewWithOptions(cfg, Options{
+		RuntimeFactory: mockRuntimeFactory(mockRt),
+		SignalChan:     sigCh,
+		HealthReporter: &rec,
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions error: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- g.Run(context.Background())
+	}()
+	time.Sleep(80 * time.Millisecond)
+	if !rec.has(health.SignalGatewayReady) {
+		t.Fatalf("want %s pulse", health.SignalGatewayReady)
+	}
+	sigCh <- os.Interrupt
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not exit after signal")
 	}
 }
 
