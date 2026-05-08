@@ -97,7 +97,7 @@ make package-all PLATFORMS="linux/amd64 linux/arm64"
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                      CLI (cobra)                        │
-│              agent | gateway | onboard | status          │
+│   agent | gateway | onboard | status | skills           │
 └──────┬──────────────────┬───────────────────────────────┘
        │                  │
        ▼                  ▼
@@ -148,15 +148,15 @@ pkg/
   stringutil/        Small helpers (e.g. log truncation)
 internal/
   agent/             Runtime adapter (ageneral-agents-go), invoke, post-actions
-  automation/        Queues: separate cron vs heartbeat admission (concurrency cap for cron at gateway start)
   bus/               Inbound/outbound channels, routing hints, dispatch
   channel/           Channel interface + manager; Telegram/Feishu/WeCom/WhatsApp/WebUI
-    telegram/        Telegram helpers (cards, slash), static assets live under channel/static/
+    telegram/        Telegram helpers (cards, slash), static under channel/static/
     static/          Embedded Web UI (HTML)
   config/            JSON + env, Validate, optional watch.go (gateway hot reload)
-  cron/              Scheduler + JSON job store
+  cron/              Scheduler + JSON job store; cron turn admission (max concurrent runs) lives here
   cronschedule/      Cron tool input + registration for the agent runtime
   cronsession/       Stable session keys for cron runs
+  executor/          TurnExecutor interface (pipeline implements; mocks in tests)
   gateway/           Gateway (Apply, channels, cron, heartbeat, pipeline wiring)
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
