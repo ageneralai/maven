@@ -10,7 +10,7 @@ import (
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/inboundctx"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 var testLG = mavenlog.Std()

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ageneralai/maven/internal/bus"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 // CapabilitySet declares optional channel behavior. ReactiveOnly means outbound

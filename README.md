@@ -143,6 +143,9 @@ Data Flow (Gateway Mode):
 
 ```
 cmd/maven/           CLI (agent, gateway, onboard, status, skills)
+pkg/
+  log/               PrintLogger + Std() (stepping stone until structured logging)
+  stringutil/        Small helpers (e.g. log truncation)
 internal/
   agent/             Runtime adapter (ageneral-agents-go), invoke, post-actions
   automation/        Queues: separate cron vs heartbeat admission (concurrency cap for cron at gateway start)
@@ -158,14 +161,12 @@ internal/
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
   inboundctx/        Typed context keys for inbound pipeline
-  log/               Logging helpers
   memory/            MEMORY.md + daily journal files
   pipeline/          Inbound loop, runtime ownership, streaming/sync paths
   prompt/            System prompt from workspace files + memory
   session/           Session ID router (per chat route)
   slash/             Slash commands (e.g. cron, compact) parsed before agent
   skills/            SKILL.md loader → SDK registrations
-  stringutil/        Small shared helpers (e.g. log truncation)
 docs/
   telegram-setup.md
   feishu-setup.md

@@ -11,9 +11,9 @@ import (
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/inboundctx"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/slash"
-	"github.com/ageneralai/maven/internal/stringutil"
+	"github.com/ageneralai/maven/pkg/stringutil"
 )
 
 const userErrMessage = "Sorry, I encountered an error processing your message."

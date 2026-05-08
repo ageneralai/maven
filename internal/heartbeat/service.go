@@ -9,8 +9,8 @@ import (
 
 	"github.com/ageneralai/maven/internal/executor"
 	"github.com/ageneralai/maven/internal/heartbeatsession"
-	mavenlog "github.com/ageneralai/maven/internal/log"
-	"github.com/ageneralai/maven/internal/stringutil"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"golang.org/x/sync/semaphore"
 )
 

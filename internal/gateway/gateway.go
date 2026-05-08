@@ -17,7 +17,7 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/ageneralai/maven/internal/prompt"

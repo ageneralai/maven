@@ -8,7 +8,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/cron"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/google/uuid"
 )

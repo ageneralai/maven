@@ -10,7 +10,7 @@ import (
 
 	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/internal/executor"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 func TestServiceFiresJobViaExecutor(t *testing.T) {

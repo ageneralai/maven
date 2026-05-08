@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 // MessageBus carries pipeline Inbound work and fans out Outbound to at most one

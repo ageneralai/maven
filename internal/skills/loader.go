@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"gopkg.in/yaml.v3"

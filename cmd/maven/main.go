@@ -16,7 +16,7 @@ import (
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
-	mavenlog "github.com/ageneralai/maven/internal/log"
+	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/internal/memory"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/spf13/cobra"
