@@ -161,7 +161,7 @@ internal/
   health/            Coarse liveness taps (HealthReporter); gateway + heartbeat
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
-  context/           Per-turn routing on context.Context (package turnctx; replaces inbound-only keys)
+  context/           Per-turn routing on context.Context (package turnctx)
   memory/            MEMORY.md + daily journal files
   pipeline/          Inbound loop, runtime ownership, streaming/sync paths
   prompt/            System prompt from workspace files + memory

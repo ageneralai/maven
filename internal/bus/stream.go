@@ -32,12 +32,6 @@ func OrStreamDelegate(d StreamDelegate) StreamDelegate {
 	return d
 }
 
-// Streamer is a structural marker for transports that expose token-stream sinks (reserved;
-// correlate with StreamChannel / StreamHints later). Implementations belong in channel packages.
-type Streamer interface {
-	Transport() string
-}
-
 // SetStreamDelegate replaces the delegate (nil ⇒ noop delegate).
 func (b *MessageBus) SetStreamDelegate(d StreamDelegate) {
 	b.streamMu.Lock()
