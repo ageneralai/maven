@@ -142,32 +142,41 @@ Data Flow (Gateway Mode):
 ## Project Structure
 
 ```
-cmd/maven/          CLI entry point (agent, gateway, onboard, status)
+cmd/maven/           CLI (agent, gateway, onboard, status, skills)
 internal/
-  bus/               Message bus (inbound/outbound channels)
-  channel/           Channel interface + implementations
-    telegram.go      Telegram bot (polling, text/image/document)
-    feishu.go        Feishu/Lark bot (webhook)
-    wecom.go         WeCom intelligent bot (webhook, encrypted)
-    whatsapp.go      WhatsApp (whatsmeow, QR login)
-    webui.go         Web UI (WebSocket, embedded HTML)
-    static/          Embedded web UI assets
-  config/            Configuration loading (JSON + env vars), optional `watch.go` for gateway reload
-  cron/              Cron job scheduling with JSON persistence
-  gateway/           Gateway orchestration (bus + runtime + channels)
-  heartbeat/         Periodic heartbeat service
-  memory/            Memory system (long-term + daily)
-  skills/            Custom skill loader
+  agent/             Runtime adapter (ageneral-agents-go), invoke, post-actions
+  automation/        Shared lane (cron + heartbeat serialization)
+  bus/               Inbound/outbound channels, routing hints, dispatch
+  channel/           Channel interface + manager; Telegram/Feishu/WeCom/WhatsApp/WebUI
+    telegram/        Telegram helpers (cards, slash), static assets live under channel/static/
+    static/          Embedded Web UI (HTML)
+  config/            JSON + env, Validate, optional watch.go (gateway hot reload)
+  cron/              Scheduler + JSON job store
+  cronschedule/      Cron tool input + registration for the agent runtime
+  cronsession/       Stable session keys for cron runs
+  gateway/           Gateway (Apply, channels, cron, heartbeat, pipeline wiring)
+  heartbeatsession/  Stable session keys for heartbeat runs
+  heartbeat/         HEARTBEAT.md periodic runner
+  inboundctx/        Typed context keys for inbound pipeline
+  log/               Logging helpers
+  memory/            MEMORY.md + daily journal files
+  pipeline/          Inbound loop, runtime ownership, streaming/sync paths
+  prompt/            System prompt from workspace files + memory
+  session/           Session ID router (per chat route)
+  slash/             Slash commands (e.g. cron, compact) parsed before agent
+  skills/            SKILL.md loader → SDK registrations
+  stringutil/        Small shared helpers (e.g. log truncation)
 docs/
-  telegram-setup.md  Telegram bot setup guide
-  feishu-setup.md    Feishu bot setup guide
-  wecom-setup.md     WeCom intelligent bot setup guide
+  telegram-setup.md
+  feishu-setup.md
+  wecom-setup.md
 scripts/
-  setup.sh           Interactive config generator
-workspace/
-  skills/            Optional custom skills (`SKILL.md`)
-  AGENTS.md          Agent system prompt
-  SOUL.md            Agent personality
+  setup.sh
+workspace/           (user content; created by onboard)
+  skills/
+  AGENTS.md
+  SOUL.md
+config.example.json
 ```
 
 ## Configuration
