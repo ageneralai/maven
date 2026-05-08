@@ -50,6 +50,8 @@ type Gateway struct {
 	cfg                 *config.Config
 	bus                 *bus.MessageBus
 	pipe                *pipeline.Pipeline
+	pipeWg              sync.WaitGroup
+	runCancel           context.CancelFunc
 	channels            *channel.ChannelManager
 	cron                *cron.Service
 	hb                  *heartbeat.Service
@@ -123,7 +125,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		var out string
 		if err := g.lane.RunAlways(context.Background(), func(ctx context.Context) error {
 			var runErr error
-			out, runErr = agent.RunText(ctx, g.pipe.CurrentRuntime(), job.Payload.Message, cronsession.SessionKey(job.ID), nil)
+			out, runErr = g.pipe.RunText(ctx, job.Payload.Message, cronsession.SessionKey(job.ID), nil)
 			return runErr
 		}); err != nil {
 			return "", err
@@ -146,7 +148,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		var out string
 		ran, err := g.lane.TryRun(context.Background(), func(ctx context.Context) error {
 			var runErr error
-			out, runErr = agent.RunText(ctx, g.pipe.CurrentRuntime(), hbPrompt, heartbeatsession.SessionKey(), nil)
+			out, runErr = g.pipe.RunText(ctx, hbPrompt, heartbeatsession.SessionKey(), nil)
 			return runErr
 		})
 		if !ran {
@@ -181,18 +183,9 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("runtime factory: %w", err)
 	}
-	oldRt := g.pipe.CurrentRuntime()
-	g.pipe.SetRuntime(newRt)
-	if g.pipe.Posts != nil {
-		g.pipe.Posts.Workspace = cfg.Agent.Workspace
-	}
-	if err := g.channels.Apply(ctx, cfg); err != nil {
-		g.pipe.SetRuntime(oldRt)
+	if reloadErr := g.pipe.Reload(func() error { return g.channels.Apply(ctx, cfg) }, newRt, cfg.Agent.Workspace); reloadErr != nil {
 		newRt.Close()
-		return fmt.Errorf("channels apply: %w", err)
-	}
-	if oldRt != nil {
-		oldRt.Close()
+		return fmt.Errorf("channels apply: %w", reloadErr)
 	}
 	g.skillRegs = skillRegs
 	g.cfg = cfg
@@ -219,6 +212,7 @@ func (g *Gateway) startHeartbeat(ctx context.Context) {
 func (g *Gateway) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	g.runCancel = cancel
 	go g.bus.DispatchOutbound(ctx)
 	if err := g.Apply(ctx, g.cfg); err != nil {
 		return fmt.Errorf("initial apply: %w", err)
@@ -227,7 +221,11 @@ func (g *Gateway) Run(ctx context.Context) error {
 	if err := g.cron.Start(ctx); err != nil {
 		g.logger.Printf("[gateway] cron start warning: %v", err)
 	}
-	go g.pipe.Run(ctx)
+	g.pipeWg.Add(1)
+	go func() {
+		defer g.pipeWg.Done()
+		g.pipe.Run(ctx)
+	}()
 	g.logger.Printf("[gateway] running on %s:%d", g.cfg.Gateway.Host, g.cfg.Gateway.Port)
 	debounce := time.Duration(g.cfg.Gateway.ReloadDebounceMs) * time.Millisecond
 	var reloadCh <-chan struct{}
@@ -280,10 +278,15 @@ func (g *Gateway) Shutdown() error {
 		g.hbCancel()
 		g.hbCancel = nil
 	}
+	if g.runCancel != nil {
+		g.runCancel()
+		g.runCancel = nil
+	}
+	g.pipeWg.Wait()
 	g.cron.Stop()
 	_ = g.channels.StopAll()
 	if g.pipe != nil {
-		if rt := g.pipe.CurrentRuntime(); rt != nil {
+		if rt := g.pipe.TakeRuntimeForShutdown(); rt != nil {
 			rt.Close()
 		}
 	}

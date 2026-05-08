@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
@@ -17,36 +18,71 @@ import (
 const userErrMessage = "Sorry, I encountered an error processing your message."
 const userErrCommand = "Sorry, I encountered an error processing your command."
 
+// Pipeline runs the inbound loop and owns the agent runtime pointer. turnMu implements
+// drain-safe reload: each handle and each automation RunText holds RLock for the full
+// turn; Reload drains under Lock for the pointer swap only; applyChannels runs outside
+// the lock so channel I/O does not stall inbound.
 type Pipeline struct {
 	Log           mavenlog.PrintLogger
 	Bus           *bus.MessageBus
 	Channels      *channel.ChannelManager
 	SlashRegistry *slash.Registry
-	rtMu          sync.RWMutex
-	Runtime       agent.Runtime
 	Sessions      *agent.SessionResolver
 	Posts         *agent.PostActionHandler
+	turnMu        sync.RWMutex
+	rt            agent.Runtime
 }
 
-// New builds a pipeline with required dependencies. Optional fields (e.g. Channels)
-// are left zero until wired by the gateway.
+// New builds a pipeline. rt may be nil only in tests that never run handles or RunText.
 func New(log mavenlog.PrintLogger, b *bus.MessageBus, rt agent.Runtime, sessions *agent.SessionResolver, posts *agent.PostActionHandler) *Pipeline {
-	return &Pipeline{Log: log, Bus: b, Runtime: rt, Sessions: sessions, Posts: posts}
+	return &Pipeline{Log: log, Bus: b, rt: rt, Sessions: sessions, Posts: posts}
 }
 
-// SetRuntime swaps the agent runtime used for subsequent turns (e.g. gateway reload).
-func (p *Pipeline) SetRuntime(rt agent.Runtime) {
-	p.rtMu.Lock()
-	defer p.rtMu.Unlock()
-	p.Runtime = rt
-}
-
-// CurrentRuntime returns the runtime used for agent turns. The pipeline owns this value;
-// gateway reload swaps it with SetRuntime.
+// CurrentRuntime returns rt without holding the turn lock. Use only when no concurrent
+// handle/RunText is possible (e.g. tests), or for inspection; Shutdown uses TakeRuntimeForShutdown.
 func (p *Pipeline) CurrentRuntime() agent.Runtime {
-	p.rtMu.RLock()
-	defer p.rtMu.RUnlock()
-	return p.Runtime
+	p.turnMu.RLock()
+	defer p.turnMu.RUnlock()
+	return p.rt
+}
+
+// RunText runs one unattended agent turn (cron, heartbeat) while holding the same turn
+// lock as inbound, so reload cannot Close the runtime mid-call.
+func (p *Pipeline) RunText(ctx context.Context, prompt, sessionID string, contentBlocks []model.ContentBlock) (string, error) {
+	p.turnMu.RLock()
+	defer p.turnMu.RUnlock()
+	rt := p.rt
+	return agent.RunText(ctx, rt, prompt, sessionID, contentBlocks)
+}
+
+// Reload runs applyChannels first (no lock; channels do not touch rt). Then it takes
+// the write lock, swaps rt and workspace under exclusion, unlocks, and closes the old
+// runtime. Gateway closes newRt only when Reload returns an error from applyChannels.
+func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, workspace string) error {
+	if err := applyChannels(); err != nil {
+		return err
+	}
+	p.turnMu.Lock()
+	old := p.rt
+	p.rt = newRt
+	if p.Posts != nil {
+		p.Posts.Workspace = workspace
+	}
+	p.turnMu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+	return nil
+}
+
+// TakeRuntimeForShutdown clears rt under the write lock. Caller must have stopped new inbound
+// (e.g. cancel pipeline ctx) so nothing observes nil mid-flight except after drain.
+func (p *Pipeline) TakeRuntimeForShutdown() agent.Runtime {
+	p.turnMu.Lock()
+	defer p.turnMu.Unlock()
+	old := p.rt
+	p.rt = nil
+	return old
 }
 
 func cloneTransportMeta(meta map[string]any) map[string]any {
@@ -71,7 +107,6 @@ func (p *Pipeline) Run(ctx context.Context) {
 	}
 }
 
-// sendError logs err and delivers userMsg to the chat surface (single path for inbound failures).
 func (p *Pipeline) sendError(chName, chatID, userMsg string, err error) {
 	p.Log.Printf("[pipeline] %s/%s error: %v", chName, chatID, err)
 	p.Bus.Outbound <- bus.OutboundMessage{
@@ -96,6 +131,9 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		}
 		return
 	}
+	p.turnMu.RLock()
+	defer p.turnMu.RUnlock()
+	rt := p.rt
 	msgCtx := inboundctx.With(ctx, msg.Channel, msg.ChatID)
 	sessionKey := p.Sessions.ResolveSDKSessionID(msg)
 	var ch channel.Channel
@@ -126,7 +164,6 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		}
 		return
 	}
-	rt := p.CurrentRuntime()
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
 			events, err := agent.RunStreamWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
