@@ -160,7 +160,7 @@ internal/
   gateway/           Gateway (Apply, channels, cron, heartbeat, pipeline wiring)
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
-  inboundctx/        Typed context keys for inbound pipeline
+  context/           Per-turn routing on context.Context (package turnctx; replaces inbound-only keys)
   memory/            MEMORY.md + daily journal files
   pipeline/          Inbound loop, runtime ownership, streaming/sync paths
   prompt/            System prompt from workspace files + memory

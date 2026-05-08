@@ -9,8 +9,8 @@ import (
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
+	turnctx "github.com/ageneralai/maven/internal/context"
 	"github.com/ageneralai/maven/internal/executor"
-	"github.com/ageneralai/maven/internal/inboundctx"
 	"github.com/ageneralai/maven/internal/slash"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
@@ -145,7 +145,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	p.turnMu.RLock()
 	defer p.turnMu.RUnlock()
 	rt := p.rt
-	msgCtx := inboundctx.With(ctx, msg.Channel, msg.ChatID)
+	msgCtx := turnctx.WithInbound(ctx, msg.Channel, msg.ChatID)
 	sessionKey := p.Sessions.ResolveSDKSessionID(msg)
 	var ch channel.Channel
 	if p.Channels != nil {

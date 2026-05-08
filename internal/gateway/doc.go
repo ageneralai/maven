@@ -12,4 +12,6 @@
 //     events.EventBusClosed emits.
 //   - Streaming: internal/bus.StreamDelegate defaults to noop; wire WithStreamDelegate or
 //     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
+//   - Per-turn routing: internal/context (package turnctx): pipeline attaches WithInbound,
+//     tools resolve channel/chat with From / Channel / ChatID (single snapshot, no bespoke keys).
 package gateway

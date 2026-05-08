@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
+	turnctx "github.com/ageneralai/maven/internal/context"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/executor"
-	"github.com/ageneralai/maven/internal/inboundctx"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 var testLG = mavenlog.Std()
 
 func TestAddFromToolMap_incomingChat(t *testing.T) {
-	ctx := inboundctx.With(context.Background(), "telegram", "4242")
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "4242")
 	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, testLG, nil)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name":                     "n",
@@ -33,7 +33,7 @@ func TestAddFromToolMap_incomingChat(t *testing.T) {
 }
 
 func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
-	ctx := inboundctx.With(context.Background(), "telegram", "999")
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
 	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, testLG, nil)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name": "n", "message": "m", "in": "2m",
@@ -47,7 +47,7 @@ func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 }
 
 func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
-	ctx := inboundctx.With(context.Background(), "telegram", "999")
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
 	svc := cron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, testLG, nil)
 	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
 		"name": "n", "message": "m", "in": "2m",
@@ -80,7 +80,7 @@ func TestCronScheduleTool_Execute(t *testing.T) {
 	if len(tools) != 3 {
 		t.Fatalf("tools=%d", len(tools))
 	}
-	ctx := inboundctx.With(context.Background(), "telegram", "1")
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "1")
 	res, err := tools[0].Execute(ctx, map[string]interface{}{
 		"name":                     "a",
 		"message":                  "b",

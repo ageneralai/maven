@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ageneralai/maven/internal/inboundctx"
+	turnctx "github.com/ageneralai/maven/internal/context"
 )
 
 func validateToolDeliveryPolicy(ctx context.Context, m map[string]interface{}) error {
@@ -22,7 +22,7 @@ func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
 		"name": "x", "message": "y", "in": "1s",
 	}
 	t.Run("incoming_ok", func(t *testing.T) {
-		ctx := inboundctx.With(context.Background(), "telegram", "42")
+		ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
 		m := cloneMap(base)
 		m["deliver_to_incoming_chat"] = true
 		if err := validateToolDeliveryPolicy(ctx, m); err != nil {
@@ -38,7 +38,7 @@ func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
 		}
 	})
 	t.Run("incoming_with_channel_rejected", func(t *testing.T) {
-		ctx := inboundctx.With(context.Background(), "telegram", "42")
+		ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
 		m := cloneMap(base)
 		m["deliver_to_incoming_chat"] = true
 		m["channel"] = "telegram"
@@ -48,7 +48,7 @@ func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
 		}
 	})
 	t.Run("incoming_with_to_rejected", func(t *testing.T) {
-		ctx := inboundctx.With(context.Background(), "telegram", "42")
+		ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
 		m := cloneMap(base)
 		m["deliver_to_incoming_chat"] = true
 		m["to"] = "999"
@@ -58,7 +58,7 @@ func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
 		}
 	})
 	t.Run("both_deliver_flags_rejected", func(t *testing.T) {
-		ctx := inboundctx.With(context.Background(), "telegram", "42")
+		ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
 		m := cloneMap(base)
 		m["deliver_to_incoming_chat"] = true
 		m["deliver"] = true

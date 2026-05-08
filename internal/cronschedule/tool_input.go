@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	turnctx "github.com/ageneralai/maven/internal/context"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/inboundctx"
 )
 
 type CronToolInput struct {
@@ -59,10 +59,10 @@ func (in *CronToolInput) ApplyGatewayDeliveryDefaults(ctx context.Context) {
 	if in.Channel != "" || in.To != "" {
 		return
 	}
-	if _, ok := inboundctx.Channel(ctx); !ok {
+	if _, ok := turnctx.Channel(ctx); !ok {
 		return
 	}
-	if _, ok := inboundctx.ChatID(ctx); !ok {
+	if _, ok := turnctx.ChatID(ctx); !ok {
 		return
 	}
 	in.DeliverToIncomingChat = true
@@ -80,8 +80,8 @@ func (in *CronToolInput) ValidateDeliveryPolicy(ctx context.Context) error {
 		if ch != "" || to != "" {
 			return fmt.Errorf("cronschedule: with deliver_to_incoming_chat omit channel and to (they come from the current gateway chat)")
 		}
-		_, okCh := inboundctx.Channel(ctx)
-		_, okID := inboundctx.ChatID(ctx)
+		_, okCh := turnctx.Channel(ctx)
+		_, okID := turnctx.ChatID(ctx)
 		if !okCh || !okID {
 			return fmt.Errorf("cronschedule: deliver_to_incoming_chat needs an active gateway conversation (missing inbound channel or chat id)")
 		}
@@ -116,8 +116,8 @@ func (in CronToolInput) ToAddParams(ctx context.Context) AddParams {
 		DeliverToIncomingChat: in.DeliverToIncomingChat,
 	}
 	if in.DeliverToIncomingChat {
-		ch, _ := inboundctx.Channel(ctx)
-		id, _ := inboundctx.ChatID(ctx)
+		ch, _ := turnctx.Channel(ctx)
+		id, _ := turnctx.ChatID(ctx)
 		p.Channel = ch
 		p.To = id
 	}
