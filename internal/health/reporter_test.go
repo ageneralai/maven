@@ -1,8 +1,9 @@
 package health
 
 import (
-	"sync"
 	"testing"
+
+	"github.com/ageneralai/maven/internal/testutil"
 )
 
 func TestNoOp_Pulse(t *testing.T) {
@@ -20,23 +21,11 @@ func TestOrHealthReporter_nil(t *testing.T) {
 }
 
 func TestOrHealthReporter_preserves(t *testing.T) {
-	var c capture
-	h := OrHealthReporter(&c)
+	var rec testutil.PulseRecorder
+	h := OrHealthReporter(&rec)
 	h.Pulse(SignalHeartbeatTick)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.signals) != 1 || c.signals[0] != SignalHeartbeatTick {
-		t.Fatalf("signals=%v", c.signals)
+	snaps := rec.Snapshot()
+	if len(snaps) != 1 || snaps[0] != SignalHeartbeatTick {
+		t.Fatalf("signals=%v", snaps)
 	}
-}
-
-type capture struct {
-	mu      sync.Mutex
-	signals []string
-}
-
-func (c *capture) Pulse(s string) {
-	c.mu.Lock()
-	c.signals = append(c.signals, s)
-	c.mu.Unlock()
 }

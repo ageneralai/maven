@@ -168,6 +168,7 @@ internal/
   session/           Session ID router (per chat route)
   slash/             Slash commands (e.g. cron, compact) parsed before agent
   skills/            SKILL.md loader → SDK registrations
+  testutil/          Shared helpers for internal tests only
 docs/
   telegram-setup.md
   feishu-setup.md

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/ageneralai/maven/internal/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
+	"github.com/ageneralai/maven/internal/testutil"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -730,28 +730,6 @@ func TestGateway_Run_WithSignalChan(t *testing.T) {
 	}
 }
 
-type healthPulseCapture struct {
-	mu   sync.Mutex
-	sigs []string
-}
-
-func (h *healthPulseCapture) Pulse(s string) {
-	h.mu.Lock()
-	h.sigs = append(h.sigs, s)
-	h.mu.Unlock()
-}
-
-func (h *healthPulseCapture) has(s string) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for _, x := range h.sigs {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
-
 func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
@@ -766,7 +744,7 @@ func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
 	}
 	mockRt := &mockRuntime{}
 	sigCh := make(chan os.Signal, 1)
-	var rec healthPulseCapture
+	var rec testutil.PulseRecorder
 	g, err := NewWithOptions(cfg, Options{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		SignalChan:     sigCh,
@@ -780,7 +758,7 @@ func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
 		done <- g.Run(context.Background())
 	}()
 	time.Sleep(80 * time.Millisecond)
-	if !rec.has(health.SignalGatewayReady) {
+	if !rec.Has(health.SignalGatewayReady) {
 		t.Fatalf("want %s pulse", health.SignalGatewayReady)
 	}
 	sigCh <- os.Interrupt
