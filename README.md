@@ -10,7 +10,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 
 - **CLI Agent** - Single message or interactive REPL mode
 - **Gateway** - Full orchestration: channels + cron + heartbeat
-- **Telegram Channel** - Receive and send messages via Telegram bot (text + image + document)
+- **Telegram Channel** - Receive and send messages via Telegram bot (text + image + document); optional **streaming** in private chats (Bot API `sendMessageDraft`) when `channels.telegram.streaming` is true and the model streams tokens
 - **Feishu Channel** - Receive and send messages via Feishu (Lark) bot
 - **WeCom Channel** - Receive inbound messages and send markdown replies via WeCom intelligent bot API mode
 - **WhatsApp Channel** - Receive and send messages via WhatsApp (QR code login)
@@ -188,7 +188,8 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
     "telegram": {
       "enabled": true,
       "token": "your-bot-token",
-      "allowFrom": ["123456789"]
+      "allowFrom": ["123456789"],
+      "streaming": false
     },
     "feishu": {
       "enabled": true,
@@ -235,6 +236,10 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
 - **`gateway.reloadDebounceMs`**: debounce in milliseconds before reload runs after the file changes; `0` uses an internal default (800ms).
 
 See `config.example.json` for the full schema.
+
+### Telegram (`channels.telegram`)
+
+- **`streaming`** (optional, default `false`): when `true`, the gateway uses the streaming pipeline and Telegram shows progressive output. **Private** DMs use Bot API **`sendMessageDraft`** (then a final `sendMessage`). **Groups/supergroups** use placeholder + `editMessageText` (draft API is private-chat only). For visible streaming, the LLM provider must actually return streamed chunks (`stream: true` / SSE); otherwise you still get one burst when the model finishes.
 
 ### Provider Types
 
@@ -324,7 +329,8 @@ See [docs/telegram-setup.md](docs/telegram-setup.md) for detailed setup guide.
 Quick steps:
 1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
 2. Set `token` in config or `MAVEN_TELEGRAM_TOKEN` env var
-3. Run `make gateway`
+3. For progressive replies in **private** chats, set `"streaming": true` under `channels.telegram` (see **Telegram** under Configuration above); your model endpoint must stream tokens
+4. Run `make gateway`
 
 ### Feishu (Lark)
 

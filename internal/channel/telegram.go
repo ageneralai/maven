@@ -31,6 +31,11 @@ import (
 
 const telegramChannelName = "telegram"
 
+// telegramStreamContentDraftID identifies one streaming draft in a private chat.
+// It must be stable for a single assistant reply so Telegram animates updates; if you ever run
+// multiple concurrent streams to the same chat, each stream needs a distinct draft_id.
+const telegramStreamContentDraftID = 1
+
 type TelegramChannel struct {
 	BaseChannel
 	token      string
@@ -653,6 +658,19 @@ func (t *TelegramChannel) deleteMessage(chatID int64, messageID int) error {
 	})
 }
 
+func truncateForTelegramDraftText(s string) string {
+	// Bot API: sendMessageDraft text is 1–4096 characters after entities parsing; cap by rune count.
+	const maxRunes = 4096
+	n := 0
+	for i := range s {
+		if n == maxRunes {
+			return s[:i]
+		}
+		n++
+	}
+	return s
+}
+
 // editMessage edits an existing message. Silently ignores "message is not modified" errors.
 func (t *TelegramChannel) editMessage(chatID int64, messageID int, text string, parseMode string) error {
 	if t.bot == nil {
@@ -750,15 +768,19 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 	// Streaming mode:
 	// 1) status card message: tool/status progress
 	// 2) content message: intermediate text deltas
-	// They are updated independently and removed when final report is sent.
+	// Private chats (positive chat_id): content uses sendMessageDraft (Bot API).
+	// Groups/supergroups: content uses placeholder + editMessageText (draft is private-only).
+	// Final answer always uses sendMessage; interim status/content rows are deleted when applicable.
 	var statusMsg streamMsg
 	var contentMsg streamMsg
 	var textBuf strings.Builder
 	var streamErr string
 	var cooldownUntil time.Time
+	useDraftStreaming := numChatID > 0
 	const (
 		statusMinGap         = 500 * time.Millisecond
 		contentMinGap        = 1 * time.Second
+		contentDraftMinGap   = 400 * time.Millisecond
 		statusHeartbeatDelay = 5 * time.Second
 	)
 	card := telegram.NewStatusCard()
@@ -842,6 +864,55 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 		return telegram.ToTelegramHTML(text)
 	}
 
+	contentFlushGap := func() time.Duration {
+		if useDraftStreaming {
+			return contentDraftMinGap
+		}
+		return contentMinGap
+	}
+
+	flushContent := func(now time.Time, force bool) {
+		if !contentMsg.dirty {
+			return
+		}
+		if !force {
+			gap := contentFlushGap()
+			if !contentMsg.lastEdit.IsZero() && now.Sub(contentMsg.lastEdit) < gap {
+				return
+			}
+		}
+		text := renderContent()
+		if text == "" {
+			contentMsg.dirty = false
+			return
+		}
+		if inCooldown(now) {
+			contentMsg.dirty = true
+			return
+		}
+		if useDraftStreaming {
+			draftText := truncateForTelegramDraftText(text)
+			params := (&telego.SendMessageDraftParams{}).
+				WithChatID(numChatID).
+				WithDraftID(telegramStreamContentDraftID).
+				WithText(draftText).
+				WithParseMode(telego.ModeHTML)
+			if err := t.bot.SendMessageDraft(ctx, params); err != nil {
+				setCooldown(now, err)
+				t.log.Printf("[telegram] sendMessageDraft failed: %v", err)
+				contentMsg.dirty = true
+				return
+			}
+		} else {
+			if !upsertMessage(&contentMsg, text, telego.ModeHTML, true, now) {
+				return
+			}
+			return
+		}
+		contentMsg.lastEdit = now
+		contentMsg.dirty = false
+	}
+
 	// Event-driven: update status card immediately, with per-message rate limit.
 	tryUpdateStatus := func(now time.Time) {
 		if !showCard {
@@ -858,17 +929,15 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 		upsertMessage(&statusMsg, card.Render(), telego.ModeHTML, true, now)
 	}
 
-	// Ticker-driven: deferred status + content + heartbeat.
-	tickFlush := func(now time.Time) {
+	// Ticker-driven: deferred status + content + heartbeat (content respects contentFlushGap unless forceContent).
+	tickFlush := func(now time.Time, forceContent bool) {
 		if inCooldown(now) {
 			return
 		}
 		if showCard && statusMsg.dirty && (statusMsg.lastEdit.IsZero() || now.Sub(statusMsg.lastEdit) >= statusMinGap) {
 			upsertMessage(&statusMsg, card.Render(), telego.ModeHTML, true, now)
 		}
-		if contentMsg.dirty && (contentMsg.lastEdit.IsZero() || now.Sub(contentMsg.lastEdit) >= contentMinGap) {
-			upsertMessage(&contentMsg, renderContent(), telego.ModeHTML, true, now)
-		}
+		flushContent(now, forceContent)
 		if showCard && statusMsg.id != 0 && !statusMsg.dirty && (statusMsg.lastEdit.IsZero() || now.Sub(statusMsg.lastEdit) >= statusHeartbeatDelay) {
 			upsertMessage(&statusMsg, card.Render(), telego.ModeHTML, true, now)
 		}
@@ -881,7 +950,7 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			tickFlush(time.Now())
+			tickFlush(time.Now(), false)
 		case event, ok := <-events:
 			if !ok {
 				events = nil
@@ -927,6 +996,9 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 				if event.Delta.Text != "" {
 					textBuf.WriteString(event.Delta.Text)
 					contentMsg.dirty = true
+					if useDraftStreaming {
+						flushContent(time.Now(), false)
+					}
 				}
 
 			case api.EventToolExecutionStart:
@@ -955,6 +1027,9 @@ func (t *TelegramChannel) SendStream(ctx context.Context, chatID string, metadat
 			}
 		}
 	}
+	// Stream closed: one flush with forced content so the last tokens still inside contentDraftMinGap are pushed.
+	drainNow := time.Now()
+	tickFlush(drainNow, true)
 
 	// Final output
 	finalText := textBuf.String()

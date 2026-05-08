@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/telegram"
@@ -54,6 +55,7 @@ func newMockCaller() *mockCaller {
 			"editMessageText":    {Ok: true, Result: []byte(`{"message_id":1,"date":0,"chat":{"id":123,"type":"private"}}`)},
 			"setMessageReaction": {Ok: true, Result: []byte(`true`)},
 			"sendChatAction":     {Ok: true, Result: []byte(`true`)},
+			"sendMessageDraft":   {Ok: true, Result: []byte(`true`)},
 			"getFile":            {Ok: true, Result: []byte(`{"file_id":"f1","file_path":"photos/test.jpg"}`)},
 			"getUpdates":         {Ok: true, Result: []byte(`[]`)},
 		},
@@ -1326,6 +1328,61 @@ func TestTelegramRetryAfter(t *testing.T) {
 	}
 	if _, ok := telegramRetryAfter(errors.New("plain error")); ok {
 		t.Fatal("unexpected retry after for plain error")
+	}
+}
+
+func TestTelegramChannel_SendStream_PrivateUsesMessageDraftWhenTickerFlushes(t *testing.T) {
+	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	events := make(chan api.StreamEvent, 10)
+	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "hello"}}
+	go func() {
+		time.Sleep(450 * time.Millisecond)
+		close(events)
+	}()
+	if err := ch.SendStream(context.Background(), "123", nil, events); err != nil {
+		t.Fatalf("SendStream error: %v", err)
+	}
+	var draftCount int
+	for _, c := range caller.calls {
+		if strings.HasSuffix(c.URL, "/sendMessageDraft") {
+			draftCount++
+		}
+	}
+	if draftCount < 1 {
+		t.Fatalf("expected at least 1 sendMessageDraft for private chat, got %d", draftCount)
+	}
+}
+
+// TestTelegramChannel_SendStream_GroupDoesNotUseMessageDraft ensures negative chat IDs (basic groups
+// and supergroups such as -100…) never call sendMessageDraft; only private DMs use drafts.
+func TestTelegramChannel_SendStream_GroupDoesNotUseMessageDraft(t *testing.T) {
+	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	events := make(chan api.StreamEvent, 10)
+	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "hello"}}
+	go func() {
+		time.Sleep(450 * time.Millisecond)
+		close(events)
+	}()
+	if err := ch.SendStream(context.Background(), "-1001234567890", nil, events); err != nil {
+		t.Fatalf("SendStream error: %v", err)
+	}
+	for _, c := range caller.calls {
+		if strings.HasSuffix(c.URL, "/sendMessageDraft") {
+			t.Fatalf("group chats must not call sendMessageDraft, saw %s", c.URL)
+		}
+	}
+}
+
+func TestTruncateForTelegramDraftText(t *testing.T) {
+	const maxRunes = 4096
+	runes := strings.Repeat("é", maxRunes+10) // 2-byte runes
+	got := truncateForTelegramDraftText(runes)
+	if utf8.RuneCountInString(got) != maxRunes {
+		t.Fatalf("rune count = %d, want %d", utf8.RuneCountInString(got), maxRunes)
+	}
+	short := "hello"
+	if truncateForTelegramDraftText(short) != short {
+		t.Fatalf("truncate short = %q", truncateForTelegramDraftText(short))
 	}
 }
 
