@@ -58,6 +58,9 @@
     "host": "0.0.0.0",
     "port": 18790,
     "hotReload": false,
-    "reloadDebounceMs": 800
+    "reloadDebounceMs": 800,
+    "cron": {
+      "maxConcurrentRuns": 1
+    }
   }
 }

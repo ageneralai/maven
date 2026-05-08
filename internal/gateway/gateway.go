@@ -31,7 +31,7 @@ import (
 
 const heartbeatSkipReasonAutomationLaneBusy = "automation_lane_busy"
 
-// RuntimeFactory builds the agent runtime used by the gateway pipeline and automation lane.
+// RuntimeFactory builds the agent runtime used by the gateway pipeline and automation queues.
 type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error)
 
 // Options for creating a Gateway.
@@ -55,7 +55,8 @@ type Gateway struct {
 	channels            *channel.ChannelManager
 	cron                *cron.Service
 	hb                  *heartbeat.Service
-	lane                *automation.Lane
+	cronQ               *automation.Queue
+	heartbeatQ          *automation.Queue
 	runtimeFactory      RuntimeFactory
 	mem                 *memory.MemoryStore
 	skillRegs           []api.SkillRegistration
@@ -101,7 +102,8 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
 	cronStorePath := filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json")
 	g.cron = cron.NewService(cronStorePath, g.logger)
-	g.lane = &automation.Lane{}
+	g.cronQ = automation.NewQueue(cfg.Gateway.Cron.MaxConcurrentRuns)
+	g.heartbeatQ = automation.NewQueue(1)
 	factory := opts.RuntimeFactory
 	if factory == nil {
 		factory = DefaultRuntimeFactory
@@ -123,7 +125,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 			return "", err
 		}
 		var out string
-		if err := g.lane.RunAlways(context.Background(), func(ctx context.Context) error {
+		if err := g.cronQ.Run(context.Background(), func(ctx context.Context) error {
 			var runErr error
 			out, runErr = g.pipe.RunText(ctx, job.Payload.Message, cronsession.SessionKey(job.ID), nil)
 			return runErr
@@ -146,7 +148,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	}
 	g.hb = heartbeat.New(cfg.Agent.Workspace, func(hbPrompt string) (string, error) {
 		var out string
-		ran, err := g.lane.TryRun(context.Background(), func(ctx context.Context) error {
+		ran, err := g.heartbeatQ.TryRun(context.Background(), func(ctx context.Context) error {
 			var runErr error
 			out, runErr = g.pipe.RunText(ctx, hbPrompt, heartbeatsession.SessionKey(), nil)
 			return runErr

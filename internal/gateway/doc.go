@@ -2,8 +2,7 @@
 //
 // Session contract:
 //   - Cron runs use a fresh SessionID per execution (see package cronsession). Heartbeat uses a fresh SessionID per tick (see package heartbeatsession).
-//   - Cron and heartbeat share one automation.Lane; at most one unattended turn runs at a time.
-//   - Inbound chat uses per-channel session keys and may call the runtime concurrently with automation. Inbound chat does not acquire the automation lane.
-//
-// When heartbeat fires while the automation lane is busy, the tick skips and logs reason automation_lane_busy.
+//   - Cron and heartbeat use separate automation.Queue instances. Cron waits for a slot (up to gateway.cron.maxConcurrentRuns fixed at gateway process start, default 1; changing it requires restart). Heartbeat uses try-once on the heartbeat queue only (one slot): it skips only if a previous heartbeat is still running, not because cron is busy—cron and heartbeat may run at the same time (different sessions, different queues). Skipped heartbeat ticks log automation_lane_busy.
+//   - Inbound chat uses per-channel session keys and may call the runtime concurrently with automation. Inbound chat does not use automation.Queue.
+//   - Pipeline reload and shutdown drain via turnMu (pipeline.Pipeline); queues are admission only.
 package gateway

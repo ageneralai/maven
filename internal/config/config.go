@@ -91,10 +91,18 @@ type ToolsConfig struct {
 }
 
 type GatewayConfig struct {
-	Host             string `json:"host"`
-	Port             int    `json:"port"`
-	HotReload        bool   `json:"hotReload"`
-	ReloadDebounceMs int    `json:"reloadDebounceMs,omitempty"`
+	Host             string            `json:"host"`
+	Port             int               `json:"port"`
+	HotReload        bool              `json:"hotReload"`
+	ReloadDebounceMs int               `json:"reloadDebounceMs,omitempty"`
+	Cron             GatewayCronConfig `json:"cron,omitempty"`
+}
+
+// GatewayCronConfig controls gateway-executed cron scheduling (not job definitions).
+type GatewayCronConfig struct {
+	// MaxConcurrentRuns caps concurrent cron agent turns in process. Omitted or 0 means 1.
+	// Applied at gateway start only; changing requires restart.
+	MaxConcurrentRuns int `json:"maxConcurrentRuns,omitempty"`
 }
 
 type SkillsConfig struct {
@@ -218,6 +226,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.ReloadDebounceMs < 0 {
 		errs = append(errs, errors.New("gateway.reloadDebounceMs must be non-negative"))
+	}
+	if c.Gateway.Cron.MaxConcurrentRuns < 0 {
+		errs = append(errs, errors.New("gateway.cron.maxConcurrentRuns must be >= 0 (0 means default 1)"))
 	}
 	if c.AutoCompact.Enabled {
 		if c.AutoCompact.Threshold <= 0 || c.AutoCompact.Threshold > 1 {

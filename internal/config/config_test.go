@@ -333,6 +333,18 @@ func TestConfig_Validate_GatewayPort(t *testing.T) {
 	}
 }
 
+func TestConfig_Validate_GatewayCronMaxConcurrentRuns(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Gateway.Cron.MaxConcurrentRuns = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for gateway.cron.maxConcurrentRuns < 0")
+	}
+	cfg.Gateway.Cron.MaxConcurrentRuns = 0
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("0 should validate: %v", err)
+	}
+}
+
 func TestConfig_Validate_AutoCompactThreshold(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.AutoCompact.Enabled = true
