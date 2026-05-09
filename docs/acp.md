@@ -1,6 +1,6 @@
 # ACP delegation (subagent)
 
-Maven can delegate coding work to **external ACP (Agent Client Protocol)** processes via the **`DelegateTask`** custom tool. Protocol reference: [agentclientprotocol.com](https://agentclientprotocol.com). Go client: **`github.com/coder/acp-go-sdk`** (version pinned in the module; see `go.mod` / `go.sum`). Code: `internal/tools/acp` (client + tool), `internal/agent/sdk_runtime.go` (registration next to cron tools), `internal/config/config.go` (`tools.acp`), `internal/channel/telegram/stream_state.go` + `card.go` (status card streaming).
+Maven can delegate coding work to **external ACP (Agent Client Protocol)** processes via the **`DelegateTask`** custom tool. Protocol reference: [agentclientprotocol.com](https://agentclientprotocol.com). Go client: **`github.com/coder/acp-go-sdk`** (version pinned in the module; see `go.mod` / `go.sum`). Code: `pkg/acp` (client + tool), `pkg/plugin/acp` (gateway plugin wrapper), `internal/gateway/gateway.go` (registry), `internal/config/config.go` (`tools.acp`), `internal/channel/telegram/stream_state.go` + `card.go` (status card streaming).
 
 ## Model
 
@@ -69,8 +69,8 @@ Status card visibility follows existing **`channels.telegram.feedback`**: **`nor
 
 ## Related files
 
-- `internal/tools/acp/client.go` — stdio **`ClientSideConnection`**, **`Initialize` → `NewSession` → `Prompt`**, permission auto-select, stderr capture on errors
-- `internal/tools/acp/tool.go` — **`tool.StreamingTool`** implementation and JSON schema
-- `internal/tools/acp/path.go` — **`resolveWorkspacePath`** for **`cwd`** and FS paths
-- `internal/agent/sdk_runtime.go` — **`append(acp.Tools(...), …)`** after cron tools
+- `pkg/acp/client.go` — stdio **`ClientSideConnection`**, **`Initialize` → `NewSession` → `Prompt`**, permission auto-select, stderr capture on errors
+- `pkg/acp/tool.go` — **`tool.StreamingTool`** implementation and JSON schema
+- `pkg/acp/path.go` — **`resolveWorkspacePath`** for **`cwd`** and FS paths
+- `pkg/plugin/acp/plugin.go` — **`plugin.Plugin`** wrapping **`pkg/acp.Tools`**
 - `github.com/ageneralai/ageneral-agents-go/pkg/api/runtime_tool_executor.go` — **`StreamSink`** → **`EventToolExecutionOutput`** (**`ToolUseID`** matches **`EventToolExecutionStart`**)

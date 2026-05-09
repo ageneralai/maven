@@ -3,13 +3,15 @@ package acp
 import (
 	"context"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
+	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
-	mavenacp "github.com/ageneralai/maven/internal/tools/acp"
+	mavenacp "github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/plugin"
 )
 
-// Plugin registers ACP delegate_task when configuration yields tools (single source of truth: internal/tools/acp.Tools).
+// Plugin registers ACP delegate_task when configuration yields tools (single source of truth: pkg/acp.Tools).
 type Plugin struct{}
 
 func New() plugin.Plugin { return Plugin{} }
@@ -29,6 +31,10 @@ func (Plugin) Tools(cfg *config.Config) []tool.Tool {
 	}
 	return mavenacp.Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)
 }
+
+func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
+
+func (Plugin) Provider(*config.Config) api.ModelFactory { return nil }
 
 func (Plugin) Start(context.Context) error { return nil }
 
