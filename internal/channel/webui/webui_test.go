@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -190,6 +191,79 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 		}
 		if msg.Content != "broadcast msg" {
 			t.Errorf("client %d content = %q, want %q", i+1, msg.Content, "broadcast msg")
+		}
+	}
+}
+
+func TestWebUIChannel_SendStream(t *testing.T) {
+	b := bus.NewMessageBus(10, webuiTestLog)
+	cfg := config.WebUIConfig{Enabled: true}
+	gwCfg := config.GatewayConfig{Port: 19879}
+
+	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ch.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ch.Stop() }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn, _, err := websocket.Dial(ctx, "ws://localhost:19879/ws", nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+
+	msg := wsMessage{Type: "message", Content: "ping"}
+	data, _ := json.Marshal(msg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("ws write: %v", err)
+	}
+
+	var chatID string
+	select {
+	case inbound := <-b.InboundChan():
+		chatID = inbound.ChatID
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for inbound")
+	}
+
+	events := make(chan api.StreamEvent, 4)
+	go func() {
+		events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "aa"}}
+		events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "bb"}}
+		close(events)
+	}()
+
+	if err := ch.SendStream(ctx, chatID, nil, events); err != nil {
+		t.Fatalf("SendStream: %v", err)
+	}
+
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel()
+
+	wantTypes := []string{"stream", "stream", "stream_done"}
+	for _, want := range wantTypes {
+		_, payload, err := conn.Read(readCtx)
+		if err != nil {
+			t.Fatalf("ws read type %q: %v", want, err)
+		}
+		var got wsMessage
+		if err := json.Unmarshal(payload, &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if got.Type != want {
+			t.Errorf("type = %q, want %q", got.Type, want)
+		}
+		if want == "stream" && got.Delta == "" {
+			t.Errorf("stream delta empty")
 		}
 	}
 }

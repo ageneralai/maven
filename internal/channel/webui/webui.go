@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
@@ -26,6 +28,7 @@ const webUIChannelName = "webui"
 type wsMessage struct {
 	Type    string `json:"type"`
 	Content string `json:"content,omitempty"`
+	Delta   string `json:"delta,omitempty"`
 }
 
 type wsClient struct {
@@ -129,6 +132,20 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (w *WebUIChannel) writeToClient(ctx context.Context, chatID string, data []byte) error {
+	client, ok := w.clients.Load(chatID)
+	if !ok {
+		w.clients.Range(func(key, value any) bool {
+			c := value.(*wsClient)
+			_ = c.conn.Write(ctx, websocket.MessageText, data)
+			return true
+		})
+		return nil
+	}
+	c := client.(*wsClient)
+	return c.conn.Write(ctx, websocket.MessageText, data)
+}
+
 func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	data, err := json.Marshal(wsMessage{
 		Type:    "message",
@@ -137,23 +154,47 @@ func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error 
 	if err != nil {
 		return err
 	}
-
 	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	return w.writeToClient(writeCtx, msg.ChatID, data)
+}
 
-	client, ok := w.clients.Load(msg.ChatID)
-	if !ok {
-		// Broadcast to all clients if no specific target
-		w.clients.Range(func(key, value any) bool {
-			c := value.(*wsClient)
-			_ = c.conn.Write(writeCtx, websocket.MessageText, data)
-			return true
-		})
-		return nil
+func streamEventError(ev api.StreamEvent) error {
+	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
+	if msg == "" {
+		msg = "stream error"
 	}
+	return fmt.Errorf("%s", msg)
+}
 
-	c := client.(*wsClient)
-	return c.conn.Write(writeCtx, websocket.MessageText, data)
+func (w *WebUIChannel) SendStream(ctx context.Context, chatID string, metadata map[string]any, events <-chan api.StreamEvent) error {
+	_ = metadata
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-events:
+			if !ok {
+				done, err := json.Marshal(wsMessage{Type: "stream_done"})
+				if err != nil {
+					return err
+				}
+				return w.writeToClient(ctx, chatID, done)
+			}
+			if ev.Type == api.EventError {
+				return streamEventError(ev)
+			}
+			if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
+				payload, err := json.Marshal(wsMessage{Type: "stream", Delta: ev.Delta.Text})
+				if err != nil {
+					return err
+				}
+				if err := w.writeToClient(ctx, chatID, payload); err != nil {
+					return err
+				}
+			}
+		}
+	}
 }
 
 func (w *WebUIChannel) Capabilities() chann.CapabilitySet {

@@ -252,6 +252,8 @@ header h1 {
   var ws = null;
   var reconnectTimer = null;
   var reconnectDelay = 1000;
+  var streamEl = null;
+  var streamBuf = '';
 
   function setStatus(state, text) {
     statusDot.className = state;
@@ -275,12 +277,19 @@ header h1 {
         var data = JSON.parse(e.data);
         if (data.type === 'message') {
           hideTyping();
+          finalizeStreamIfAny();
           addMessage(data.content, 'bot');
         } else if (data.type === 'typing') {
           showTyping();
+        } else if (data.type === 'stream') {
+          appendStream(data.delta || '');
+        } else if (data.type === 'stream_done') {
+          hideTyping();
+          finalizeStreamIfAny();
         }
       } catch(err) {
         hideTyping();
+        finalizeStreamIfAny();
         addMessage(e.data, 'bot');
       }
     };
@@ -307,6 +316,39 @@ header h1 {
 
   function formatTimeHMS(d) {
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+  }
+
+  function beginStreamBot() {
+    if (welcomeEl) welcomeEl.style.display = 'none';
+    var div = document.createElement('div');
+    div.className = 'msg bot';
+    var bodyDiv = document.createElement('div');
+    bodyDiv.textContent = '';
+    div.appendChild(bodyDiv);
+    var timeDiv = document.createElement('div');
+    timeDiv.className = 'time';
+    var at = new Date();
+    timeDiv.textContent = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    timeDiv.title = formatTimeHMS(at);
+    div.appendChild(timeDiv);
+    messagesEl.appendChild(div);
+    streamEl = bodyDiv;
+    streamBuf = '';
+  }
+
+  function appendStream(delta) {
+    hideTyping();
+    if (!streamEl) beginStreamBot();
+    streamBuf += delta;
+    streamEl.textContent = streamBuf;
+    scrollToBottom();
+  }
+
+  function finalizeStreamIfAny() {
+    if (!streamEl) return;
+    streamEl.innerHTML = renderMarkdown(streamBuf);
+    streamEl = null;
+    streamBuf = '';
   }
 
   function send() {
