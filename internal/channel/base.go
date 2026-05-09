@@ -28,9 +28,9 @@ type Channel interface {
 
 type BaseChannel struct {
 	name      string
-	bus       *bus.MessageBus
+	Bus       *bus.MessageBus
 	allowFrom map[string]bool
-	log       mavenlog.PrintLogger
+	Log       mavenlog.PrintLogger
 }
 
 func NewBaseChannel(name string, b *bus.MessageBus, allowFrom []string, log mavenlog.PrintLogger) BaseChannel {
@@ -38,7 +38,7 @@ func NewBaseChannel(name string, b *bus.MessageBus, allowFrom []string, log mave
 	for _, id := range allowFrom {
 		af[id] = true
 	}
-	return BaseChannel{name: name, bus: b, allowFrom: af, log: log}
+	return BaseChannel{name: name, Bus: b, allowFrom: af, Log: log}
 }
 
 func (c *BaseChannel) Name() string {

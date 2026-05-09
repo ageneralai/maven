@@ -1,4 +1,4 @@
-package channel
+package webui
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package channel
+package webui
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -33,7 +34,7 @@ type wsClient struct {
 }
 
 type WebUIChannel struct {
-	BaseChannel
+	chann.BaseChannel
 	port    int
 	server  *http.Server
 	clients sync.Map
@@ -47,7 +48,7 @@ func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, lg mave
 	}
 
 	ch := &WebUIChannel{
-		BaseChannel: NewBaseChannel(webUIChannelName, b, cfg.AllowFrom, lg),
+		BaseChannel: chann.NewBaseChannel(webUIChannelName, b, cfg.AllowFrom, lg),
 		port:        port,
 	}
 	return ch, nil
@@ -69,9 +70,9 @@ func (w *WebUIChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		w.log.Printf("[webui] listening on :%d", w.port)
+		w.Log.Printf("[webui] listening on :%d", w.port)
 		if err := w.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			w.log.Printf("[webui] server error: %v", err)
+			w.Log.Printf("[webui] server error: %v", err)
 		}
 	}()
 
@@ -83,19 +84,19 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		w.log.Printf("[webui] websocket accept error: %v", err)
+		w.Log.Printf("[webui] websocket accept error: %v", err)
 		return
 	}
 
 	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
 	client := &wsClient{conn: conn, id: clientID}
 	w.clients.Store(clientID, client)
-	w.log.Printf("[webui] client connected: %s", clientID)
+	w.Log.Printf("[webui] client connected: %s", clientID)
 
 	defer func() {
 		w.clients.Delete(clientID)
 		_ = conn.CloseNow()
-		w.log.Printf("[webui] client disconnected: %s", clientID)
+		w.Log.Printf("[webui] client disconnected: %s", clientID)
 	}()
 
 	for {
@@ -114,11 +115,11 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		}
 
 		if !w.IsAllowed(clientID) {
-			w.log.Printf("[webui] rejected message from %s", clientID)
+			w.Log.Printf("[webui] rejected message from %s", clientID)
 			continue
 		}
 
-		_ = w.bus.PublishInbound(r.Context(), bus.InboundMessage{
+		_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{
 			Channel:   webUIChannelName,
 			SenderID:  clientID,
 			ChatID:    clientID,
@@ -155,8 +156,8 @@ func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error 
 	return c.conn.Write(writeCtx, websocket.MessageText, data)
 }
 
-func (w *WebUIChannel) Capabilities() CapabilitySet {
-	return CapabilitySet{}
+func (w *WebUIChannel) Capabilities() chann.CapabilitySet {
+	return chann.CapabilitySet{}
 }
 
 func (w *WebUIChannel) Stop() error {
@@ -164,7 +165,7 @@ func (w *WebUIChannel) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := w.server.Shutdown(ctx); err != nil {
-			w.log.Printf("[webui] shutdown error: %v", err)
+			w.Log.Printf("[webui] shutdown error: %v", err)
 		}
 	}
 	w.clients.Range(func(key, value any) bool {
@@ -172,6 +173,6 @@ func (w *WebUIChannel) Stop() error {
 		_ = c.conn.CloseNow()
 		return true
 	})
-	w.log.Printf("[webui] stopped")
+	w.Log.Printf("[webui] stopped")
 	return nil
 }

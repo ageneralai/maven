@@ -1,4 +1,4 @@
-package channel
+package wecom
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -326,7 +327,7 @@ func (c *weComReplyCache) gcLocked(now time.Time) {
 // WeComChannel runs the WeCom webhook server. Outbound Send is reactive only
 // (passive reply URLs from inbound traffic); proactive outbound is not supported.
 type WeComChannel struct {
-	BaseChannel
+	chann.BaseChannel
 	cfg              config.WeComConfig
 	server           *http.Server
 	cancel           context.CancelFunc
@@ -361,7 +362,7 @@ func NewWeComChannelWithFactory(cfg config.WeComConfig, lg mavenlog.PrintLogger,
 	receiveID := strings.TrimSpace(cfg.ReceiveID)
 
 	ch := &WeComChannel{
-		BaseChannel:      NewBaseChannel(wecomChannelName, b, cfg.AllowFrom, lg),
+		BaseChannel:      chann.NewBaseChannel(wecomChannelName, b, cfg.AllowFrom, lg),
 		cfg:              cfg,
 		clientFactory:    factory,
 		allowlistEnabled: len(cfg.AllowFrom) > 0,
@@ -391,9 +392,9 @@ func (w *WeComChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		w.log.Printf("[wecom] callback server listening on :%d", port)
+		w.Log.Printf("[wecom] callback server listening on :%d", port)
 		if err := w.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			w.log.Printf("[wecom] server error: %v", err)
+			w.Log.Printf("[wecom] server error: %v", err)
 		}
 	}()
 
@@ -415,7 +416,7 @@ func (w *WeComChannel) Stop() error {
 	if w.client != nil {
 		w.client.Close()
 	}
-	w.log.Printf("[wecom] stopped")
+	w.Log.Printf("[wecom] stopped")
 	return nil
 }
 
@@ -437,8 +438,8 @@ func (w *WeComChannel) Send(ctx context.Context, msg bus.OutboundMessage) error 
 	return w.client.SendMessage(ctx, responseURL, msg)
 }
 
-func (w *WeComChannel) Capabilities() CapabilitySet {
-	return CapabilitySet{FileUpload: true, ReactiveOnly: true}
+func (w *WeComChannel) Capabilities() chann.CapabilitySet {
+	return chann.CapabilitySet{FileUpload: true, ReactiveOnly: true}
 }
 
 type weComEncryptedEnvelope struct {
@@ -643,7 +644,7 @@ func (w *WeComChannel) buildEncryptedReply(timestamp, nonce, receiveID string, p
 func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	var message weComInboundMessage
 	if err := json.Unmarshal([]byte(plaintext), &message); err != nil {
-		w.log.Printf("[wecom] unmarshal plaintext json error: %v", err)
+		w.Log.Printf("[wecom] unmarshal plaintext json error: %v", err)
 		return
 	}
 
@@ -653,13 +654,13 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	}
 
 	if !w.allowMessageFrom(senderID) {
-		w.log.Printf("[wecom] rejected message from %s", senderID)
+		w.Log.Printf("[wecom] rejected message from %s", senderID)
 		return
 	}
 
 	messageID := strings.TrimSpace(message.MsgID)
 	if messageID != "" && w.msgCache.Seen(messageID) {
-		w.log.Printf("[wecom] duplicate message dropped: %s", messageID)
+		w.Log.Printf("[wecom] duplicate message dropped: %s", messageID)
 		return
 	}
 
@@ -673,13 +674,13 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 		w.replyCache.Set(chatID, responseURL)
 	}
 
-	content := extractWeComContent(message, w.log)
+	content := extractWeComContent(message, w.Log)
 	contentBlocks := w.extractWeComContentBlocks(message)
 	if content == "" && len(contentBlocks) == 0 {
 		return
 	}
 
-	_ = w.bus.PublishInbound(context.Background(), bus.InboundMessage{
+	_ = w.Bus.PublishInbound(context.Background(), bus.InboundMessage{
 		Channel:       wecomChannelName,
 		SenderID:      senderID,
 		ChatID:        chatID,
@@ -723,7 +724,7 @@ func (w *WeComChannel) extractWeComContentBlocks(message weComInboundMessage) []
 
 	block, err := w.buildWeComImageContentBlock(context.Background(), message)
 	if err != nil {
-		w.log.Printf("[wecom] process image message warning: %v", err)
+		w.Log.Printf("[wecom] process image message warning: %v", err)
 	}
 	if block == nil {
 		return nil

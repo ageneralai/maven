@@ -10,6 +10,7 @@ import (
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channels"
 	turnctx "github.com/ageneralai/maven/internal/context"
 	"github.com/ageneralai/maven/internal/events"
 	"github.com/ageneralai/maven/internal/executor"
@@ -41,7 +42,7 @@ func (e errPostActionHandle) Unwrap() error {
 type Pipeline struct {
 	Log           mavenlog.PrintLogger
 	Bus           *bus.MessageBus
-	Channels      *channel.ChannelManager
+	Channels      *channels.ChannelManager
 	SlashRegistry *slash.Registry
 	Sessions      session.Resolver
 	Posts         *agent.PostActionHandler

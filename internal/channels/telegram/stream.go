@@ -1,4 +1,4 @@
-package channel
+package telegram
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoapi"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -118,15 +117,15 @@ func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	}
 	if placeholderID, ok := msg.Metadata["placeholder_id"]; ok {
 		if pid, ok := placeholderID.(int); ok && pid != 0 {
-			content := telegram.ToTelegramHTML(msg.Content)
+			content := ToTelegramHTML(msg.Content)
 			if err := t.editMessage(chatID, pid, content, telego.ModeHTML); err != nil {
-				t.log.Printf("[telegram] edit placeholder failed: %v", err)
+				t.Log.Printf("[telegram] edit placeholder failed: %v", err)
 			} else {
 				return nil
 			}
 		}
 	}
-	content := telegram.ToTelegramHTML(msg.Content)
+	content := ToTelegramHTML(msg.Content)
 	const maxLen = 4000
 	for len(content) > 0 {
 		chunk := content

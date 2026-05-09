@@ -14,7 +14,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channels"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/cronsession"
@@ -172,7 +172,7 @@ func TestGateway_Shutdown(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := channel.NewChannelManager(msgBus, testLG)
+	chMgr := channels.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	mockRt := &mockRuntime{}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
@@ -185,7 +185,7 @@ func TestGateway_Shutdown(t *testing.T) {
 		cfg:      cfg,
 		bus:      msgBus,
 		pipe:     pipe,
-		channels: chMgr,
+		channelMgr: chMgr,
 		cron:     cronSvc,
 		hb:       heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
@@ -555,7 +555,7 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := channel.NewChannelManager(msgBus, testLG)
+	chMgr := channels.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
@@ -567,7 +567,7 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 		cfg:      cfg,
 		bus:      msgBus,
 		pipe:     pipe,
-		channels: chMgr,
+		channelMgr: chMgr,
 		cron:     cronSvc,
 		hb:       heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
 		mem:      memory.NewMemoryStore(tmpDir),
@@ -632,8 +632,8 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 	if g.hb == nil {
 		t.Error("heartbeat should not be nil")
 	}
-	if g.channels == nil {
-		t.Error("channels should not be nil")
+	if g.channelMgr == nil {
+		t.Error("channelMgr should not be nil")
 	}
 
 	// Clean up
@@ -965,7 +965,7 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 		}
 		close(done)
 	}()
-	deliver := &cron.Deliver{Bus: g.bus, Channels: g.channels, Log: g.logger}
+	deliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
 	deliver.AfterSuccessfulRun(context.Background(), *j, "delivered result")
 	<-done
 }

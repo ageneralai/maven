@@ -1,4 +1,4 @@
-package channel
+package channels
 
 import (
 	"context"
@@ -6,59 +6,65 @@ import (
 	"sync"
 
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channels/feishu"
+	"github.com/ageneralai/maven/internal/channels/telegram"
+	"github.com/ageneralai/maven/internal/channels/webui"
+	"github.com/ageneralai/maven/internal/channels/wecom"
+	"github.com/ageneralai/maven/internal/channels/whatsapp"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 type ChannelManager struct {
 	mu       sync.RWMutex
-	channels map[string]Channel
+	channels map[string]channel.Channel
 	bus      *bus.MessageBus
 	log      mavenlog.PrintLogger
 }
 
 func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger) *ChannelManager {
 	return &ChannelManager{
-		channels: make(map[string]Channel),
+		channels: make(map[string]channel.Channel),
 		bus:      b,
 		log:      lg,
 	}
 }
 
-func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger) (map[string]Channel, error) {
-	out := make(map[string]Channel)
+func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger) (map[string]channel.Channel, error) {
+	out := make(map[string]channel.Channel)
 	ws := cfg.Agent.Workspace
 	chcfg := cfg.Channels
 	if chcfg.Telegram.Enabled {
-		ch, err := NewTelegramChannel(chcfg.Telegram, ws, lg, b)
+		ch, err := telegram.NewTelegramChannel(chcfg.Telegram, ws, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init telegram channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}
 	if chcfg.Feishu.Enabled {
-		ch, err := NewFeishuChannel(chcfg.Feishu, lg, b)
+		ch, err := feishu.NewFeishuChannel(chcfg.Feishu, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init feishu channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}
 	if chcfg.WeCom.Enabled {
-		ch, err := NewWeComChannel(chcfg.WeCom, lg, b)
+		ch, err := wecom.NewWeComChannel(chcfg.WeCom, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init wecom channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}
 	if chcfg.WhatsApp.Enabled {
-		ch, err := NewWhatsApp(chcfg.WhatsApp, lg, b)
+		ch, err := whatsapp.NewWhatsApp(chcfg.WhatsApp, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("create whatsapp channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}
 	if chcfg.WebUI.Enabled {
-		ch, err := NewWebUIChannel(chcfg.WebUI, cfg.Gateway, lg, b)
+		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init webui channel: %w", err)
 		}
@@ -67,8 +73,6 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLog
 	return out, nil
 }
 
-// Apply stops and unsubscribes previous instances, constructs new ones,
-// registers outbound subscribers, and starts them.
 func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 	m.mu.Lock()
 	old := m.channels
@@ -102,12 +106,12 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 	return m.startAll(ctx, next)
 }
 
-func (m *ChannelManager) startAll(ctx context.Context, channels map[string]Channel) error {
+func (m *ChannelManager) startAll(ctx context.Context, byName map[string]channel.Channel) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error, len(channels))
-	for name, ch := range channels {
+	errCh := make(chan error, len(byName))
+	for name, ch := range byName {
 		wg.Add(1)
-		go func(name string, ch Channel) {
+		go func(name string, ch channel.Channel) {
 			defer wg.Done()
 			m.log.Printf("[channel-mgr] starting %s", name)
 			if err := ch.Start(ctx); err != nil {
@@ -123,10 +127,9 @@ func (m *ChannelManager) startAll(ctx context.Context, channels map[string]Chann
 	return nil
 }
 
-// StartAll starts every registered channel (after Apply populated the map).
 func (m *ChannelManager) StartAll(ctx context.Context) error {
 	m.mu.RLock()
-	snap := make(map[string]Channel, len(m.channels))
+	snap := make(map[string]channel.Channel, len(m.channels))
 	for k, v := range m.channels {
 		snap[k] = v
 	}
@@ -136,7 +139,7 @@ func (m *ChannelManager) StartAll(ctx context.Context) error {
 
 func (m *ChannelManager) StopAll() error {
 	m.mu.RLock()
-	snap := make(map[string]Channel, len(m.channels))
+	snap := make(map[string]channel.Channel, len(m.channels))
 	names := make([]string, 0, len(m.channels))
 	for n, ch := range m.channels {
 		snap[n] = ch
@@ -153,7 +156,7 @@ func (m *ChannelManager) StopAll() error {
 		m.bus.SetOutboundSubscriber(name, nil)
 	}
 	m.mu.Lock()
-	m.channels = make(map[string]Channel)
+	m.channels = make(map[string]channel.Channel)
 	m.mu.Unlock()
 	return nil
 }
@@ -168,8 +171,7 @@ func (m *ChannelManager) EnabledChannels() []string {
 	return names
 }
 
-// GetChannel returns a channel by name, or nil if not found.
-func (m *ChannelManager) GetChannel(name string) Channel {
+func (m *ChannelManager) GetChannel(name string) channel.Channel {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.channels[name]

@@ -1,4 +1,4 @@
-package channel
+package wecom
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -349,52 +350,6 @@ func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
 	}
 }
 
-func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
-	m := NewChannelManager(b, wecomTestLog)
-	cfg := &config.Config{
-		Agent: config.AgentConfig{Workspace: t.TempDir()},
-		Channels: config.ChannelsConfig{
-			WeCom: config.WeComConfig{Enabled: true},
-		},
-		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
-	}
-	if err := m.Apply(context.Background(), cfg); err == nil {
-		t.Fatal("expected error for missing wecom required config")
-	}
-}
-
-func TestChannelManager_WeComEnabled(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
-	m := NewChannelManager(b, wecomTestLog)
-	cfg := &config.Config{
-		Agent: config.AgentConfig{Workspace: t.TempDir()},
-		Channels: config.ChannelsConfig{
-			WeCom: config.WeComConfig{
-				Enabled:        true,
-				Token:          "verify-token",
-				EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-				AllowFrom:      []string{"zhangsan"},
-			},
-		},
-		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
-	}
-	if err := m.Apply(context.Background(), cfg); err != nil {
-		t.Fatalf("Apply error: %v", err)
-	}
-
-	found := false
-	for _, name := range m.EnabledChannels() {
-		if name == "wecom" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("enabled channels does not include wecom: %v", m.EnabledChannels())
-	}
-}
-
 func newTestWeComChannel(t *testing.T, cfg config.WeComConfig) (*WeComChannel, *bus.MessageBus) {
 	t.Helper()
 	b := bus.NewMessageBus(10, wecomTestLog)
@@ -641,5 +596,56 @@ func TestWeComClient_Send_NoRetryOnPayloadErrcode(t *testing.T) {
 	}
 	if sendCalls != 1 {
 		t.Fatalf("send calls = %d, want 1", sendCalls)
+	}
+}
+
+func TestWeComCallback_ImageMessage(t *testing.T) {
+	imageData := []byte{0xff, 0xd8, 0xff, 0xd9}
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write(imageData)
+	}))
+	defer imageServer.Close()
+	ch, b := newTestWeComChannel(t, config.WeComConfig{
+		Token:          "verify-token",
+		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
+		ReceiveID:      "recv-id-1",
+		AllowFrom:      []string{"zhangsan"},
+	})
+	timestamp := "1739000200"
+	nonce := "nonce-image"
+	imageURL := imageServer.URL + "/image.jpg"
+	plaintext := fmt.Sprintf(`{"msgid":"20001","aibotid":"AIBOTID","chattype":"single","from":{"userid":"zhangsan"},"response_url":"https://example.com/resp","msgtype":"image","image":{"url":"%s"}}`, imageURL)
+	encrypt := testWeComEncrypt(t, ch.cfg.EncodingAESKey, ch.receiveID, plaintext)
+	signature := testWeComSignature(ch.cfg.Token, timestamp, nonce, encrypt)
+	body := testWeComEncryptedRequestBody(t, encrypt)
+	req := httptest.NewRequest(http.MethodPost, "/wecom/bot", strings.NewReader(body))
+	q := req.URL.Query()
+	q.Set("msg_signature", signature)
+	q.Set("timestamp", timestamp)
+	q.Set("nonce", nonce)
+	req.URL.RawQuery = q.Encode()
+	w := httptest.NewRecorder()
+	ch.handleCallback(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	select {
+	case inbound := <-b.InboundChan():
+		if inbound.Content != "[image]" {
+			t.Errorf("content = %q, want [image]", inbound.Content)
+		}
+		if len(inbound.ContentBlocks) != 1 {
+			t.Fatalf("content blocks len = %d, want 1", len(inbound.ContentBlocks))
+		}
+		block := inbound.ContentBlocks[0]
+		if block.Type != model.ContentBlockImage {
+			t.Errorf("content block type = %q, want %q", block.Type, model.ContentBlockImage)
+		}
+		if block.MediaType != "image/jpeg" {
+			t.Errorf("media type = %q, want image/jpeg", block.MediaType)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected inbound message")
 	}
 }

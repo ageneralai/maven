@@ -1,4 +1,4 @@
-package channel
+package telegram
 
 import (
 	"context"
@@ -12,32 +12,31 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
 func (t *TelegramChannel) loadSlashCommands() {
-	t.slashCommands = make(map[string]telegram.Command)
+	t.slashCommands = make(map[string]Command)
 	root := t.telegramRoot()
 	if root == "" {
-		t.log.Printf("[telegram] skip slash command load: telegram root is not configured")
+		t.Log.Printf("[telegram] skip slash command load: telegram root is not configured")
 		return
 	}
 	dir := filepath.Join(root, "slashes")
-	cmds, err := telegram.LoadCommands(dir)
+	cmds, err := LoadCommands(dir)
 	if err != nil {
-		t.log.Printf("[telegram] load slash commands: %v", err)
+		t.Log.Printf("[telegram] load slash commands: %v", err)
 		return
 	}
 	for _, cmd := range cmds {
 		t.slashCommands[cmd.Name] = cmd
 	}
 	if len(t.slashCommands) > 0 {
-		t.log.Printf("[telegram] loaded %d slash commands from %s", len(t.slashCommands), dir)
+		t.Log.Printf("[telegram] loaded %d slash commands from %s", len(t.slashCommands), dir)
 		return
 	}
-	t.log.Printf("[telegram] no slash commands found in %s", dir)
+	t.Log.Printf("[telegram] no slash commands found in %s", dir)
 }
 
 func (t *TelegramChannel) registeredBotCommands() []telego.BotCommand {
@@ -96,7 +95,7 @@ func (t *TelegramChannel) sendBotReply(chatID int64, text string) {
 		return
 	}
 	if _, err := t.bot.SendMessage(context.Background(), tu.Message(tu.ID(chatID), text)); err != nil {
-		t.log.Printf("[telegram] sendMessage failed: %v", err)
+		t.Log.Printf("[telegram] sendMessage failed: %v", err)
 	}
 }
 
@@ -122,10 +121,10 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 	}
 
 	switch cmd.Type {
-	case telegram.CommandTypeLocal:
+	case CommandTypeLocal:
 		resp := t.executeLocalCommand(cmd, args)
 		t.sendBotReply(msg.Chat.ID, resp)
-	case telegram.CommandTypeAgent, telegram.CommandTypePipeline:
+	case CommandTypeAgent, CommandTypePipeline:
 		content := t.composeAgentCommandContent(cmd, cmdName, args)
 		if strings.TrimSpace(content) == "" {
 			t.sendBotReply(msg.Chat.ID, "Command is not configured with executable content.")
@@ -139,11 +138,11 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 			MessageID:    msg.MessageID,
 			ForceSync:    !cmd.Streaming,
 		}
-		if cmd.Session == telegram.SessionModeIsolated {
+		if cmd.Session == SessionModeIsolated {
 			hints.SessionMode = bus.SessionModeIsolated
 		}
 		tIn := context.Background()
-		_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
+		_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
 			Channel:   telegramChannelName,
 			SenderID:  strconv.FormatInt(msg.From.ID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
@@ -160,7 +159,7 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 	}
 
 	tIn := context.Background()
-	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:   telegramChannelName,
 		SenderID:  strconv.FormatInt(msg.From.ID, 10),
 		ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
@@ -174,7 +173,7 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 	return true
 }
 
-func (t *TelegramChannel) executeLocalCommand(cmd telegram.Command, args string) string {
+func (t *TelegramChannel) executeLocalCommand(cmd Command, args string) string {
 	sessionID := fmt.Sprintf("%s:local:%d", telegramChannelName, time.Now().UnixNano())
 	switch cmd.Name {
 	case "status":
@@ -206,7 +205,7 @@ func (t *TelegramChannel) helpLines() []string {
 	return lines
 }
 
-func (t *TelegramChannel) composeAgentCommandContent(cmd telegram.Command, cmdName, args string) string {
+func (t *TelegramChannel) composeAgentCommandContent(cmd Command, cmdName, args string) string {
 	if cmd.PassThrough {
 		content := "/" + cmdName
 		if args != "" {

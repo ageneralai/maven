@@ -1,4 +1,4 @@
-package channel
+package telegram
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
@@ -30,7 +29,7 @@ func (t *TelegramChannel) handleMessage(msg *telego.Message) {
 	}
 	senderID := strconv.FormatInt(msg.From.ID, 10)
 	if !t.IsAllowed(senderID) {
-		t.log.Printf("[telegram] rejected message from %s (%s)", senderID, msg.From.Username)
+		t.Log.Printf("[telegram] rejected message from %s (%s)", senderID, msg.From.Username)
 		return
 	}
 
@@ -96,7 +95,7 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 
 	chatID := strconv.FormatInt(primary.Chat.ID, 10)
 	tIn := context.Background()
-	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(primary.From.ID, 10),
 		ChatID:        chatID,
@@ -124,7 +123,7 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 	}
 	chatID := strconv.FormatInt(msg.Chat.ID, 10)
 	tIn := context.Background()
-	_ = t.bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(msg.From.ID, 10),
 		ChatID:        chatID,
@@ -145,14 +144,14 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 	var parts []string
 	var blocks []model.ContentBlock
 	if reply := msg.ReplyToMessage; reply != nil {
-		parts = append(parts, telegram.ExtractReplyContext(reply))
+		parts = append(parts, ExtractReplyContext(reply))
 	} else if msg.ExternalReply != nil || msg.Quote != nil {
 		extCtx, extBlocks := t.extractExternalReplyContext(msg.ExternalReply, msg.Quote)
 		parts = append(parts, extCtx)
 		blocks = append(blocks, extBlocks...)
 	}
 
-	if label := telegram.ForwardOriginLabel(msg); label != "" {
+	if label := ForwardOriginLabel(msg); label != "" {
 		parts = append(parts, label)
 	}
 
@@ -176,7 +175,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		photo := msg.Photo[len(msg.Photo)-1]
 		data, err := t.downloadFileData(photo.FileID)
 		if err != nil {
-			t.log.Printf("[telegram] download photo %s failed: %v", photo.FileID, err)
+			t.Log.Printf("[telegram] download photo %s failed: %v", photo.FileID, err)
 		} else {
 			mediaType := http.DetectContentType(data)
 			if mediaType == "application/octet-stream" {
@@ -191,10 +190,10 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 	}
 	if msg.Voice != nil {
 		if path, err := t.saveFile(msg.Voice.FileID, "voice.ogg"); err != nil {
-			t.log.Printf("[telegram] save voice failed: %v", err)
-			content = telegram.AppendLine(content, fmt.Sprintf("[Voice message, %ds, download failed]", msg.Voice.Duration))
+			t.Log.Printf("[telegram] save voice failed: %v", err)
+			content = AppendLine(content, fmt.Sprintf("[Voice message, %ds, download failed]", msg.Voice.Duration))
 		} else {
-			content = telegram.AppendLine(content, "[Voice message saved to: "+path+"]")
+			content = AppendLine(content, "[Voice message saved to: "+path+"]")
 		}
 	}
 	if msg.Audio != nil {
@@ -203,10 +202,10 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "audio.mp3"
 		}
 		if path, err := t.saveFile(msg.Audio.FileID, name); err != nil {
-			t.log.Printf("[telegram] save audio failed: %v", err)
-			content = telegram.AppendLine(content, fmt.Sprintf("[Audio: %s, download failed]", name))
+			t.Log.Printf("[telegram] save audio failed: %v", err)
+			content = AppendLine(content, fmt.Sprintf("[Audio: %s, download failed]", name))
 		} else {
-			content = telegram.AppendLine(content, "[Audio file saved to: "+path+"]")
+			content = AppendLine(content, "[Audio file saved to: "+path+"]")
 		}
 	}
 	if msg.Video != nil {
@@ -215,10 +214,10 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "video.mp4"
 		}
 		if path, err := t.saveFile(msg.Video.FileID, name); err != nil {
-			t.log.Printf("[telegram] save video failed: %v", err)
-			content = telegram.AppendLine(content, fmt.Sprintf("[Video: %s, download failed]", name))
+			t.Log.Printf("[telegram] save video failed: %v", err)
+			content = AppendLine(content, fmt.Sprintf("[Video: %s, download failed]", name))
 		} else {
-			content = telegram.AppendLine(content, "[Video file saved to: "+path+"]")
+			content = AppendLine(content, "[Video file saved to: "+path+"]")
 		}
 	}
 	if msg.Document != nil {
@@ -230,8 +229,8 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		if strings.HasPrefix(mediaType, "image/") {
 			data, err := t.downloadFileData(msg.Document.FileID)
 			if err != nil {
-				t.log.Printf("[telegram] download document %s failed: %v", msg.Document.FileID, err)
-				content = telegram.AppendLine(content, fmt.Sprintf("[Image document: %s (%s), download failed]", name, mediaType))
+				t.Log.Printf("[telegram] download document %s failed: %v", msg.Document.FileID, err)
+				content = AppendLine(content, fmt.Sprintf("[Image document: %s (%s), download failed]", name, mediaType))
 			} else {
 				blocks = append(blocks, model.ContentBlock{
 					Type:      model.ContentBlockImage,
@@ -241,15 +240,15 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			}
 		} else {
 			if path, err := t.saveFile(msg.Document.FileID, name); err != nil {
-				t.log.Printf("[telegram] save document failed: %v", err)
+				t.Log.Printf("[telegram] save document failed: %v", err)
 				info := fmt.Sprintf("[File: %s (%s)", name, mediaType)
 				if msg.Document.FileSize > 0 {
 					info += fmt.Sprintf(", %d bytes", msg.Document.FileSize)
 				}
 				info += ", download failed]"
-				content = telegram.AppendLine(content, info)
+				content = AppendLine(content, info)
 			} else {
-				content = telegram.AppendLine(content, "[File saved to: "+path+"]")
+				content = AppendLine(content, "[File saved to: "+path+"]")
 			}
 		}
 	}
@@ -276,7 +275,7 @@ func (t *TelegramChannel) extractExternalReplyContext(ext *telego.ExternalReplyI
 			photo := ext.Photo[len(ext.Photo)-1]
 			data, err := t.downloadFileData(photo.FileID)
 			if err != nil {
-				t.log.Printf("[telegram] download external reply photo failed: %v", err)
+				t.Log.Printf("[telegram] download external reply photo failed: %v", err)
 				b.WriteString("\n[Photo, download failed]")
 			} else {
 				mediaType := http.DetectContentType(data)
@@ -330,7 +329,7 @@ func (t *TelegramChannel) saveFile(fileID, name string) (string, error) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
-	t.log.Printf("[telegram] saved file to %s (%d bytes)", path, len(data))
+	t.Log.Printf("[telegram] saved file to %s (%d bytes)", path, len(data))
 	return path, nil
 }
 
@@ -402,7 +401,7 @@ func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string
 		Reaction:  []telego.ReactionType{tu.ReactionEmoji(emoji)},
 	})
 	if err != nil {
-		t.log.Printf("[telegram] sendReaction failed: %v", err)
+		t.Log.Printf("[telegram] sendReaction failed: %v", err)
 	}
 }
 
@@ -412,6 +411,6 @@ func (t *TelegramChannel) sendTyping(chatID int64) {
 	}
 	err := t.bot.SendChatAction(context.Background(), tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
 	if err != nil {
-		t.log.Printf("[telegram] sendTyping failed: %v", err)
+		t.Log.Printf("[telegram] sendTyping failed: %v", err)
 	}
 }

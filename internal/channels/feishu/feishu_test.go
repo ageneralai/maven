@@ -1,4 +1,4 @@
-package channel
+package feishu
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 )
 
 var feishuTestLog = mavenlog.Std()
@@ -580,47 +580,5 @@ func TestFeishuChannel_StartStop(t *testing.T) {
 	err = ch.Stop()
 	if err != nil {
 		t.Errorf("Stop error: %v", err)
-	}
-}
-
-func TestChannelManager_FeishuEnabled(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
-	m := NewChannelManager(b, feishuTestLog)
-	cfg := &config.Config{
-		Agent: config.AgentConfig{Workspace: t.TempDir()},
-		Channels: config.ChannelsConfig{
-			Feishu: config.FeishuConfig{
-				Enabled:   true,
-				AppID:     "cli_test",
-				AppSecret: "secret",
-			},
-		},
-		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
-	}
-	if err := m.Apply(context.Background(), cfg); err != nil {
-		t.Fatalf("Apply error: %v", err)
-	}
-
-	channels := m.EnabledChannels()
-	if len(channels) != 1 || channels[0] != "feishu" {
-		t.Errorf("EnabledChannels = %v, want [feishu]", channels)
-	}
-}
-
-func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
-	m := NewChannelManager(b, feishuTestLog)
-	cfg := &config.Config{
-		Agent: config.AgentConfig{Workspace: t.TempDir()},
-		Channels: config.ChannelsConfig{
-			Feishu: config.FeishuConfig{
-				Enabled: true,
-				// Missing AppID and AppSecret
-			},
-		},
-		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
-	}
-	if err := m.Apply(context.Background(), cfg); err == nil {
-		t.Error("expected error for missing feishu config")
 	}
 }

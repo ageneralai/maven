@@ -1,4 +1,4 @@
-package channel
+package whatsapp
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -34,7 +35,7 @@ const (
 )
 
 type WhatsAppChannel struct {
-	BaseChannel
+	chann.BaseChannel
 	cfg            config.WhatsAppConfig
 	client         *whatsmeow.Client
 	storeContainer *sqlstore.Container
@@ -67,7 +68,7 @@ func NewWhatsApp(cfg config.WhatsAppConfig, lg mavenlog.PrintLogger, msgBus *bus
 	client := whatsmeow.NewClient(deviceStore, waLog.Noop)
 
 	ch := &WhatsAppChannel{
-		BaseChannel:    NewBaseChannel(whatsappChannelName, msgBus, cfg.AllowFrom, lg),
+		BaseChannel:    chann.NewBaseChannel(whatsappChannelName, msgBus, cfg.AllowFrom, lg),
 		cfg:            cfg,
 		client:         client,
 		storeContainer: container,
@@ -107,7 +108,7 @@ func (w *WhatsAppChannel) Start(ctx context.Context) error {
 		w.client.Disconnect()
 	}()
 
-	w.log.Printf("[whatsapp] connected")
+	w.Log.Printf("[whatsapp] connected")
 	return nil
 }
 
@@ -131,7 +132,7 @@ func (w *WhatsAppChannel) Stop() error {
 		w.storeContainer = nil
 	}
 
-	w.log.Printf("[whatsapp] stopped")
+	w.Log.Printf("[whatsapp] stopped")
 	return nil
 }
 
@@ -171,8 +172,8 @@ func (w *WhatsAppChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	return nil
 }
 
-func (w *WhatsAppChannel) Capabilities() CapabilitySet {
-	return CapabilitySet{FileUpload: true}
+func (w *WhatsAppChannel) Capabilities() chann.CapabilitySet {
+	return chann.CapabilitySet{FileUpload: true}
 }
 
 func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow.QRChannelItem) {
@@ -187,13 +188,13 @@ func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow
 
 			switch evt.Event {
 			case whatsmeow.QRChannelEventCode:
-				w.log.Printf("[whatsapp] scan the QR code below to login")
+				w.Log.Printf("[whatsapp] scan the QR code below to login")
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 			default:
 				if evt.Error != nil {
-					w.log.Printf("[whatsapp] login event=%s error=%v", evt.Event, evt.Error)
+					w.Log.Printf("[whatsapp] login event=%s error=%v", evt.Event, evt.Error)
 				} else {
-					w.log.Printf("[whatsapp] login event=%s", evt.Event)
+					w.Log.Printf("[whatsapp] login event=%s", evt.Event)
 				}
 			}
 		}
@@ -215,7 +216,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 	rawSender := evt.Info.Sender.String()
 	sender := evt.Info.Sender.ToNonAD().String()
 	if !w.IsAllowed(sender) && !w.IsAllowed(rawSender) {
-		w.log.Printf("[whatsapp] rejected message from %s", sender)
+		w.Log.Printf("[whatsapp] rejected message from %s", sender)
 		return
 	}
 
@@ -225,7 +226,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 	}
 
 	wIn := context.Background()
-	_ = w.bus.PublishInbound(wIn, bus.InboundMessage{
+	_ = w.Bus.PublishInbound(wIn, bus.InboundMessage{
 		Channel:       whatsappChannelName,
 		SenderID:      sender,
 		ChatID:        evt.Info.Chat.String(),
@@ -258,7 +259,7 @@ func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.C
 		data, err := w.client.Download(ctx, image)
 		cancel()
 		if err != nil {
-			w.log.Printf("[whatsapp] download image failed: %v", err)
+			w.Log.Printf("[whatsapp] download image failed: %v", err)
 		} else if len(data) > 0 {
 			mediaType := strings.TrimSpace(image.GetMimetype())
 			if mediaType == "" {

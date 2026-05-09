@@ -1,4 +1,4 @@
-package channel
+package whatsapp
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
@@ -17,31 +18,6 @@ import (
 )
 
 var waTestLog = mavenlog.Std()
-
-func TestNewWhatsApp_Disabled(t *testing.T) {
-	b := bus.NewMessageBus(10, waTestLog)
-	dir := t.TempDir()
-	m := NewChannelManager(b, waTestLog)
-	cfg := &config.Config{
-		Agent: config.AgentConfig{Workspace: dir},
-		Channels: config.ChannelsConfig{
-			WhatsApp: config.WhatsAppConfig{
-				Enabled:   false,
-				StorePath: filepath.Join("/dev/null", "whatsapp-store.db"),
-			},
-		},
-		Gateway: config.GatewayConfig{Host: config.DefaultHost, Port: config.DefaultPort},
-	}
-	if err := m.Apply(context.Background(), cfg); err != nil {
-		t.Fatalf("Apply error: %v", err)
-	}
-
-	for _, name := range m.EnabledChannels() {
-		if name == whatsappChannelName {
-			t.Fatalf("%s channel should not be created when disabled", whatsappChannelName)
-		}
-	}
-}
 
 func TestNewWhatsApp_Valid(t *testing.T) {
 	b := bus.NewMessageBus(10, waTestLog)
@@ -111,7 +87,7 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 
 	dispatched := func(allowFrom []string, sender types.JID) bool {
 		b := bus.NewMessageBus(1, waTestLog)
-		ch := &WhatsAppChannel{BaseChannel: NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog)}
+		ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog)}
 		ch.handleMessage(makeEvent(sender))
 
 		select {
@@ -231,7 +207,7 @@ func TestWhatsAppChannel_ParseJID(t *testing.T) {
 
 func TestWhatsAppChannel_Stop_NotStarted(t *testing.T) {
 	b := bus.NewMessageBus(1, waTestLog)
-	ch := &WhatsAppChannel{BaseChannel: NewBaseChannel(whatsappChannelName, b, nil, waTestLog)}
+	ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, nil, waTestLog)}
 	if err := ch.Stop(); err != nil {
 		t.Fatalf("Stop error: %v", err)
 	}

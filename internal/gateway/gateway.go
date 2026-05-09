@@ -13,7 +13,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channels"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/health"
@@ -49,7 +49,7 @@ type Gateway struct {
 	pipe           *pipeline.Pipeline
 	pipeWg         sync.WaitGroup
 	runCancel      context.CancelFunc
-	channels       *channel.ChannelManager
+	channelMgr *channels.ChannelManager
 	cron           *cron.Service
 	hb             *heartbeat.Service
 	runtimeFactory RuntimeFactory
@@ -99,10 +99,10 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
-	g.channels = channel.NewChannelManager(g.bus, g.logger)
+	g.channelMgr = channels.NewChannelManager(g.bus, g.logger)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
-	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channels, Log: g.logger}
+	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
 	g.cron = cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
 	g.signalChan = opts.SignalChan
 	liveness := health.OrHealthReporter(opts.HealthReporter)
@@ -110,7 +110,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	sessRes := &session.SessionResolver{Router: g.sessions}
 	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
 	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
-	pipe.Channels = g.channels
+	pipe.Channels = g.channelMgr
 	pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.pipe = pipe
 	g.hb = heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger, heartbeat.WithHealthReporter(liveness))
@@ -129,7 +129,7 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 }
 
 func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
-	return g.pipe.Reload(func() error { return g.channels.Apply(ctx, cfg) }, rt, cfg.Agent.Workspace)
+	return g.pipe.Reload(func() error { return g.channelMgr.Apply(ctx, cfg) }, rt, cfg.Agent.Workspace)
 }
 
 // Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
@@ -191,7 +191,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	if err := g.Apply(ctx, g.cfg); err != nil {
 		return fmt.Errorf("initial apply: %w", err)
 	}
-	g.logger.Printf("[gateway] channels started: %v", g.channels.EnabledChannels())
+	g.logger.Printf("[gateway] channels started: %v", g.channelMgr.EnabledChannels())
 	if err := g.cron.Start(ctx); err != nil {
 		g.logger.Printf("[gateway] cron start warning: %v", err)
 	}
@@ -241,7 +241,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 			if aerr := g.Apply(ctx, newCfg); aerr != nil {
 				g.logger.Printf("[gateway] reload apply: %v", aerr)
 			} else {
-				g.logger.Printf("[gateway] reloaded; gateway %s:%d; channels: %v", newCfg.Gateway.Host, newCfg.Gateway.Port, g.channels.EnabledChannels())
+				g.logger.Printf("[gateway] reloaded; gateway %s:%d; channels: %v", newCfg.Gateway.Host, newCfg.Gateway.Port, g.channelMgr.EnabledChannels())
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func (g *Gateway) Shutdown() error {
 	g.interruptRunLoops()
 	g.pipeWg.Wait()
 	g.cron.Stop()
-	_ = g.channels.StopAll()
+	_ = g.channelMgr.StopAll()
 	if g.pipe != nil {
 		if rt := g.pipe.TakeRuntimeForShutdown(); rt != nil {
 			rt.Close()
