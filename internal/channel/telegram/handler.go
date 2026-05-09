@@ -380,15 +380,22 @@ func (t *TelegramChannel) downloadFileData(fileID string) ([]byte, error) {
 func (t *TelegramChannel) PreProcessFeedback(chatID int64, messageID int) {
 	switch t.feedback {
 	case "debug":
-		t.sendReaction(chatID, messageID, "👀")
-		t.sendTyping(chatID)
+		t.sendReactionAndTyping(chatID, messageID, "👀")
 	case "normal":
-		t.sendReaction(chatID, messageID, "👍")
-		t.sendTyping(chatID)
+		t.sendReactionAndTyping(chatID, messageID, "👍")
 	case "minimal":
 		t.sendTyping(chatID)
 	case "silent":
 	}
+}
+
+func (t *TelegramChannel) sendReactionAndTyping(chatID int64, messageID int, emoji string) {
+	go func() {
+		t.sendReaction(chatID, messageID, emoji)
+	}()
+	go func() {
+		t.sendTyping(chatID)
+	}()
 }
 
 func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string) {
