@@ -135,7 +135,12 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
     },
     "webui": {
       "enabled": true,
-      "allowFrom": []
+      "allowFrom": [],
+      "voice": {
+        "enabled": false,
+        "sttProvider": "deepgram",
+        "ttsProvider": "openai"
+      }
     }
   },
   "skills": {
