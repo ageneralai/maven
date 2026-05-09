@@ -167,6 +167,10 @@ func TestFeishuWebhook_Challenge(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
+	raw := w.Body.Bytes()
+	if !json.Valid(raw) {
+		t.Fatalf("response body is not valid JSON: %q", raw)
+	}
 
 	var resp map[string]string
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {

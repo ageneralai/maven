@@ -117,29 +117,39 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	return g, nil
 }
 
-// Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
-// runtime from the factory, swaps it into the pipeline under Reload semantics, refreshes SlashRegistry from cron,
-// and restarts the heartbeat ticker tree. Idempotent retries use the same path.
-func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) (retErr error) {
-	g.applyMu.Lock()
-	defer g.applyMu.Unlock()
+func (g *Gateway) validateReload(cfg *config.Config) error {
 	if g.cfg != nil && cfg.Agent.Workspace != g.cfg.Agent.Workspace {
 		return fmt.Errorf("reload: agent.workspace change not supported")
 	}
+	return nil
+}
+
+func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration) (agent.Runtime, error) {
+	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron)
+}
+
+func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
+	return g.pipe.Reload(func() error { return g.channels.Apply(ctx, cfg) }, rt, cfg.Agent.Workspace)
+}
+
+// Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
+// runtime from the factory, swaps it into the pipeline under Reload semantics, refreshes SlashRegistry from cron,
+// and restarts the heartbeat ticker tree. Idempotent retries use the same path.
+func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
+	g.applyMu.Lock()
+	defer g.applyMu.Unlock()
+	if err := g.validateReload(cfg); err != nil {
+		return err
+	}
 	g.skillRegs = g.loadSkillRegs(cfg)
 	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	newRt, err := g.runtimeFactory(cfg, sysPrompt, g.skillRegs, g.cron)
+	rt, err := g.buildRuntime(cfg, sysPrompt, g.skillRegs)
 	if err != nil {
 		return fmt.Errorf("runtime factory: %w", err)
 	}
-	defer func() {
-		if retErr != nil {
-			newRt.Close()
-		}
-	}()
-	reloadErr := g.pipe.Reload(func() error { return g.channels.Apply(ctx, cfg) }, newRt, cfg.Agent.Workspace)
-	if reloadErr != nil {
-		return fmt.Errorf("channels apply: %w", reloadErr)
+	if err := g.reloadPipeline(ctx, cfg, rt); err != nil {
+		rt.Close()
+		return fmt.Errorf("channels apply: %w", err)
 	}
 	g.cfg = cfg
 	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)

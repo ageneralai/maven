@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -272,10 +273,14 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	// URL verification challenge
 	if event.Challenge != "" {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"challenge": event.Challenge}); err != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(map[string]string{"challenge": event.Challenge}); err != nil {
 			http.Error(w, "encode challenge", http.StatusInternalServerError)
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = buf.WriteTo(w)
 		return
 	}
 

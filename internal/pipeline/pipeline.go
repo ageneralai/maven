@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 
@@ -20,6 +21,18 @@ import (
 
 const userErrMessage = "Sorry, I encountered an error processing your message."
 const userErrCommand = "Sorry, I encountered an error processing your command."
+
+type errPostActionHandle struct {
+	err error
+}
+
+func (e errPostActionHandle) Error() string {
+	return e.err.Error()
+}
+
+func (e errPostActionHandle) Unwrap() error {
+	return e.err
+}
 
 // Pipeline runs the inbound loop and owns the agent runtime pointer. turnMu implements
 // drain-safe reload: each handle and each automation RunText holds RLock for the full
@@ -129,30 +142,92 @@ func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string
 	})
 }
 
-func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
-	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, stringutil.Truncate(msg.Content, 80))
-	if handled, err := p.Posts.HandleBuiltin(msg); handled {
-		if err != nil {
-			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
-		} else {
-			_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
-				Channel:  msg.Channel,
-				ChatID:   msg.ChatID,
-				Content:  "✅ Started a fresh session.",
-				Metadata: cloneTransportMeta(msg.TransportMeta),
-			})
-		}
-		return
-	}
-	p.turnMu.RLock()
-	defer p.turnMu.RUnlock()
-	rt := p.rt
+func (p *Pipeline) turnContext(ctx context.Context, msg bus.InboundMessage) context.Context {
 	msgCtx := turnctx.WithInbound(ctx, msg.Channel, msg.ChatID)
 	if msg.Hints.MessageID != 0 {
 		msgCtx = turnctx.WithMetadata(msgCtx, map[string]any{
 			"message_id": msg.Hints.MessageID,
 		})
 	}
+	return msgCtx
+}
+
+func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bool {
+	handled, err := p.Posts.HandleBuiltin(msg)
+	if !handled {
+		return false
+	}
+	if err != nil {
+		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
+		return true
+	}
+	_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+		Channel:  msg.Channel,
+		ChatID:   msg.ChatID,
+		Content:  "✅ Started a fresh session.",
+		Metadata: cloneTransportMeta(msg.TransportMeta),
+	})
+	return true
+}
+
+func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage) (slash.Outcome, error) {
+	msgCtx := p.turnContext(ctx, msg)
+	return slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
+		Text:              msg.Content,
+		ExpectedSlashName: msg.Hints.SlashCommand,
+	})
+}
+
+func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channel.StreamChannel) error {
+	msgCtx := p.turnContext(ctx, msg)
+	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
+	streamCtx := p.Bus.OnStreamBegin(msgCtx, streamHints)
+	streamEvents, err := agent.RunStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
+	if err != nil {
+		p.Bus.OnStreamEnd(streamCtx, streamHints, err)
+		return err
+	}
+	sendMeta := cloneTransportMeta(msg.TransportMeta)
+	sendErr := ch.SendStream(streamCtx, msg.ChatID, sendMeta, streamEvents)
+	p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
+	return sendErr
+}
+
+func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, slashOut slash.Outcome) error {
+	msgCtx := p.turnContext(ctx, msg)
+	resp, err := agent.RunResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
+	if err != nil {
+		return err
+	}
+	result := ""
+	if resp != nil && resp.Result != nil {
+		result = resp.Result.Output
+	}
+	if postResult, handled, postErr := p.Posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
+		if postErr != nil {
+			return errPostActionHandle{postErr}
+		}
+		result = postResult
+	}
+	if result != "" {
+		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+			Channel:  msg.Channel,
+			ChatID:   msg.ChatID,
+			Content:  result,
+			Metadata: cloneTransportMeta(msg.TransportMeta),
+		})
+	}
+	return nil
+}
+
+func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
+	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, stringutil.Truncate(msg.Content, 80))
+	if p.handleBuiltin(ctx, msg) {
+		return
+	}
+	p.turnMu.RLock()
+	defer p.turnMu.RUnlock()
+	rt := p.rt
 	events.Publish(ctx, events.Event{
 		Type: "pipeline.turn_start",
 		Attrs: map[string]string{
@@ -172,11 +247,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			}
 		}
 	}
-	// msgCtx holds per-turn routing and metadata for slash.PreTurn (read via turnctx.From inside slash).
-	slashOut, err := slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
-		Text:              msg.Content,
-		ExpectedSlashName: msg.Hints.SlashCommand,
-	})
+	slashOut, err := p.runSlash(ctx, msg)
 	if err != nil {
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		return
@@ -192,46 +263,20 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
-			streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
-			streamCtx := p.Bus.OnStreamBegin(msgCtx, streamHints)
-			streamEvents, err := agent.RunStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
-			if err != nil {
-				p.Bus.OnStreamEnd(streamCtx, streamHints, err)
+			if err := p.runStream(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, sc); err != nil {
 				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 				return
 			}
-			meta := cloneTransportMeta(msg.TransportMeta)
-			sendErr := sc.SendStream(streamCtx, msg.ChatID, meta, streamEvents)
-			p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
-			if sendErr != nil {
-				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, sendErr)
-				return
-			}
 			return
 		}
 	}
-	resp, err := agent.RunResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, slashOut.RequestMetadata)
-	if err != nil {
+	if err := p.runSync(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, slashOut); err != nil {
+		var ep errPostActionHandle
+		if errors.As(err, &ep) {
+			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, ep.err)
+			return
+		}
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 		return
-	}
-	result := ""
-	if resp != nil && resp.Result != nil {
-		result = resp.Result.Output
-	}
-	if postResult, handled, postErr := p.Posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
-		if postErr != nil {
-			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, postErr)
-			return
-		}
-		result = postResult
-	}
-	if result != "" {
-		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
-			Channel:  msg.Channel,
-			ChatID:   msg.ChatID,
-			Content:  result,
-			Metadata: cloneTransportMeta(msg.TransportMeta),
-		})
 	}
 }
