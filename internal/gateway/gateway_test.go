@@ -73,7 +73,7 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 var _ agent.Runtime = (*mockRuntime)(nil)
 
 func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
-	p := pipeline.New(testLG, b, rt, &agent.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
+	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
 	p.SlashRegistry = slash.BuiltIns(nil)
 	return p
 }

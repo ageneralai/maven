@@ -126,3 +126,34 @@ func cloneMap(m map[string]interface{}) map[string]interface{} {
 	}
 	return out
 }
+
+func TestCronToolInput_ToAddParams_messageIDFromTurnMetadata(t *testing.T) {
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
+	ctx = turnctx.WithMetadata(ctx, map[string]any{"message_id": 99})
+	in := CronToolInput{
+		Name:                  "n",
+		Message:               "m",
+		In:                    "1s",
+		Deliver:               true,
+		DeliverToIncomingChat: true,
+	}
+	p := in.ToAddParams(ctx)
+	if p.Channel != "telegram" || p.To != "42" {
+		t.Fatalf("route: %+v", p)
+	}
+	if p.MessageID != 99 {
+		t.Fatalf("MessageID=%d", p.MessageID)
+	}
+}
+
+func TestCronToolInput_ToAddParams_messageIDZeroWhenMetadataAbsent(t *testing.T) {
+	ctx := turnctx.WithInbound(context.Background(), "telegram", "42")
+	in := CronToolInput{
+		Deliver:               true,
+		DeliverToIncomingChat: true,
+	}
+	p := in.ToAddParams(ctx)
+	if p.MessageID != 0 {
+		t.Fatalf("MessageID=%d", p.MessageID)
+	}
+}

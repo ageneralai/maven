@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -33,7 +34,8 @@ func (h *PostActionHandler) HandleBuiltin(msg bus.InboundMessage) (bool, error) 
 	}
 }
 
-func (h *PostActionHandler) HandlePostResponse(chatRouteKey string, resp *api.Response, trail []slash.Execution) (string, bool, error) {
+func (h *PostActionHandler) HandlePostResponse(ctx context.Context, chatRouteKey string, resp *api.Response, trail []slash.Execution) (string, bool, error) {
+	// turnctx.From(ctx) is available here for future post-action use of Metadata/Budget.
 	action := trailMeta(trail, slash.MetaPostAction)
 	if action == "" {
 		return "", false, nil

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 )
 
@@ -52,7 +51,7 @@ func PreTurn(ctx context.Context, reg *Registry, in Input) (Outcome, error) {
 	out.ContinueToModel = true
 	out.Trail = trail
 	if len(res.Metadata) > 0 {
-		out.RequestMetadata = maps.Clone(res.Metadata)
+		out.RequestMetadata = enrichRequestMetadataWithTurnRouting(ctx, res.Metadata)
 	}
 	return out, nil
 }

@@ -12,8 +12,9 @@
 //     events.EventBusClosed emits.
 //   - Streaming: internal/bus.StreamDelegate defaults to noop; wire WithStreamDelegate or
 //     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
-//   - Per-turn routing: internal/context (package turnctx): pipeline attaches WithInbound,
-//     tools resolve channel/chat with From / Channel / ChatID (single snapshot, no bespoke keys).
+//   - Per-turn routing: internal/context (package turnctx): pipeline attaches WithInbound;
+//     tools resolve channel/chat with From / Channel / ChatID. TurnContext optionally carries Metadata
+//     (trimmed-string keys after normalize) and TurnBudget without passing them through the agent SDK yet.
 //   - Liveness: internal/health.HealthReporter defaults to NoOp. gateway.Options.HealthReporter receives
 //     SignalGatewayReady after the inbound pipeline goroutine starts; heartbeat.Service pulses
 //     SignalHeartbeatTick on each ticker fire (before tick work). Both share the same reporter when wired from Options.

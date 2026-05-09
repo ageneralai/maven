@@ -107,7 +107,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g.signalChan = opts.SignalChan
 	liveness := health.OrHealthReporter(opts.HealthReporter)
 	g.liveness = liveness
-	sessRes := &agent.SessionResolver{Router: g.sessions}
+	sessRes := &session.SessionResolver{Router: g.sessions}
 	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
 	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
 	pipe.Channels = g.channels

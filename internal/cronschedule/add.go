@@ -20,6 +20,7 @@ type AddParams struct {
 	Channel               string
 	To                    string
 	DeliverToIncomingChat bool
+	MessageID             int
 }
 
 func Add(svc *cron.Service, p AddParams, now time.Time) (*cron.CronJob, error) {

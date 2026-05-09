@@ -8,13 +8,16 @@ type StreamHints struct {
 	ChatID  string
 }
 
-// StreamDelegate observes streamed outbound replies before/after runtime + SendStream wiring.
-// Methods must return quickly; heavier work belongs in async handlers.
-type StreamDelegate interface {
+// Streamer is the streaming contract for lifecycle hooks around RunStream + channel SendStream.
+// Implementations must return quickly; heavier work belongs in async handlers.
+type Streamer interface {
 	// NotifyStreamBegin runs before RunStream consumes the runtime; return wrapped ctx if needed for deadlines/values downstream.
 	NotifyStreamBegin(ctx context.Context, h StreamHints) context.Context
 	NotifyStreamEnd(ctx context.Context, h StreamHints, err error)
 }
+
+// StreamDelegate is an alias for Streamer (same contract; name kept for gateway/bus wiring).
+type StreamDelegate = Streamer
 
 type noopStreamDelegate struct{}
 
@@ -39,7 +42,7 @@ func (b *MessageBus) SetStreamDelegate(d StreamDelegate) {
 	b.streamDel = OrStreamDelegate(d)
 }
 
-// OnStreamBegin notifies the delegate before a streamed outbound turn consumes the runtime.
+// OnStreamBegin notifies the registered streamer before a streamed outbound turn consumes the runtime.
 func (b *MessageBus) OnStreamBegin(ctx context.Context, h StreamHints) context.Context {
 	b.streamMu.RLock()
 	del := b.streamDel
@@ -47,7 +50,7 @@ func (b *MessageBus) OnStreamBegin(ctx context.Context, h StreamHints) context.C
 	return del.NotifyStreamBegin(ctx, h)
 }
 
-// OnStreamEnd notifies the delegate after RunStream (+SendStream path) finishes; err reflects runtime or SendStream failure.
+// OnStreamEnd notifies the registered streamer after RunStream (+SendStream path) finishes; err reflects runtime or SendStream failure.
 func (b *MessageBus) OnStreamEnd(ctx context.Context, h StreamHints, streamErr error) {
 	b.streamMu.RLock()
 	del := b.streamDel

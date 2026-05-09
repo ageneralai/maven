@@ -11,6 +11,11 @@
 // are logged by the bus with stream and routing channel keys and emitted as
 // events.EventBusPublishFailure when an EventPublisher is wired via WithEventPublisher.
 //
+// MessageBus construction and WithEventPublisher register that same publisher as
+// internal/events.Publish default (events.SetDefaultPublisher). Gateway code that
+// emits lifecycle/diagnostic events should use events.Publish instead of reaching into
+// the bus; the bus remains the only caller of SetDefaultPublisher.
+//
 // Streaming outbound: optional StreamDelegate ([WithStreamDelegate], [MessageBus.SetStreamDelegate]);
 // the pipeline calls OnStreamBegin/OnStreamEnd around SendStream. Default is a noop delegate.
 //

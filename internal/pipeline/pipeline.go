@@ -10,7 +10,9 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	turnctx "github.com/ageneralai/maven/internal/context"
+	"github.com/ageneralai/maven/internal/events"
 	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
@@ -28,14 +30,14 @@ type Pipeline struct {
 	Bus           *bus.MessageBus
 	Channels      *channel.ChannelManager
 	SlashRegistry *slash.Registry
-	Sessions      *agent.SessionResolver
+	Sessions      session.Resolver
 	Posts         *agent.PostActionHandler
 	turnMu        sync.RWMutex
 	rt            agent.Runtime
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunText.
-func New(log mavenlog.PrintLogger, b *bus.MessageBus, rt agent.Runtime, sessions *agent.SessionResolver, posts *agent.PostActionHandler) *Pipeline {
+func New(log mavenlog.PrintLogger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts *agent.PostActionHandler) *Pipeline {
 	return &Pipeline{Log: log, Bus: b, rt: rt, Sessions: sessions, Posts: posts}
 }
 
@@ -146,6 +148,18 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	defer p.turnMu.RUnlock()
 	rt := p.rt
 	msgCtx := turnctx.WithInbound(ctx, msg.Channel, msg.ChatID)
+	if msg.Hints.MessageID != 0 {
+		msgCtx = turnctx.WithMetadata(msgCtx, map[string]any{
+			"message_id": msg.Hints.MessageID,
+		})
+	}
+	events.Publish(ctx, events.Event{
+		Type: "pipeline.turn_start",
+		Attrs: map[string]string{
+			"channel": msg.Channel,
+			"chat_id": msg.ChatID,
+		},
+	})
 	sessionKey := p.Sessions.ResolveSDKSessionID(msg)
 	var ch channel.Channel
 	if p.Channels != nil {
@@ -158,6 +172,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			}
 		}
 	}
+	// msgCtx holds per-turn routing and metadata for slash.PreTurn (read via turnctx.From inside slash).
 	slashOut, err := slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
 		Text:              msg.Content,
 		ExpectedSlashName: msg.Hints.SlashCommand,
@@ -204,7 +219,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	if resp != nil && resp.Result != nil {
 		result = resp.Result.Output
 	}
-	if postResult, handled, postErr := p.Posts.HandlePostResponse(msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
+	if postResult, handled, postErr := p.Posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
 		if postErr != nil {
 			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, postErr)
 			return

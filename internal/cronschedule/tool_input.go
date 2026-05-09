@@ -59,10 +59,7 @@ func (in *CronToolInput) ApplyGatewayDeliveryDefaults(ctx context.Context) {
 	if in.Channel != "" || in.To != "" {
 		return
 	}
-	if _, ok := turnctx.Channel(ctx); !ok {
-		return
-	}
-	if _, ok := turnctx.ChatID(ctx); !ok {
+	if _, ok := turnctx.From(ctx); !ok {
 		return
 	}
 	in.DeliverToIncomingChat = true
@@ -80,9 +77,7 @@ func (in *CronToolInput) ValidateDeliveryPolicy(ctx context.Context) error {
 		if ch != "" || to != "" {
 			return fmt.Errorf("cronschedule: with deliver_to_incoming_chat omit channel and to (they come from the current gateway chat)")
 		}
-		_, okCh := turnctx.Channel(ctx)
-		_, okID := turnctx.ChatID(ctx)
-		if !okCh || !okID {
+		if _, ok := turnctx.From(ctx); !ok {
 			return fmt.Errorf("cronschedule: deliver_to_incoming_chat needs an active gateway conversation (missing inbound channel or chat id)")
 		}
 		return nil
@@ -116,10 +111,15 @@ func (in CronToolInput) ToAddParams(ctx context.Context) AddParams {
 		DeliverToIncomingChat: in.DeliverToIncomingChat,
 	}
 	if in.DeliverToIncomingChat {
-		ch, _ := turnctx.Channel(ctx)
-		id, _ := turnctx.ChatID(ctx)
-		p.Channel = ch
-		p.To = id
+		tc, ok := turnctx.From(ctx)
+		if !ok {
+			return p
+		}
+		p.Channel = tc.Channel
+		p.To = tc.ChatID
+		if mid, has := tc.Metadata["message_id"]; has {
+			p.MessageID = turnctx.IntFromAny(mid)
+		}
 	}
 	return p
 }

@@ -46,6 +46,7 @@ type Option func(*MessageBus)
 func WithEventPublisher(p events.EventPublisher) Option {
 	return func(b *MessageBus) {
 		b.publisher = events.OrPublisher(p)
+		events.SetDefaultPublisher(b.publisher)
 	}
 }
 
@@ -74,6 +75,7 @@ func NewMessageBus(bufSize int, log mavenlog.PrintLogger, opts ...Option) *Messa
 			o(b)
 		}
 	}
+	events.SetDefaultPublisher(b.publisher)
 	return b
 }
 
