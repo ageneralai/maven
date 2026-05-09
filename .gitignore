@@ -32,3 +32,4 @@ Thumbs.db
 
 # Config with secrets
 config.json
+.env

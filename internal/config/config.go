@@ -134,8 +134,17 @@ type WhatsAppConfig struct {
 }
 
 type WebUIConfig struct {
-	Enabled   bool     `json:"enabled"`
-	AllowFrom []string `json:"allowFrom,omitempty"`
+	Enabled   bool        `json:"enabled"`
+	AllowFrom []string    `json:"allowFrom,omitempty"`
+	Voice     VoiceConfig `json:"voice"`
+}
+
+// VoiceConfig selects optional browser voice I/O for Web UI (credentials via env; see internal/voice.MergeKeys).
+// ttsProvider: deepgram | openai | elevenlabs | cartesia
+type VoiceConfig struct {
+	Enabled     bool   `json:"enabled"`
+	STTProvider string `json:"sttProvider"`
+	TTSProvider string `json:"ttsProvider"`
 }
 
 type AutoCompactConfig struct {

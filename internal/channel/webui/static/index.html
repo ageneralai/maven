@@ -201,6 +201,27 @@ header h1 {
 }
 #send-btn:disabled { opacity: 0.4; cursor: default; }
 #send-btn svg { width: 20px; height: 20px; }
+#mic-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  color: var(--text);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.2s, border-color 0.2s;
+}
+#mic-btn:hover { border-color: var(--accent); }
+#mic-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
 .welcome {
   text-align: center;
   color: var(--text-secondary);
@@ -231,6 +252,7 @@ header h1 {
   </div>
   <div id="input-area">
     <textarea id="input" rows="1" placeholder="Type a message..." autocomplete="off"></textarea>
+    <button type="button" id="mic-btn" aria-label="Voice input" title="Voice">&#127908;</button>
     <button id="send-btn" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -248,12 +270,23 @@ header h1 {
   var sendBtn = document.getElementById('send-btn');
   var statusDot = document.getElementById('status-dot');
   var statusText = document.getElementById('status-text');
+  var micBtn = document.getElementById('mic-btn');
 
   var ws = null;
   var reconnectTimer = null;
   var reconnectDelay = 1000;
   var streamEl = null;
   var streamBuf = '';
+
+  var voiceWs = null;
+  var voiceMediaStream = null;
+  var voiceAudioCtx = null;
+  var voiceCaptureNode = null;
+  var voiceOn = false;
+  var voicePlaybackCtx = null;
+  var voiceAudioQueue = [];
+  var voicePlaybackPlaying = false;
+  var voiceCurrentSource = null;
 
   function setStatus(state, text) {
     statusDot.className = state;
@@ -423,6 +456,147 @@ header h1 {
 
   sendBtn.addEventListener('click', send);
 
+  function fetchVoiceFlag() {
+    fetch('/webui/config').then(function(r) { return r.json(); }).then(function(cfg) {
+      if (cfg && cfg.voiceEnabled) {
+        micBtn.style.display = 'flex';
+      }
+    }).catch(function() {});
+  }
+
+  function ensureVoicePlaybackCtx() {
+    if (!voicePlaybackCtx) {
+      voicePlaybackCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return voicePlaybackCtx;
+  }
+
+  function stopVoicePlayback() {
+    voiceAudioQueue = [];
+    if (voiceCurrentSource) {
+      try { voiceCurrentSource.stop(); } catch (e) {}
+      voiceCurrentSource = null;
+    }
+    voicePlaybackPlaying = false;
+  }
+
+  function decodeAndEnqueueVoiceChunk(arrayBuffer) {
+    var ctx = ensureVoicePlaybackCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    ctx.decodeAudioData(arrayBuffer.slice(0)).then(function(audioBuf) {
+      voiceAudioQueue.push(audioBuf);
+      if (!voicePlaybackPlaying) {
+        voicePlayNext();
+      }
+    }).catch(function() {});
+  }
+
+  function voicePlayNext() {
+    if (!voiceAudioQueue.length) {
+      voicePlaybackPlaying = false;
+      voiceCurrentSource = null;
+      return;
+    }
+    voicePlaybackPlaying = true;
+    var ctx = ensureVoicePlaybackCtx();
+    var src = ctx.createBufferSource();
+    voiceCurrentSource = src;
+    src.buffer = voiceAudioQueue.shift();
+    src.connect(ctx.destination);
+    src.onended = function() {
+      voiceCurrentSource = null;
+      voicePlayNext();
+    };
+    src.start();
+  }
+
+  function stopVoiceSession() {
+    voiceOn = false;
+    micBtn.classList.remove('active');
+    stopVoicePlayback();
+    if (voiceCaptureNode) {
+      try { voiceCaptureNode.disconnect(); } catch (e) {}
+      voiceCaptureNode = null;
+    }
+    if (voiceAudioCtx) {
+      try { voiceAudioCtx.close(); } catch (e) {}
+      voiceAudioCtx = null;
+    }
+    if (voiceMediaStream) {
+      voiceMediaStream.getTracks().forEach(function(t) { t.stop(); });
+      voiceMediaStream = null;
+    }
+    if (voiceWs) {
+      try { voiceWs.close(); } catch (e) {}
+      voiceWs = null;
+    }
+  }
+
+  function startVoiceSession() {
+    if (voiceOn) {
+      stopVoiceSession();
+      return;
+    }
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    voiceWs = new WebSocket(proto + '//' + location.host + '/ws/voice');
+    voiceWs.binaryType = 'arraybuffer';
+    voiceWs.onmessage = function(e) {
+      if (e.data instanceof ArrayBuffer) {
+        var u8 = new Uint8Array(e.data);
+        if (u8.length === 1 && u8[0] === 0) {
+          stopVoicePlayback();
+          return;
+        }
+        decodeAndEnqueueVoiceChunk(e.data);
+        return;
+      }
+    };
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      voiceMediaStream = stream;
+      voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (voiceAudioCtx.state === "suspended") {
+        voiceAudioCtx.resume();
+      }
+      if (!voiceAudioCtx.audioWorklet) {
+        console.error("AudioWorklet API unavailable in this browser.");
+        stopVoiceSession();
+        return;
+      }
+      var source = voiceAudioCtx.createMediaStreamSource(stream);
+      // AudioWorklet modules require a secure context (HTTPS or localhost). Plain HTTP on a LAN IP often fails here — same-origin is not enough.
+      return voiceAudioCtx.audioWorklet.addModule("/audio-worklet-processor.js").then(function() {
+        var node = new AudioWorkletNode(voiceAudioCtx, "maven-pcm-capture");
+        voiceCaptureNode = node;
+        node.port.onmessage = function(ev) {
+          if (!voiceWs || voiceWs.readyState !== 1) {
+            return;
+          }
+          voiceWs.send(ev.data);
+        };
+        source.connect(node);
+        var mute = voiceAudioCtx.createGain();
+        mute.gain.value = 0;
+        node.connect(mute);
+        mute.connect(voiceAudioCtx.destination);
+        voiceOn = true;
+        micBtn.classList.add("active");
+      }).catch(function(err) {
+        console.error("AudioWorklet module load failed (often needs HTTPS or localhost):", err);
+        stopVoiceSession();
+      });
+    }).catch(function(err) {
+      console.error(err);
+      stopVoiceSession();
+    });
+  }
+
+  micBtn.addEventListener('click', function() {
+    startVoiceSession();
+  });
+
+  fetchVoiceFlag();
   connect();
 })();
 </script>

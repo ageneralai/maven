@@ -22,7 +22,7 @@ func TestNewWebUIChannel(t *testing.T) {
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 0}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, nil, webuiTestLog, b)
 	if err != nil {
 		t.Fatalf("NewWebUIChannel: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestWebUIChannel_StartStop(t *testing.T) {
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19876}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, nil, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19877}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, nil, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19878}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, nil, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestWebUIChannel_SendStream(t *testing.T) {
 	cfg := config.WebUIConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19879}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, webuiTestLog, b)
+	ch, err := NewWebUIChannel(cfg, gwCfg, nil, webuiTestLog, b)
 	if err != nil {
 		t.Fatal(err)
 	}

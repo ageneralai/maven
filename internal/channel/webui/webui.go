@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	voice "github.com/ageneralai/maven/internal/voice"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/coder/websocket"
 )
@@ -38,13 +39,16 @@ type wsClient struct {
 
 type WebUIChannel struct {
 	chann.BaseChannel
-	port    int
-	server  *http.Server
-	clients sync.Map
-	nextID  atomic.Int64
+	port          int
+	server        *http.Server
+	clients       sync.Map
+	voiceSessions sync.Map
+	nextID        atomic.Int64
+	voiceCfg      config.VoiceConfig
+	appCfg        *config.Config
 }
 
-func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WebUIChannel, error) {
+func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, appCfg *config.Config, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WebUIChannel, error) {
 	port := gwCfg.Port
 	if port == 0 {
 		port = config.DefaultPort
@@ -53,6 +57,8 @@ func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, lg mave
 	ch := &WebUIChannel{
 		BaseChannel: chann.NewBaseChannel(webUIChannelName, b, cfg.AllowFrom, lg),
 		port:        port,
+		voiceCfg:    cfg.Voice,
+		appCfg:      appCfg,
 	}
 	return ch, nil
 }
@@ -64,8 +70,12 @@ func (w *WebUIChannel) Start(ctx context.Context) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.FS(staticFS)))
+	mux.HandleFunc("/webui/config", w.handleWebUIConfig)
 	mux.HandleFunc("/ws", w.handleWS)
+	if w.voiceCfg.Enabled {
+		mux.HandleFunc("/ws/voice", w.handleVoiceWS)
+	}
+	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 
 	w.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", w.port),
@@ -80,6 +90,17 @@ func (w *WebUIChannel) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (w *WebUIChannel) handleWebUIConfig(wr http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(wr, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wr.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(wr).Encode(struct {
+		VoiceEnabled bool `json:"voiceEnabled"`
+	}{VoiceEnabled: w.voiceCfg.Enabled})
 }
 
 func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
@@ -147,6 +168,18 @@ func (w *WebUIChannel) writeToClient(ctx context.Context, chatID string, data []
 }
 
 func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
+	if _, ok := w.voiceSessions.Load(msg.ChatID); ok {
+		data, err := json.Marshal(wsMessage{
+			Type:    "message",
+			Content: msg.Content,
+		})
+		if err != nil {
+			return err
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return w.writeVoiceClient(writeCtx, msg.ChatID, websocket.MessageText, data)
+	}
 	data, err := json.Marshal(wsMessage{
 		Type:    "message",
 		Content: msg.Content,
@@ -159,6 +192,15 @@ func (w *WebUIChannel) Send(ctx context.Context, msg bus.OutboundMessage) error 
 	return w.writeToClient(writeCtx, msg.ChatID, data)
 }
 
+func (w *WebUIChannel) writeVoiceClient(ctx context.Context, chatID string, typ websocket.MessageType, data []byte) error {
+	v, ok := w.voiceSessions.Load(chatID)
+	if !ok {
+		return nil
+	}
+	vs := v.(*voiceSessionState)
+	return vs.conn.Write(ctx, typ, data)
+}
+
 func streamEventError(ev api.StreamEvent) error {
 	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
 	if msg == "" {
@@ -169,6 +211,9 @@ func streamEventError(ev api.StreamEvent) error {
 
 func (w *WebUIChannel) SendStream(ctx context.Context, chatID string, metadata map[string]any, events <-chan api.StreamEvent) error {
 	_ = metadata
+	if _, ok := w.voiceSessions.Load(chatID); ok {
+		return w.sendStreamVoice(ctx, chatID, events)
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -197,6 +242,39 @@ func (w *WebUIChannel) SendStream(ctx context.Context, chatID string, metadata m
 	}
 }
 
+func (w *WebUIChannel) sendStreamVoice(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
+	v, ok := w.voiceSessions.Load(chatID)
+	if !ok {
+		return fmt.Errorf("webui: voice session missing for %s", chatID)
+	}
+	vs := v.(*voiceSessionState)
+	conn := vs.conn
+	writeBinary := func(c context.Context, b []byte) error {
+		return conn.Write(c, websocket.MessageBinary, b)
+	}
+	storeCancel := func(c context.CancelFunc) {
+		vs.mu.Lock()
+		defer vs.mu.Unlock()
+		if vs.ttsCancel != nil {
+			vs.ttsCancel()
+		}
+		vs.ttsCancel = c
+	}
+	streamErr := voice.StreamEventsToTTS(ctx, vs.tts, events, writeBinary, &vs.speaking, storeCancel)
+	done, err := json.Marshal(wsMessage{Type: "stream_done"})
+	if err != nil {
+		return err
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if werr := conn.Write(writeCtx, websocket.MessageText, done); werr != nil {
+		if streamErr == nil {
+			return werr
+		}
+	}
+	return streamErr
+}
+
 func (w *WebUIChannel) Capabilities() chann.CapabilitySet {
 	return chann.CapabilitySet{}
 }
@@ -212,6 +290,11 @@ func (w *WebUIChannel) Stop() error {
 	w.clients.Range(func(key, value any) bool {
 		c := value.(*wsClient)
 		_ = c.conn.CloseNow()
+		return true
+	})
+	w.voiceSessions.Range(func(key, value any) bool {
+		vs := value.(*voiceSessionState)
+		_ = vs.conn.CloseNow()
 		return true
 	})
 	w.Log.Printf("[webui] stopped")

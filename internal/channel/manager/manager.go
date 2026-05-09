@@ -64,7 +64,7 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLog
 		out[ch.Name()] = ch
 	}
 	if chcfg.WebUI.Enabled {
-		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, lg, b)
+		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, cfg, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init webui channel: %w", err)
 		}

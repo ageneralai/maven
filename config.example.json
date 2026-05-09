@@ -42,7 +42,12 @@
     },
     "webui": {
       "enabled": false,
-      "allowFrom": []
+      "allowFrom": [],
+      "voice": {
+        "enabled": false,
+        "sttProvider": "deepgram",
+        "ttsProvider": "openai"
+      }
     }
   },
   "tools": {
