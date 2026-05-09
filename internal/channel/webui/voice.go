@@ -4,36 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/voice"
-	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 	"github.com/coder/websocket"
 )
 
 const voiceClearSentinel = byte(0)
 
-type voiceSessionState struct {
-	mu        sync.Mutex
-	conn      *websocket.Conn
-	ttsCancel context.CancelFunc
-	speaking  atomic.Bool
-	stt       pkgvoice.STT
-	tts       pkgvoice.TTS
-}
-
-func (vs *voiceSessionState) interruptPlayback(ctx context.Context) {
-	vs.mu.Lock()
-	if vs.ttsCancel != nil {
-		vs.ttsCancel()
-		vs.ttsCancel = nil
-	}
-	vs.mu.Unlock()
-	_ = vs.conn.Write(ctx, websocket.MessageBinary, []byte{voiceClearSentinel})
+// voiceBinding attaches a voice.Session to one WebSocket (transport adapter only).
+type voiceBinding struct {
+	session *voice.Session
+	conn    *websocket.Conn
 }
 
 func (w *WebUIChannel) pumpVoiceAudio(ctx context.Context, conn *websocket.Conn, audioCh chan<- []byte) {
@@ -54,39 +37,27 @@ func (w *WebUIChannel) pumpVoiceAudio(ctx context.Context, conn *websocket.Conn,
 	}
 }
 
-func (w *WebUIChannel) consumeTranscripts(ctx context.Context, vs *voiceSessionState, clientID string, audio <-chan []byte) {
-	txtCh, err := vs.stt.Transcribe(ctx, audio)
-	if err != nil {
-		w.Log.Printf("[webui] voice transcribe: %v", err)
-		return
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case t, ok := <-txtCh:
-			if !ok {
-				return
-			}
-			t = strings.TrimSpace(t)
-			if t == "" {
-				continue
-			}
-			if !w.IsAllowed(clientID) {
-				w.Log.Printf("[webui] rejected voice transcript from %s", clientID)
-				continue
-			}
-			if vs.speaking.Load() {
-				vs.interruptPlayback(ctx)
-			}
-			_ = w.Bus.PublishInbound(ctx, bus.InboundMessage{
-				Channel:   webUIChannelName,
-				SenderID:  clientID,
-				ChatID:    clientID,
-				Content:   t,
-				Timestamp: time.Now(),
+func (w *WebUIChannel) consumeTranscripts(ctx context.Context, sess *voice.Session, conn *websocket.Conn, clientID string, audio <-chan []byte) {
+	err := sess.ConsumeTranscripts(ctx, audio, func(ctx context.Context, t string) error {
+		if !w.IsAllowed(clientID) {
+			w.Log.Printf("[webui] rejected voice transcript from %s", clientID)
+			return nil
+		}
+		if sess.Speaking() {
+			_ = sess.InterruptPlayback(ctx, func(c context.Context) error {
+				return conn.Write(c, websocket.MessageBinary, []byte{voiceClearSentinel})
 			})
 		}
+		return w.Bus.PublishInbound(ctx, bus.InboundMessage{
+			Channel:   webUIChannelName,
+			SenderID:  clientID,
+			ChatID:    clientID,
+			Content:   t,
+			Timestamp: time.Now(),
+		})
+	})
+	if err != nil && err != context.Canceled {
+		w.Log.Printf("[webui] voice transcript loop: %v", err)
 	}
 }
 
@@ -115,9 +86,10 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		_ = conn.CloseNow()
 		return
 	}
+	sess := voice.NewSession(stt, tts)
 	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
-	vs := &voiceSessionState{conn: conn, stt: stt, tts: tts}
-	w.voiceSessions.Store(clientID, vs)
+	vb := &voiceBinding{session: sess, conn: conn}
+	w.voiceSessions.Store(clientID, vb)
 	w.Log.Printf("[webui] voice client connected: %s", clientID)
 	defer func() {
 		w.voiceSessions.Delete(clientID)
@@ -127,5 +99,5 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	audioCh := make(chan []byte, 64)
 	go w.pumpVoiceAudio(ctx, conn, audioCh)
-	w.consumeTranscripts(ctx, vs, clientID, audioCh)
+	w.consumeTranscripts(ctx, sess, conn, clientID, audioCh)
 }

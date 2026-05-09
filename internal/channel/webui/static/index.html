@@ -278,15 +278,21 @@ header h1 {
   var streamEl = null;
   var streamBuf = '';
 
-  var voiceWs = null;
-  var voiceMediaStream = null;
-  var voiceAudioCtx = null;
-  var voiceCaptureNode = null;
-  var voiceOn = false;
-  var voicePlaybackCtx = null;
-  var voiceAudioQueue = [];
-  var voicePlaybackPlaying = false;
-  var voiceCurrentSource = null;
+  function voiceDefaultState() {
+    return {
+      ws: null,
+      mediaStream: null,
+      captureCtx: null,
+      captureNode: null,
+      on: false,
+      playCtx: null,
+      queue: [],
+      playing: false,
+      currentSource: null,
+      nextStartTime: 0
+    };
+  }
+  var voice = voiceDefaultState();
 
   function setStatus(state, text) {
     statusDot.className = state;
@@ -465,19 +471,20 @@ header h1 {
   }
 
   function ensureVoicePlaybackCtx() {
-    if (!voicePlaybackCtx) {
-      voicePlaybackCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!voice.playCtx) {
+      voice.playCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    return voicePlaybackCtx;
+    return voice.playCtx;
   }
 
   function stopVoicePlayback() {
-    voiceAudioQueue = [];
-    if (voiceCurrentSource) {
-      try { voiceCurrentSource.stop(); } catch (e) {}
-      voiceCurrentSource = null;
+    voice.queue = [];
+    voice.nextStartTime = 0;
+    if (voice.currentSource) {
+      try { voice.currentSource.stop(); } catch (e) {}
+      voice.currentSource = null;
     }
-    voicePlaybackPlaying = false;
+    voice.playing = false;
   }
 
   function decodeAndEnqueueVoiceChunk(arrayBuffer) {
@@ -486,63 +493,70 @@ header h1 {
       ctx.resume();
     }
     ctx.decodeAudioData(arrayBuffer.slice(0)).then(function(audioBuf) {
-      voiceAudioQueue.push(audioBuf);
-      if (!voicePlaybackPlaying) {
+      voice.queue.push(audioBuf);
+      if (!voice.playing) {
         voicePlayNext();
       }
     }).catch(function() {});
   }
 
   function voicePlayNext() {
-    if (!voiceAudioQueue.length) {
-      voicePlaybackPlaying = false;
-      voiceCurrentSource = null;
+    if (!voice.queue.length) {
+      voice.playing = false;
+      voice.currentSource = null;
       return;
     }
-    voicePlaybackPlaying = true;
+    voice.playing = true;
     var ctx = ensureVoicePlaybackCtx();
+    var audioBuf = voice.queue.shift();
     var src = ctx.createBufferSource();
-    voiceCurrentSource = src;
-    src.buffer = voiceAudioQueue.shift();
+    voice.currentSource = src;
+    src.buffer = audioBuf;
     src.connect(ctx.destination);
+    var now = ctx.currentTime;
+    var startAt = Math.max(now, voice.nextStartTime);
+    voice.nextStartTime = startAt + audioBuf.duration;
     src.onended = function() {
-      voiceCurrentSource = null;
+      voice.currentSource = null;
       voicePlayNext();
     };
-    src.start();
+    src.start(startAt);
   }
 
   function stopVoiceSession() {
-    voiceOn = false;
+    voice.on = false;
     micBtn.classList.remove('active');
     stopVoicePlayback();
-    if (voiceCaptureNode) {
-      try { voiceCaptureNode.disconnect(); } catch (e) {}
-      voiceCaptureNode = null;
+    var savedPlayCtx = voice.playCtx;
+    if (voice.captureNode) {
+      try { voice.captureNode.disconnect(); } catch (e) {}
+      voice.captureNode = null;
     }
-    if (voiceAudioCtx) {
-      try { voiceAudioCtx.close(); } catch (e) {}
-      voiceAudioCtx = null;
+    if (voice.captureCtx) {
+      try { voice.captureCtx.close(); } catch (e) {}
+      voice.captureCtx = null;
     }
-    if (voiceMediaStream) {
-      voiceMediaStream.getTracks().forEach(function(t) { t.stop(); });
-      voiceMediaStream = null;
+    if (voice.mediaStream) {
+      voice.mediaStream.getTracks().forEach(function(t) { t.stop(); });
+      voice.mediaStream = null;
     }
-    if (voiceWs) {
-      try { voiceWs.close(); } catch (e) {}
-      voiceWs = null;
+    if (voice.ws) {
+      try { voice.ws.close(); } catch (e) {}
+      voice.ws = null;
     }
+    voice = voiceDefaultState();
+    voice.playCtx = savedPlayCtx;
   }
 
   function startVoiceSession() {
-    if (voiceOn) {
+    if (voice.on) {
       stopVoiceSession();
       return;
     }
     var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    voiceWs = new WebSocket(proto + '//' + location.host + '/ws/voice');
-    voiceWs.binaryType = 'arraybuffer';
-    voiceWs.onmessage = function(e) {
+    voice.ws = new WebSocket(proto + '//' + location.host + '/ws/voice');
+    voice.ws.binaryType = 'arraybuffer';
+    voice.ws.onmessage = function(e) {
       if (e.data instanceof ArrayBuffer) {
         var u8 = new Uint8Array(e.data);
         if (u8.length === 1 && u8[0] === 0) {
@@ -554,36 +568,36 @@ header h1 {
       }
     };
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-      voiceMediaStream = stream;
-      voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (voiceAudioCtx.state === "suspended") {
-        voiceAudioCtx.resume();
+      voice.mediaStream = stream;
+      voice.captureCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (voice.captureCtx.state === 'suspended') {
+        voice.captureCtx.resume();
       }
-      if (!voiceAudioCtx.audioWorklet) {
-        console.error("AudioWorklet API unavailable in this browser.");
+      if (!voice.captureCtx.audioWorklet) {
+        console.error('AudioWorklet API unavailable in this browser.');
         stopVoiceSession();
         return;
       }
-      var source = voiceAudioCtx.createMediaStreamSource(stream);
+      var source = voice.captureCtx.createMediaStreamSource(stream);
       // AudioWorklet modules require a secure context (HTTPS or localhost). Plain HTTP on a LAN IP often fails here — same-origin is not enough.
-      return voiceAudioCtx.audioWorklet.addModule("/audio-worklet-processor.js").then(function() {
-        var node = new AudioWorkletNode(voiceAudioCtx, "maven-pcm-capture");
-        voiceCaptureNode = node;
+      return voice.captureCtx.audioWorklet.addModule('/audio-worklet-processor.js').then(function() {
+        var node = new AudioWorkletNode(voice.captureCtx, 'maven-pcm-capture');
+        voice.captureNode = node;
         node.port.onmessage = function(ev) {
-          if (!voiceWs || voiceWs.readyState !== 1) {
+          if (!voice.ws || voice.ws.readyState !== 1) {
             return;
           }
-          voiceWs.send(ev.data);
+          voice.ws.send(ev.data);
         };
         source.connect(node);
-        var mute = voiceAudioCtx.createGain();
+        var mute = voice.captureCtx.createGain();
         mute.gain.value = 0;
         node.connect(mute);
-        mute.connect(voiceAudioCtx.destination);
-        voiceOn = true;
-        micBtn.classList.add("active");
+        mute.connect(voice.captureCtx.destination);
+        voice.on = true;
+        micBtn.classList.add('active');
       }).catch(function(err) {
-        console.error("AudioWorklet module load failed (often needs HTTPS or localhost):", err);
+        console.error('AudioWorklet module load failed (often needs HTTPS or localhost):', err);
         stopVoiceSession();
       });
     }).catch(function(err) {

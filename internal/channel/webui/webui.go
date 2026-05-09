@@ -16,7 +16,6 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
-	voice "github.com/ageneralai/maven/internal/voice"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/coder/websocket"
 )
@@ -197,8 +196,8 @@ func (w *WebUIChannel) writeVoiceClient(ctx context.Context, chatID string, typ 
 	if !ok {
 		return nil
 	}
-	vs := v.(*voiceSessionState)
-	return vs.conn.Write(ctx, typ, data)
+	vb := v.(*voiceBinding)
+	return vb.conn.Write(ctx, typ, data)
 }
 
 func streamEventError(ev api.StreamEvent) error {
@@ -247,20 +246,12 @@ func (w *WebUIChannel) sendStreamVoice(ctx context.Context, chatID string, event
 	if !ok {
 		return fmt.Errorf("webui: voice session missing for %s", chatID)
 	}
-	vs := v.(*voiceSessionState)
-	conn := vs.conn
+	vb := v.(*voiceBinding)
+	conn := vb.conn
 	writeBinary := func(c context.Context, b []byte) error {
 		return conn.Write(c, websocket.MessageBinary, b)
 	}
-	storeCancel := func(c context.CancelFunc) {
-		vs.mu.Lock()
-		defer vs.mu.Unlock()
-		if vs.ttsCancel != nil {
-			vs.ttsCancel()
-		}
-		vs.ttsCancel = c
-	}
-	streamErr := voice.StreamEventsToTTS(ctx, vs.tts, events, writeBinary, &vs.speaking, storeCancel)
+	streamErr := vb.session.StreamEventsToTTS(ctx, events, writeBinary)
 	done, err := json.Marshal(wsMessage{Type: "stream_done"})
 	if err != nil {
 		return err
@@ -293,8 +284,8 @@ func (w *WebUIChannel) Stop() error {
 		return true
 	})
 	w.voiceSessions.Range(func(key, value any) bool {
-		vs := value.(*voiceSessionState)
-		_ = vs.conn.CloseNow()
+		vb := value.(*voiceBinding)
+		_ = vb.conn.CloseNow()
 		return true
 	})
 	w.Log.Printf("[webui] stopped")

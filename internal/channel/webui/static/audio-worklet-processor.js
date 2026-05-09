@@ -18,8 +18,14 @@ class MavenPcmCaptureProcessor extends AudioWorkletProcessor {
       return true;
     }
     const out = new Int16Array(outLen);
+    const last = channel.length - 1;
     for (let i = 0; i < outLen; i++) {
-      const x = channel[Math.floor(i * ratio)] || 0;
+      const pos = i * ratio;
+      const idx = Math.floor(pos);
+      const frac = pos - idx;
+      const a = channel[idx] ?? 0;
+      const b = channel[Math.min(idx + 1, last)] ?? 0;
+      const x = a + (b - a) * frac;
       const clamped = Math.max(-1, Math.min(1, x));
       out[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
     }
