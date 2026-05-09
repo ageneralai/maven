@@ -13,7 +13,7 @@ func TestNoOp_Pulse(t *testing.T) {
 }
 
 func TestOrHealthReporter_nil(t *testing.T) {
-	var h HealthReporter = OrHealthReporter(nil)
+	h := OrHealthReporter(nil)
 	h.Pulse(SignalGatewayReady)
 	if _, ok := h.(NoOp); !ok {
 		t.Fatalf("want NoOp, got %T", h)

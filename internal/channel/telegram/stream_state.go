@@ -205,7 +205,7 @@ func (s *streamState) tickFlush(now time.Time, forceContent bool) {
 }
 
 func (s *streamState) handleEvent(event api.StreamEvent) {
-	if s.debugLogEvents && event.Type != api.EventContentBlockDelta && event.Type != api.EventContentBlockStop && event.Type != api.EventPing {
+	if s.debugLogEvents && event.Type != api.EventContentBlockDelta && event.Type != api.EventContentBlockStop && event.Type != api.EventPing && event.Type != api.EventToolExecutionOutput {
 		s.t.Log.Printf("[telegram] stream event: type=%s name=%s", event.Type, event.Name)
 	}
 	switch event.Type {
@@ -255,6 +255,19 @@ func (s *streamState) handleEvent(event api.StreamEvent) {
 			}
 		}
 		s.card.AddTool(event.ToolUseID, event.Name, summary)
+		s.tryUpdateStatus(time.Now())
+	case api.EventToolExecutionOutput:
+		if !s.showCard {
+			break
+		}
+		chunk, ok := event.Output.(string)
+		if !ok || chunk == "" {
+			break
+		}
+		if event.IsStderr != nil && *event.IsStderr {
+			chunk = "[stderr] " + chunk
+		}
+		s.card.AppendToolOutput(event.ToolUseID, chunk)
 		s.tryUpdateStatus(time.Now())
 	case api.EventToolExecutionResult:
 		failed := false

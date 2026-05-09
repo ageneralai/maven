@@ -17,14 +17,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
 )
+
 const fakeToken = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"
 
 var channelTestLog = mavenlog.Std()
@@ -115,6 +116,7 @@ type roundTripFunc func(req *http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
+
 // === Telegram Channel Constructor Tests ===
 func TestNewTelegramChannel_NoToken(t *testing.T) {
 	b := bus.NewMessageBus(10, channelTestLog)
@@ -177,6 +179,7 @@ func TestToTelegramHTML_CodeBlocks(t *testing.T) {
 		})
 	}
 }
+
 // === Telegram Channel Tests ===
 func TestTelegramChannel_Stop_NotStarted(t *testing.T) {
 	b := bus.NewMessageBus(10, channelTestLog)
@@ -1030,6 +1033,25 @@ func TestTelegramChannel_SendStream_WithTools(t *testing.T) {
 		t.Error("expected final report to be sent as a normal notification message")
 	}
 }
+
+func TestStreamState_ToolExecutionOutputAppendsToCard(t *testing.T) {
+	ch, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	st := newStreamState(context.Background(), ch, "123", 123, nil)
+	iter := 0
+	st.handleEvent(api.StreamEvent{Type: api.EventIterationStart, Iteration: &iter})
+	st.handleEvent(api.StreamEvent{Type: api.EventToolExecutionStart, ToolUseID: "t1", Name: "DelegateTask"})
+	st.handleEvent(api.StreamEvent{Type: api.EventToolExecutionOutput, ToolUseID: "t1", Output: "💭 thinking…\n"})
+	tr := true
+	st.handleEvent(api.StreamEvent{Type: api.EventToolExecutionOutput, ToolUseID: "t1", Output: "err", IsStderr: &tr})
+	rendered := st.card.Render()
+	if !strings.Contains(rendered, "💭 thinking…") {
+		t.Fatalf("card missing streamed output: %s", rendered)
+	}
+	if !strings.Contains(rendered, "[stderr] err") {
+		t.Fatalf("card missing stderr prefix: %s", rendered)
+	}
+}
+
 func TestTelegramChannel_SendStream_Disabled(t *testing.T) {
 	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: false})
 	events := make(chan api.StreamEvent, 5)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type toolStatus int
@@ -18,7 +19,10 @@ type toolEntry struct {
 	name    string
 	summary string
 	status  toolStatus
+	output  string
 }
+
+const maxToolOutputRunes = 1200
 
 type StatusCard struct {
 	started   time.Time
@@ -49,6 +53,33 @@ func (c *StatusCard) FinishTool(toolUseID string, failed bool) {
 	}
 }
 
+// AppendToolOutput appends streamed subprocess output for the tool row identified by toolUseID (e.g. DelegateTask).
+func (c *StatusCard) AppendToolOutput(toolUseID, text string) {
+	if c == nil || toolUseID == "" || text == "" {
+		return
+	}
+	idx, ok := c.toolIndex[toolUseID]
+	if !ok {
+		return
+	}
+	c.tools[idx].output += text
+	if r := utf8.RuneCountInString(c.tools[idx].output); r > maxToolOutputRunes {
+		c.tools[idx].output = truncateTailRunes(c.tools[idx].output, maxToolOutputRunes)
+	}
+}
+
+func truncateTailRunes(s string, maxRunes int) string {
+	if maxRunes < 4 {
+		maxRunes = 4
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	tail := string(runes[len(runes)-maxRunes+3:])
+	return "… " + tail
+}
+
 func (c *StatusCard) SetIteration(n int) {
 	c.iteration = n
 }
@@ -75,6 +106,9 @@ func (c *StatusCard) Render() string {
 				fmt.Fprintf(&b, "%s <code>%s</code>(%s)\n", icon, EscapeHTML(t.name), EscapeHTML(t.summary))
 			} else {
 				fmt.Fprintf(&b, "%s <code>%s</code>\n", icon, EscapeHTML(t.name))
+			}
+			if t.output != "" {
+				fmt.Fprintf(&b, "<pre>%s</pre>\n", EscapeHTML(t.output))
 			}
 		}
 	}

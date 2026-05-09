@@ -18,6 +18,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 - **Multi-Provider** - Support for Anthropic and OpenAI models
 - **Multimodal** - Image recognition and document processing
 - **Cron Jobs** - Scheduled tasks with JSON persistence
+- **ACP delegation** - Optional **`DelegateTask`** tool: Maven spawns configured ACP coding agents (stdio); see [docs/acp.md](docs/acp.md)
 - **Heartbeat** - Periodic tasks from HEARTBEAT.md
 - **Memory** - Long-term (MEMORY.md) + daily memories
 - **Skills** - Custom skill loading from workspace
@@ -143,6 +144,18 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
       }
     }
   },
+  "tools": {
+    "restrictToWorkspace": true,
+    "acp": {
+      "enabled": false,
+      "agents": {
+        "claude": {
+          "command": "npx",
+          "args": ["-y", "@zed-industries/claude-code-acp@latest"]
+        }
+      }
+    }
+  },
   "skills": {
     "enabled": true,
     "dir": ""
@@ -172,6 +185,13 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
 - **`gateway.cron.maxConcurrentRuns`**: max concurrent **cron** agent turns in the gateway process (default **1** if omitted). Heartbeat uses its own **one-slot** try-once queue. Changing **`maxConcurrentRuns`** requires a **gateway restart** (not hot reload). See `internal/gateway/doc.go`.
 
 See `config.example.json` for the full schema.
+
+### Tools / ACP (`tools`, `tools.acp`)
+
+- **`tools.restrictToWorkspace`**: when true, sandbox-style tools (and **`DelegateTask`** `cwd` / ACP FS hooks) must stay under **`agent.workspace`**.
+- **`tools.acp`**: optional; when **`enabled`** is true and **`agents`** has valid entries (`command` non-empty per key), the gateway registers **`DelegateTask`**. Agent binaries and args come **only from config**, never from model-supplied shell commands.
+
+Full detail and examples: [docs/acp.md](docs/acp.md).
 
 ### Auto-compact (`autoCompact`)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/tools/acp"
 	tcron "github.com/ageneralai/maven/internal/tools/cron"
 )
 
@@ -46,6 +47,8 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	}
+	customTools := tcron.Tools(cronSvc)
+	customTools = append(customTools, acp.Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)...)
 	rt, err := api.New(context.Background(), api.Options{
 		ProjectRoot:   cfg.Agent.Workspace,
 		ModelFactory:  provider,
@@ -58,7 +61,7 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
 		Skills:      skillRegs,
-		CustomTools: tcron.Tools(cronSvc),
+		CustomTools: customTools,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)

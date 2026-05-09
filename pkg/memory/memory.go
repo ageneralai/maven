@@ -112,7 +112,7 @@ func (m *MemoryStore) GetRecentMemories(limit int) (string, error) {
 			continue
 		}
 		date := strings.TrimSuffix(name, ".md")
-		sb.WriteString(fmt.Sprintf("## %s\n%s\n\n", date, content))
+		fmt.Fprintf(&sb, "## %s\n%s\n\n", date, content)
 	}
 	return sb.String(), nil
 }

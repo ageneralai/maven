@@ -53,7 +53,16 @@
   "tools": {
     "braveApiKey": "",
     "execTimeout": 60,
-    "restrictToWorkspace": true
+    "restrictToWorkspace": true,
+    "acp": {
+      "enabled": false,
+      "agents": {
+        "claude": {
+          "command": "npx",
+          "args": ["-y", "@zed-industries/claude-code-acp@latest"]
+        }
+      }
+    }
   },
   "skills": {
     "enabled": true,
