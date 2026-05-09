@@ -79,7 +79,7 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 	if err := ch.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	defer ch.Stop()
+	defer func() { _ = ch.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -87,7 +87,7 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 
 	msg := wsMessage{Type: "message", Content: "hello from test"}
 	data, _ := json.Marshal(msg)
@@ -151,7 +151,7 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 	if err := ch.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	defer ch.Stop()
+	defer func() { _ = ch.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -159,13 +159,13 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn1.CloseNow()
+	defer func() { _ = conn1.CloseNow() }()
 
 	conn2, _, err := websocket.Dial(ctx, "ws://localhost:19878/ws", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn2.CloseNow()
+	defer func() { _ = conn2.CloseNow() }()
 
 	time.Sleep(100 * time.Millisecond)
 

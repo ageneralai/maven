@@ -54,6 +54,11 @@
     "enabled": true,
     "dir": ""
   },
+  "autoCompact": {
+    "enabled": false,
+    "threshold": 0.8,
+    "preserveCount": 5
+  },
   "gateway": {
     "host": "0.0.0.0",
     "port": 18790,

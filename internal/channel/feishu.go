@@ -273,7 +273,9 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	// URL verification challenge
 	if event.Challenge != "" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"challenge": event.Challenge})
+		if err := json.NewEncoder(w).Encode(map[string]string{"challenge": event.Challenge}); err != nil {
+			http.Error(w, "encode challenge", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -437,7 +439,7 @@ func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKe
 		mediaType = http.DetectContentType(body)
 	}
 
-	// TODO: 如遇 image_type=message 不适配的场景，补充根据会话上下文选择下载参数。
+	// TODO: If image_type=message is insufficient, extend this to choose download parameters from conversation context.
 	return base64.StdEncoding.EncodeToString(body), mediaType, nil
 }
 

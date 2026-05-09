@@ -44,7 +44,7 @@ type InboundMessage struct {
 	Media         []string
 	Hints         RoutingHints
 	TransportMeta map[string]any
-	ContentBlocks []model.ContentBlock // 多模态内容（图片、文档等）
+	ContentBlocks []model.ContentBlock // Multimodal content (images, documents, etc.)
 }
 
 // StableRouteKey is the persistent conversation key (channel + chat) for session
@@ -66,5 +66,5 @@ type OutboundMessage struct {
 	ReplyTo       string
 	Media         []string
 	Metadata      map[string]any
-	ContentBlocks []model.ContentBlock // 多模态内容
+	ContentBlocks []model.ContentBlock // Multimodal content.
 }

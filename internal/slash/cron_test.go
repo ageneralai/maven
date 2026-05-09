@@ -21,8 +21,8 @@ func TestHandleCronAdd_atDuration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(anyStr(res.Output), "Added job") {
-		t.Fatalf("output: %v", res.Output)
+	if !strings.Contains(res.Output, "Added job") {
+		t.Fatalf("output: %q", res.Output)
 	}
 	jobs := svc.ListJobs()
 	if len(jobs) != 1 {
@@ -72,16 +72,6 @@ func mustParseCron(t *testing.T, line string) Invocation {
 		t.Fatalf("got %d invocations", len(inv))
 	}
 	return inv[0]
-}
-
-func anyStr(v any) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }
 
 func handleCronAddBody(svc *cron.Service) func(context.Context, Invocation) (Result, error) {

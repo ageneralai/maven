@@ -45,7 +45,7 @@ func PreTurn(ctx context.Context, reg *Registry, in Input) (Outcome, error) {
 		return Outcome{}, err
 	}
 	trail := []Execution{{Result: res}}
-	if direct := directString(res); direct != "" {
+	if direct := strings.TrimSpace(res.Output); direct != "" {
 		return Outcome{ContinueToModel: false, DirectReply: direct, Trail: trail}, nil
 	}
 	out.ContinueToModel = true
@@ -54,14 +54,4 @@ func PreTurn(ctx context.Context, reg *Registry, in Input) (Outcome, error) {
 		out.RequestMetadata = enrichRequestMetadataWithTurnRouting(ctx, res.Metadata)
 	}
 	return out, nil
-}
-
-func directString(res Result) string {
-	if res.Output == nil {
-		return ""
-	}
-	if s, ok := res.Output.(string); ok {
-		return strings.TrimSpace(s)
-	}
-	return strings.TrimSpace(fmt.Sprint(res.Output))
 }

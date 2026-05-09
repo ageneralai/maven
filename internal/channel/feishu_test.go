@@ -169,7 +169,9 @@ func TestFeishuWebhook_Challenge(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
 	if resp["challenge"] != "test-challenge-token" {
 		t.Errorf("challenge = %q, want test-challenge-token", resp["challenge"])
 	}

@@ -232,6 +232,11 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
     "enabled": true,
     "dir": ""
   },
+  "autoCompact": {
+    "enabled": false,
+    "threshold": 0.8,
+    "preserveCount": 5
+  },
   "gateway": {
     "host": "0.0.0.0",
     "port": 18790,
@@ -252,6 +257,15 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
 - **`gateway.cron.maxConcurrentRuns`**: max concurrent **cron** agent turns in the gateway process (default **1** if omitted). Heartbeat uses its own **one-slot** try-once queue. Changing **`maxConcurrentRuns`** requires a **gateway restart** (not hot reload). See `internal/gateway/doc.go`.
 
 See `config.example.json` for the full schema.
+
+### Auto-compact (`autoCompact`)
+
+Context rotation when the model nears its window is **off by default** (`enabled: false`). Set **`enabled`** to **`true`** to opt in.
+
+- **`threshold`**: trigger when estimated context usage crosses this fraction of the window (greater than `0`, up to `1`). Default in generated defaults is **`0.8`** when you enable auto-compact.
+- **`preserveCount`**: how many recent turns to keep across a compact boundary (default **`5`** in generated defaults).
+
+Validation rules are enforced in `config.Validate()` when `enabled` is true.
 
 ### Telegram (`channels.telegram`)
 

@@ -75,7 +75,9 @@ func (m *MemoryStore) AppendToday(content string) error {
 	return err
 }
 
-func (m *MemoryStore) GetRecentMemories(days int) (string, error) {
+// GetRecentMemories returns journal sections from dated .md files in memory/, newest first.
+// limit is the maximum number of daily files to include; 0 means no limit.
+func (m *MemoryStore) GetRecentMemories(limit int) (string, error) {
 	dir := m.memoryDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -95,8 +97,8 @@ func (m *MemoryStore) GetRecentMemories(days int) (string, error) {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(dateFiles)))
 
-	if days > 0 && len(dateFiles) > days {
-		dateFiles = dateFiles[:days]
+	if limit > 0 && len(dateFiles) > limit {
+		dateFiles = dateFiles[:limit]
 	}
 
 	var sb strings.Builder

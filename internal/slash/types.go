@@ -20,10 +20,10 @@ type Definition struct {
 	Description string
 }
 
-// Result is a handler outcome. Non-empty direct output skips the model; Metadata is merged into api.Request.
+// Result is a handler outcome. Non-empty trimmed Output skips the model; Metadata is merged into api.Request.
 type Result struct {
 	Command  string
-	Output   any
+	Output   string
 	Metadata map[string]any
 }
 

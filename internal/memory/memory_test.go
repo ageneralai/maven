@@ -82,13 +82,19 @@ func TestGetRecentMemories(t *testing.T) {
 
 	// Create memory dir and some date files
 	memDir := filepath.Join(tmpDir, "memory")
-	os.MkdirAll(memDir, 0755)
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	today := time.Now().Format("2006-01-02")
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
-	os.WriteFile(filepath.Join(memDir, today+".md"), []byte("today's notes"), 0644)
-	os.WriteFile(filepath.Join(memDir, yesterday+".md"), []byte("yesterday's notes"), 0644)
+	if err := os.WriteFile(filepath.Join(memDir, today+".md"), []byte("today's notes"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(memDir, yesterday+".md"), []byte("yesterday's notes"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := ms.GetRecentMemories(7)
 	if err != nil {
@@ -102,17 +108,21 @@ func TestGetRecentMemories(t *testing.T) {
 	}
 }
 
-func TestGetRecentMemories_LimitDays(t *testing.T) {
+func TestGetRecentMemories_Limit(t *testing.T) {
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
 	memDir := filepath.Join(tmpDir, "memory")
-	os.MkdirAll(memDir, 0755)
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create 3 days of files
 	for i := 0; i < 3; i++ {
 		date := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
-		os.WriteFile(filepath.Join(memDir, date+".md"), []byte("day "+date), 0644)
+		if err := os.WriteFile(filepath.Join(memDir, date+".md"), []byte("day "+date), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	result, err := ms.GetRecentMemories(1)
@@ -137,7 +147,9 @@ func TestGetMemoryContext(t *testing.T) {
 	}
 
 	// Write long-term memory
-	ms.WriteLongTerm("important fact")
+	if err := ms.WriteLongTerm("important fact"); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx = ms.GetMemoryContext()
 	if !strings.Contains(ctx, "Long-term Memory") {
@@ -153,10 +165,14 @@ func TestGetMemoryContext_WithRecentMemories(t *testing.T) {
 	ms := NewMemoryStore(tmpDir)
 
 	// Write long-term memory
-	ms.WriteLongTerm("long-term fact")
+	if err := ms.WriteLongTerm("long-term fact"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Write today's journal
-	ms.AppendToday("today's entry")
+	if err := ms.AppendToday("today's entry"); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := ms.GetMemoryContext()
 	if !strings.Contains(ctx, "Long-term Memory") {
@@ -178,11 +194,15 @@ func TestGetRecentMemories_EmptyFiles(t *testing.T) {
 	ms := NewMemoryStore(tmpDir)
 
 	memDir := filepath.Join(tmpDir, "memory")
-	os.MkdirAll(memDir, 0755)
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create an empty date file
 	today := time.Now().Format("2006-01-02")
-	os.WriteFile(filepath.Join(memDir, today+".md"), []byte("   \n\n  "), 0644)
+	if err := os.WriteFile(filepath.Join(memDir, today+".md"), []byte("   \n\n  "), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := ms.GetRecentMemories(7)
 	if err != nil {
@@ -199,15 +219,19 @@ func TestGetRecentMemories_NoLimit(t *testing.T) {
 	ms := NewMemoryStore(tmpDir)
 
 	memDir := filepath.Join(tmpDir, "memory")
-	os.MkdirAll(memDir, 0755)
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create 5 days of files
 	for i := 0; i < 5; i++ {
 		date := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
-		os.WriteFile(filepath.Join(memDir, date+".md"), []byte("content "+date), 0644)
+		if err := os.WriteFile(filepath.Join(memDir, date+".md"), []byte("content "+date), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// days=0 means no limit
+	// limit=0 means no limit
 	result, err := ms.GetRecentMemories(0)
 	if err != nil {
 		t.Fatalf("GetRecentMemories error: %v", err)

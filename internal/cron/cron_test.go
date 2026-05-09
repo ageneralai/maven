@@ -209,12 +209,18 @@ func TestService_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "jobs.json")
 	s1 := NewService(storePath, executor.Nop{}, 1, testLG, nil)
-	s1.AddJob("persist1", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "p1"})
-	s1.AddJob("persist2", Schedule{Kind: "every", EveryMs: 2000}, Payload{Message: "p2"})
+	if _, err := s1.AddJob("persist1", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.AddJob("persist2", Schedule{Kind: "every", EveryMs: 2000}, Payload{Message: "p2"}); err != nil {
+		t.Fatal(err)
+	}
 	s2 := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	s2.Start(ctx)
+	if err := s2.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 	jobs := s2.ListJobs()
 	if len(jobs) != 2 {
 		t.Fatalf("expected 2 persisted jobs, got %d", len(jobs))
@@ -229,7 +235,9 @@ func TestService_ExecutePath_Error(t *testing.T) {
 	s := NewService(filepath.Join(t.TempDir(), "jobs.json"), exec, 1, testLG, nil)
 	job, _ := s.AddJob("err", Schedule{Kind: "every", EveryMs: 500}, Payload{Message: "x"})
 	ctx, cancel := context.WithCancel(context.Background())
-	s.Start(ctx)
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		jobs := s.ListJobs()
@@ -256,7 +264,9 @@ func TestService_RemoveCronJob(t *testing.T) {
 	s := newTestService(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	s.Start(ctx)
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 	job, err := s.AddJob("rc", Schedule{Kind: "cron", Expr: "0 0 * * * *"}, Payload{Message: "x"})
 	if err != nil {
 		t.Fatal(err)
@@ -279,7 +289,9 @@ func TestService_CronJobWithInvalidExpr(t *testing.T) {
 		Payload:  Payload{Message: "x"},
 	}}
 	data, _ := json.MarshalIndent(jobs, "", "  ")
-	os.WriteFile(storePath, data, 0o644)
+	if err := os.WriteFile(storePath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	s := NewService(storePath, executor.Nop{}, 1, testLG, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

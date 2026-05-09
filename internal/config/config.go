@@ -168,7 +168,7 @@ func DefaultConfig() *Config {
 			Enabled: true,
 		},
 		AutoCompact: AutoCompactConfig{
-			Enabled:       true,
+			Enabled:       false,
 			Threshold:     0.8,
 			PreserveCount: 5,
 		},

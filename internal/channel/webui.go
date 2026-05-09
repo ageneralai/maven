@@ -94,7 +94,7 @@ func (w *WebUIChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		w.clients.Delete(clientID)
-		conn.CloseNow()
+		_ = conn.CloseNow()
 		w.log.Printf("[webui] client disconnected: %s", clientID)
 	}()
 
@@ -169,7 +169,7 @@ func (w *WebUIChannel) Stop() error {
 	}
 	w.clients.Range(func(key, value any) bool {
 		c := value.(*wsClient)
-		c.conn.CloseNow()
+		_ = c.conn.CloseNow()
 		return true
 	})
 	w.log.Printf("[webui] stopped")

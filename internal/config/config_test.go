@@ -36,8 +36,8 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.Skills.Enabled {
 		t.Error("skills.enabled should be true by default")
 	}
-	if !cfg.AutoCompact.Enabled {
-		t.Error("autoCompact.enabled should be true by default")
+	if cfg.AutoCompact.Enabled {
+		t.Error("autoCompact.enabled should be false by default (opt-in)")
 	}
 	if cfg.AutoCompact.Threshold != 0.8 {
 		t.Errorf("autoCompact.threshold = %v, want 0.8", cfg.AutoCompact.Threshold)
@@ -84,7 +84,9 @@ func TestLoadConfig_FromFile(t *testing.T) {
 
 	// Create config file
 	cfgDir := filepath.Join(tmpDir, ".maven")
-	os.MkdirAll(cfgDir, 0755)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	testCfg := map[string]any{
 		"agent": map[string]any{
@@ -96,7 +98,9 @@ func TestLoadConfig_FromFile(t *testing.T) {
 		},
 	}
 	data, _ := json.MarshalIndent(testCfg, "", "  ")
-	os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644)
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -221,8 +225,12 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	cfgDir := filepath.Join(tmpDir, ".maven")
-	os.MkdirAll(cfgDir, 0755)
-	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte("invalid json"), 0644)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte("invalid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := LoadConfig()
 	if err == nil {
@@ -237,7 +245,9 @@ func TestLoadConfig_EmptyWorkspace(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	cfgDir := filepath.Join(tmpDir, ".maven")
-	os.MkdirAll(cfgDir, 0755)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Config with empty workspace - should use default
 	testCfg := map[string]any{
@@ -246,7 +256,9 @@ func TestLoadConfig_EmptyWorkspace(t *testing.T) {
 		},
 	}
 	data, _ := json.MarshalIndent(testCfg, "", "  ")
-	os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644)
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := LoadConfig()
 	if err != nil {

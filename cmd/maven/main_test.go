@@ -38,7 +38,9 @@ func TestWriteIfNotExists_ExistingFile(t *testing.T) {
 	path := filepath.Join(tmpDir, "test.txt")
 
 	// Create existing file
-	os.WriteFile(path, []byte("original"), 0644)
+	if err := os.WriteFile(path, []byte("original"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	writeIfNotExists(path, "new content")
 
@@ -67,7 +69,9 @@ func captureRunOutput(t *testing.T, fn func() error) (string, error) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
+	if _, cerr := io.Copy(&buf, r); cerr != nil {
+		t.Fatalf("io.Copy: %v", cerr)
+	}
 	return buf.String(), runErr
 }
 
@@ -103,8 +107,12 @@ func TestBuildSystemPrompt(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace files
-	os.WriteFile(filepath.Join(tmpDir, "AGENTS.md"), []byte("# Agent\nYou help."), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "SOUL.md"), []byte("# Soul\nBe nice."), 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "AGENTS.md"), []byte("# Agent\nYou help."), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "SOUL.md"), []byte("# Soul\nBe nice."), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -134,7 +142,9 @@ func TestBuildSystemPrompt_WithMemory(t *testing.T) {
 	}
 
 	mem := memory.NewMemoryStore(tmpDir)
-	mem.WriteLongTerm("Important info")
+	if err := mem.WriteLongTerm("Important info"); err != nil {
+		t.Fatal(err)
+	}
 
 	prompt := buildSystemPrompt(cfg, mem)
 
@@ -194,7 +204,7 @@ func TestRunOnboard(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -231,8 +241,12 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 
 	// Create existing config
 	cfgDir := filepath.Join(tmpDir, ".maven")
-	os.MkdirAll(cfgDir, 0755)
-	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte("{}"), 0644)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Clear API key env vars
 	t.Setenv("MAVEN_API_KEY", "")
@@ -251,7 +265,7 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -287,7 +301,7 @@ func TestRunStatus(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -338,7 +352,7 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -374,7 +388,7 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -395,8 +409,12 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 
 	// Create workspace with memory
 	wsDir := filepath.Join(tmpDir, ".maven", "workspace", "memory")
-	os.MkdirAll(wsDir, 0755)
-	os.WriteFile(filepath.Join(wsDir, "MEMORY.md"), []byte("test memory content"), 0644)
+	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wsDir, "MEMORY.md"), []byte("test memory content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Clear API key env vars
 	t.Setenv("MAVEN_API_KEY", "")
@@ -415,7 +433,7 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -436,8 +454,12 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 
 	// Create config with non-existent workspace
 	cfgDir := filepath.Join(tmpDir, ".maven")
-	os.MkdirAll(cfgDir, 0755)
-	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{"agent":{"workspace":"/nonexistent"}}`), 0644)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{"agent":{"workspace":"/nonexistent"}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Clear API key env vars
 	t.Setenv("MAVEN_API_KEY", "")
@@ -456,7 +478,7 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {
@@ -931,8 +953,12 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 
 	// Create workspace with empty memory
 	wsDir := filepath.Join(tmpDir, ".maven", "workspace", "memory")
-	os.MkdirAll(wsDir, 0755)
-	os.WriteFile(filepath.Join(wsDir, "MEMORY.md"), []byte(""), 0644)
+	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wsDir, "MEMORY.md"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Clear API key env vars
 	t.Setenv("MAVEN_API_KEY", "")
@@ -951,7 +977,7 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
 	output := buf.String()
 
 	if err != nil {

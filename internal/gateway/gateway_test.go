@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,8 +83,12 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create workspace files
-	os.WriteFile(filepath.Join(tmpDir, "AGENTS.md"), []byte("# Agent\nYou are helpful."), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "SOUL.md"), []byte("# Soul\nBe kind."), 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "AGENTS.md"), []byte("# Agent\nYou are helpful."), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "SOUL.md"), []byte("# Soul\nBe kind."), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -113,7 +118,9 @@ func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	mem := memory.NewMemoryStore(tmpDir)
-	mem.WriteLongTerm("User is a developer.")
+	if err := mem.WriteLongTerm("User is a developer."); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -630,7 +637,38 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 	}
 
 	// Clean up
-	g.Shutdown()
+	if err := g.Shutdown(); err != nil && !errors.Is(err, context.Canceled) {
+		t.Errorf("Shutdown: %v", err)
+	}
+}
+
+func TestGateway_Apply_WorkspaceChangeRejected(t *testing.T) {
+	ws1 := t.TempDir()
+	ws2 := t.TempDir()
+	cfg1 := &config.Config{
+		Agent:    config.AgentConfig{Workspace: ws1},
+		Channels: config.ChannelsConfig{},
+	}
+	mockRt := &mockRuntime{}
+	g, err := NewWithOptions(cfg1, Options{RuntimeFactory: mockRuntimeFactory(mockRt)})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+	defer func() { _ = g.Shutdown() }()
+	if err := g.Apply(context.Background(), cfg1); err != nil {
+		t.Fatalf("first Apply: %v", err)
+	}
+	cfg2 := &config.Config{
+		Agent:    config.AgentConfig{Workspace: ws2},
+		Channels: config.ChannelsConfig{},
+	}
+	err = g.Apply(context.Background(), cfg2)
+	if err == nil {
+		t.Fatal("expected Apply error")
+	}
+	if !strings.Contains(err.Error(), "reload: agent.workspace change not supported") {
+		t.Fatalf("Apply error got %v", err)
+	}
 }
 
 func TestNewWithOptions_RuntimeFactoryError(t *testing.T) {
@@ -648,7 +686,7 @@ func TestNewWithOptions_RuntimeFactoryError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithOptions: %v", err)
 	}
-	defer g.Shutdown()
+	defer func() { _ = g.Shutdown() }()
 	if err := g.Apply(context.Background(), cfg); !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("Apply expected DeadlineExceeded, got %v", err)
 	}
@@ -846,7 +884,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
-	defer g.Shutdown()
+	defer func() { _ = g.Shutdown() }()
 
 	if err := g.Apply(context.Background(), cfg); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -897,7 +935,7 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
-	defer g.Shutdown()
+	defer func() { _ = g.Shutdown() }()
 
 	if err := g.Apply(context.Background(), cfg); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -951,7 +989,7 @@ func TestGateway_CronRunTurn_InvalidDeliverPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
-	defer g.Shutdown()
+	defer func() { _ = g.Shutdown() }()
 	if err := g.Apply(context.Background(), cfg); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -986,7 +1024,7 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithOptions error: %v", err)
 	}
-	defer g.Shutdown()
+	defer func() { _ = g.Shutdown() }()
 	if err := g.Apply(context.Background(), cfg); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}

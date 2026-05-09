@@ -530,7 +530,9 @@ func TestWeComClient_Send_IntegrationShape(t *testing.T) {
 		if md["content"] != "hello from test" {
 			t.Errorf("content = %v, want hello from test", md["content"])
 		}
-		io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`)
+		if _, err := io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`); err != nil {
+			t.Fatalf("write response body: %v", err)
+		}
 	}))
 	defer ts.Close()
 
@@ -561,7 +563,9 @@ func TestWeComClient_Send_TruncateLongContent(t *testing.T) {
 		}
 		md := payload["markdown"].(map[string]any)
 		receivedContent = md["content"].(string)
-		io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`)
+		if _, err := io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`); err != nil {
+			t.Fatalf("write response body: %v", err)
+		}
 	}))
 	defer ts.Close()
 
@@ -589,10 +593,14 @@ func TestWeComClient_Send_RetryTransientErrcode(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sendCalls++
 		if sendCalls == 1 {
-			io.WriteString(w, `{"errcode":-1,"errmsg":"system busy"}`)
+			if _, err := io.WriteString(w, `{"errcode":-1,"errmsg":"system busy"}`); err != nil {
+				t.Fatalf("write response body: %v", err)
+			}
 			return
 		}
-		io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`)
+		if _, err := io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`); err != nil {
+			t.Fatalf("write response body: %v", err)
+		}
 	}))
 	defer ts.Close()
 
@@ -614,7 +622,9 @@ func TestWeComClient_Send_NoRetryOnPayloadErrcode(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sendCalls++
-		io.WriteString(w, `{"errcode":44004,"errmsg":"content size out of limit"}`)
+		if _, err := io.WriteString(w, `{"errcode":44004,"errmsg":"content size out of limit"}`); err != nil {
+			t.Fatalf("write response body: %v", err)
+		}
 	}))
 	defer ts.Close()
 

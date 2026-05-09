@@ -18,6 +18,13 @@ import (
 
 var testLG = mavenlog.Std()
 
+func writeHeartbeatPromptFile(t *testing.T, dir string, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "HEARTBEAT.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type stubExec struct {
 	fn func(ctx context.Context, prompt, sessionID string) (string, error)
 }
@@ -61,7 +68,7 @@ func TestTick_NoFile(t *testing.T) {
 
 func TestTick_EmptyFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte(""), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "")
 	var called atomic.Int32
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		called.Add(1)
@@ -76,7 +83,7 @@ func TestTick_EmptyFile(t *testing.T) {
 
 func TestTick_WithContent(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("Check tasks"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "Check tasks")
 	var receivedPrompt string
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		receivedPrompt = prompt
@@ -111,7 +118,7 @@ func TestStart_ContextCancel(t *testing.T) {
 
 func TestStart_TickerFires(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("tick"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "tick")
 	var tickCount atomic.Int32
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		tickCount.Add(1)
@@ -132,7 +139,7 @@ func TestStart_TickerFires(t *testing.T) {
 
 func TestTick_HandlerError(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("Check tasks"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "Check tasks")
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		return "", fmt.Errorf("handler error")
 	}}, time.Second, testLG)
@@ -142,7 +149,7 @@ func TestTick_HandlerError(t *testing.T) {
 
 func TestTick_HeartbeatOK(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("Check tasks"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "Check tasks")
 	var called bool
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
 		called = true
@@ -157,7 +164,7 @@ func TestTick_HeartbeatOK(t *testing.T) {
 
 func TestHeartbeatSkipsIfBusy(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("hb"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "hb")
 	var runs atomic.Int32
 	block := make(chan struct{})
 	defer close(block)
@@ -167,7 +174,7 @@ func TestHeartbeatSkipsIfBusy(t *testing.T) {
 		return "", nil
 	}}, 20*time.Millisecond, testLG)
 	ctx, cancel := context.WithCancel(context.Background())
-	go s.Start(ctx)
+	go func() { _ = s.Start(ctx) }()
 	time.Sleep(5 * time.Millisecond)
 	s.tick(ctx)
 	time.Sleep(40 * time.Millisecond)
@@ -193,7 +200,7 @@ func TestHeartbeatSkipsEmptyPrompt(t *testing.T) {
 
 func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("x"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "x")
 	var mu sync.Mutex
 	var ids []string
 	s := New(tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
@@ -221,7 +228,7 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 
 func TestStart_PulsesHeartbeatHealthSignal(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "HEARTBEAT.md"), []byte("noop"), 0o644)
+	writeHeartbeatPromptFile(t, tmpDir, "noop")
 	var rec testutil.PulseRecorder
 	s := New(tmpDir, stubExec{func(context.Context, string, string) (string, error) {
 		return "HEARTBEAT_OK", nil
