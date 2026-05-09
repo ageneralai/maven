@@ -6,9 +6,9 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/tools/acp"
 	tcron "github.com/ageneralai/maven/internal/tools/cron"
 )
 
@@ -28,8 +28,8 @@ func (r *runtimeAdapter) Close() {
 	r.rt.Close()
 }
 
-// NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options.
-func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (Runtime, error) {
+// NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).
+func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (Runtime, error) {
 	var provider api.ModelFactory
 	switch cfg.Provider.Type {
 	case "openai":
@@ -48,7 +48,7 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 		}
 	}
 	customTools := tcron.Tools(cronSvc)
-	customTools = append(customTools, acp.Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)...)
+	customTools = append(customTools, pluginTools...)
 	rt, err := api.New(context.Background(), api.Options{
 		ProjectRoot:   cfg.Agent.Workspace,
 		ModelFactory:  provider,

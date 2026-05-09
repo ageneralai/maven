@@ -12,21 +12,22 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/manager"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
-	"github.com/ageneralai/maven/pkg/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
 	"github.com/ageneralai/maven/internal/testutil"
+	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/ageneralai/maven/pkg/memory"
+	"github.com/ageneralai/maven/pkg/prompt"
 )
 
 var testLG = mavenlog.Std()
@@ -181,14 +182,14 @@ func TestGateway_Shutdown(t *testing.T) {
 	pipe := testPipeline(msgBus, mockRt, router, tmpDir)
 
 	g := &Gateway{
-		cfg:      cfg,
-		bus:      msgBus,
-		pipe:     pipe,
+		cfg:        cfg,
+		bus:        msgBus,
+		pipe:       pipe,
 		channelMgr: chMgr,
-		cron:     cronSvc,
-		hb:       heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
-		mem:      memory.NewMemoryStore(tmpDir),
-		logger:   testLG,
+		cron:       cronSvc,
+		hb:         heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
+		mem:        memory.NewMemoryStore(tmpDir),
+		logger:     testLG,
 	}
 
 	err := g.Shutdown()
@@ -563,14 +564,14 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 	pipe := testPipeline(msgBus, nil, router, tmpDir)
 
 	g := &Gateway{
-		cfg:      cfg,
-		bus:      msgBus,
-		pipe:     pipe,
+		cfg:        cfg,
+		bus:        msgBus,
+		pipe:       pipe,
 		channelMgr: chMgr,
-		cron:     cronSvc,
-		hb:       heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
-		mem:      memory.NewMemoryStore(tmpDir),
-		logger:   testLG,
+		cron:       cronSvc,
+		hb:         heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
+		mem:        memory.NewMemoryStore(tmpDir),
+		logger:     testLG,
 	}
 
 	err := g.Shutdown()
@@ -581,14 +582,14 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 
 // mockRuntimeFactory returns a factory that creates mock runtimes
 func mockRuntimeFactory(rt agent.Runtime) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
 		return rt, nil
 	}
 }
 
 // errorRuntimeFactory returns a factory that always fails
 func errorRuntimeFactory(err error) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
 		return nil, err
 	}
 }
@@ -855,7 +856,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 
 	// DefaultRuntimeFactory will try to create real runtime
 	// which may fail in different ways depending on SDK behavior
-	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil)
+	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil, nil)
 	// Just ensure it doesn't panic - error is expected
 	_ = err
 }

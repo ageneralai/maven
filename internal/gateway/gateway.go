@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/manager"
@@ -18,17 +19,20 @@ import (
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
-	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/internal/pipeline"
-	"github.com/ageneralai/maven/pkg/prompt"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/ageneralai/maven/pkg/memory"
+	"github.com/ageneralai/maven/pkg/plugin"
+	plugacp "github.com/ageneralai/maven/pkg/plugin/acp"
+	plugvoice "github.com/ageneralai/maven/pkg/plugin/voice"
+	"github.com/ageneralai/maven/pkg/prompt"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
-type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error)
+type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error)
 
 // Options for creating a Gateway.
 type Options struct {
@@ -37,9 +41,9 @@ type Options struct {
 	HealthReporter health.HealthReporter
 }
 
-// DefaultRuntimeFactory wires agentsdk-go with the given skills and cron command/tool registration.
-func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service) (agent.Runtime, error) {
-	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc)
+// DefaultRuntimeFactory wires agentsdk-go with the given skills, cron command/tool registration, and gateway plugin tools.
+func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc, pluginTools)
 }
 
 // Gateway wires channels, bus, cron, heartbeat, and the inbound pipeline. Business logic lives in internal/pipeline.
@@ -53,6 +57,7 @@ type Gateway struct {
 	cron           *cron.Service
 	hb             *heartbeat.Service
 	runtimeFactory RuntimeFactory
+	plugins        *plugin.Registry
 	mem            *memory.MemoryStore
 	skillRegs      []api.SkillRegistration
 	sessions       *session.Router
@@ -99,6 +104,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
+	g.plugins = plugin.NewRegistry(plugacp.New(), plugvoice.New())
 	g.channelMgr = manager.NewChannelManager(g.bus, g.logger)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
@@ -125,7 +131,11 @@ func (g *Gateway) validateReload(cfg *config.Config) error {
 }
 
 func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration) (agent.Runtime, error) {
-	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron)
+	var pluginTools []tool.Tool
+	if g.plugins != nil {
+		pluginTools = g.plugins.Tools(cfg)
+	}
+	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools)
 }
 
 func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
@@ -188,6 +198,11 @@ func (g *Gateway) Run(ctx context.Context) error {
 	defer cancel()
 	g.runCancel = cancel
 	go g.bus.DispatchOutbound(ctx)
+	if g.plugins != nil {
+		if err := g.plugins.Start(ctx); err != nil {
+			return fmt.Errorf("plugins start: %w", err)
+		}
+	}
 	if err := g.Apply(ctx, g.cfg); err != nil {
 		return fmt.Errorf("initial apply: %w", err)
 	}
@@ -252,6 +267,11 @@ func (g *Gateway) Shutdown() error {
 	g.interruptRunLoops()
 	g.pipeWg.Wait()
 	g.cron.Stop()
+	if g.plugins != nil {
+		if err := g.plugins.Stop(); err != nil {
+			g.logger.Printf("[gateway] plugins stop: %v", err)
+		}
+	}
 	_ = g.channelMgr.StopAll()
 	if g.pipe != nil {
 		if rt := g.pipe.TakeRuntimeForShutdown(); rt != nil {
