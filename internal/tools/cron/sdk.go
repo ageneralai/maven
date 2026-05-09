@@ -6,20 +6,21 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
+	svcron "github.com/ageneralai/maven/internal/cron"
 )
 
-func Tools(svc *Service) []tool.Tool {
-	if svc == nil {
+func Tools(s *svcron.Service) []tool.Tool {
+	if s == nil {
 		return nil
 	}
 	return []tool.Tool{
-		&scheduleTool{svc: svc},
-		&listTool{svc: svc},
-		&removeTool{svc: svc},
+		&scheduleTool{svc: s},
+		&listTool{svc: s},
+		&removeTool{svc: s},
 	}
 }
 
-type scheduleTool struct{ svc *Service }
+type scheduleTool struct{ svc *svcron.Service }
 
 func (t *scheduleTool) Name() string { return "CronSchedule" }
 
@@ -40,7 +41,7 @@ func (t *scheduleTool) Execute(ctx context.Context, params map[string]interface{
 	return &tool.ToolResult{Success: true, Output: FormatJobAdded(job)}, nil
 }
 
-type listTool struct{ svc *Service }
+type listTool struct{ svc *svcron.Service }
 
 func (t *listTool) Name() string { return "CronList" }
 
@@ -55,7 +56,7 @@ func (t *listTool) Execute(_ context.Context, _ map[string]interface{}) (*tool.T
 	return &tool.ToolResult{Success: true, Output: out}, nil
 }
 
-type removeTool struct{ svc *Service }
+type removeTool struct{ svc *svcron.Service }
 
 func (t *removeTool) Name() string { return "CronRemove" }
 

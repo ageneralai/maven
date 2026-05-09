@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	svcron "github.com/ageneralai/maven/internal/cron"
 	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
@@ -86,7 +87,7 @@ func (in *CronToolInput) ValidateDeliveryPolicy(ctx context.Context) error {
 		if ch == "" || to == "" {
 			return fmt.Errorf("tool: deliver=true requires non-empty channel and to")
 		}
-		if IsReservedRecipient(to) {
+		if svcron.IsReservedRecipient(to) {
 			return fmt.Errorf("tool: invalid to=%q — use boolean deliver_to_incoming_chat for same-chat delivery, not a magic string in to", to)
 		}
 		return nil

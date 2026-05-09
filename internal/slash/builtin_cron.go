@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/cron"
+	tcron "github.com/ageneralai/maven/internal/tools/cron"
 )
 
 func cronHandlers(svc *cron.Service) []handlerEntry {
@@ -91,7 +92,7 @@ func handleCronAdd(_ context.Context, svc *cron.Service, inv Invocation) (Result
 	if deliver && (chv == "" || to == "") {
 		return Result{}, fmt.Errorf("cron-add: --deliver requires non-empty --channel and --to")
 	}
-	p := cron.AddParams{
+	p := tcron.AddParams{
 		Name:    strings.TrimSpace(name),
 		Message: strings.TrimSpace(msg),
 		Expr:    expr,
@@ -108,16 +109,16 @@ func handleCronAdd(_ context.Context, svc *cron.Service, inv Invocation) (Result
 		p.AtMs = atMs
 		p.HasAtMs = true
 	}
-	job, err := cron.Add(svc, p, time.Now())
+	job, err := tcron.Add(svc, p, time.Now())
 	if err != nil {
 		return Result{}, err
 	}
-	out := cron.FormatJobAdded(job)
+	out := tcron.FormatJobAdded(job)
 	return Result{Command: "cron-add", Output: out}, nil
 }
 
 func handleCronList(_ context.Context, svc *cron.Service, _ Invocation) (Result, error) {
-	out := cron.FormatList(svc.ListJobs())
+	out := tcron.FormatList(svc.ListJobs())
 	return Result{Command: "cron-list", Output: out}, nil
 }
 

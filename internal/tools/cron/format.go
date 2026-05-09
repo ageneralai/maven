@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
+	svcron "github.com/ageneralai/maven/internal/cron"
 )
 
-func FormatJobAdded(job *CronJob) string {
+func FormatJobAdded(job *svcron.CronJob) string {
 	if job == nil {
 		return ""
 	}
@@ -31,7 +32,7 @@ func FormatJobAdded(job *CronJob) string {
 	return fmt.Sprintf("Added job id=%s name=%q %s%s", j.ID, j.Name, sched, del)
 }
 
-func FormatJobLine(j CronJob) string {
+func FormatJobLine(j svcron.CronJob) string {
 	en := "off"
 	if j.Enabled {
 		en = "on"
@@ -54,7 +55,7 @@ func FormatJobLine(j CronJob) string {
 	return fmt.Sprintf("%s name=%q enabled=%s %s msg=%q%s", j.ID, j.Name, en, sched, j.Payload.Message, d)
 }
 
-func FormatList(jobs []CronJob) string {
+func FormatList(jobs []svcron.CronJob) string {
 	if len(jobs) == 0 {
 		return "No cron jobs."
 	}

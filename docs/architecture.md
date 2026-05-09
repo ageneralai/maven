@@ -576,7 +576,10 @@ internal/
     whatsapp/
     webui/
   config/               Configuration loading, validation, and file watching
-  cron/                 Scheduler, persistent job store, SessionKey, Deliver; tool_*.go (CronSchedule tools / parsing)
+  cron/                 Scheduler, persistent job store, SessionKey, Deliver
+
+  tools/
+    cron/               CronSchedule / CronList / CronRemove SDK tools + slash helpers
 
   heartbeat/            HEARTBEAT.md periodic runner and tick SessionKey
   session/              Session ID routing and rotation

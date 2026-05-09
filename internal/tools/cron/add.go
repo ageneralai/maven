@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	svcron "github.com/ageneralai/maven/internal/cron"
 )
 
 type AddParams struct {
@@ -21,7 +23,7 @@ type AddParams struct {
 	MessageID             int
 }
 
-func Add(svc *Service, p AddParams, now time.Time) (*CronJob, error) {
+func Add(s *svcron.Service, p AddParams, now time.Time) (*svcron.CronJob, error) {
 	p.Name = strings.TrimSpace(p.Name)
 	p.Message = strings.TrimSpace(p.Message)
 	p.Expr = strings.TrimSpace(p.Expr)
@@ -51,23 +53,23 @@ func Add(svc *Service, p AddParams, now time.Time) (*CronJob, error) {
 	if n != 1 {
 		return nil, fmt.Errorf("exactly one of expr, in, or at_ms is required")
 	}
-	var sch Schedule
+	var sch svcron.Schedule
 	switch {
 	case pp.Expr != "":
-		sch = Schedule{Kind: "cron", Expr: pp.Expr}
+		sch = svcron.Schedule{Kind: "cron", Expr: pp.Expr}
 	case pp.In != "":
 		d, err := time.ParseDuration(pp.In)
 		if err != nil {
 			return nil, fmt.Errorf("in: %w", err)
 		}
-		sch = Schedule{Kind: "at", AtMs: now.UnixMilli() + d.Round(time.Millisecond).Milliseconds()}
+		sch = svcron.Schedule{Kind: "at", AtMs: now.UnixMilli() + d.Round(time.Millisecond).Milliseconds()}
 	default:
-		sch = Schedule{Kind: "at", AtMs: pp.AtMs}
+		sch = svcron.Schedule{Kind: "at", AtMs: pp.AtMs}
 	}
 	if pp.Deliver && (pp.Channel == "" || pp.To == "") {
 		return nil, fmt.Errorf("deliver requires channel and to, or use deliver_to_incoming_chat in a gateway chat session")
 	}
-	payload := Payload{
+	payload := svcron.Payload{
 		Message: pp.Message,
 		Deliver: pp.Deliver,
 		Channel: pp.Channel,
@@ -76,10 +78,10 @@ func Add(svc *Service, p AddParams, now time.Time) (*CronJob, error) {
 	if err := payload.Validate(); err != nil {
 		return nil, err
 	}
-	return svc.AddJob(pp.Name, sch, payload)
+	return s.AddJob(pp.Name, sch, payload)
 }
 
-func AddFromToolMap(svc *Service, ctx context.Context, m map[string]interface{}, now time.Time) (*CronJob, error) {
+func AddFromToolMap(s *svcron.Service, ctx context.Context, m map[string]interface{}, now time.Time) (*svcron.CronJob, error) {
 	in, err := ParseCronToolInput(m)
 	if err != nil {
 		return nil, err
@@ -88,5 +90,5 @@ func AddFromToolMap(svc *Service, ctx context.Context, m map[string]interface{},
 	if err := in.ValidateDeliveryPolicy(ctx); err != nil {
 		return nil, err
 	}
-	return Add(svc, in.ToAddParams(ctx), now)
+	return Add(s, in.ToAddParams(ctx), now)
 }
