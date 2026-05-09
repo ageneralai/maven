@@ -170,17 +170,18 @@ internal/
   skills/            SKILL.md loader → SDK registrations
   testutil/          Shared helpers for internal tests only
 docs/
+  workspace.md       # example layout after onboard (`agent.workspace`)
+  workspace/         # sample files (copy to `agent.workspace`; not read by the binary)
+    README.md
   telegram-setup.md
   feishu-setup.md
   wecom-setup.md
 scripts/
   setup.sh
-workspace/           (user content; created by onboard)
-  skills/
-  AGENTS.md
-  SOUL.md
 config.example.json
 ```
+
+See **`docs/workspace.md`** for layout; checked-in **`docs/workspace/`** has the same files you can copy into **`agent.workspace`** (defaults align with **`maven onboard`**, optional Telegram slashes included).
 
 ## Configuration
 
@@ -467,7 +468,7 @@ Set the output URL + `/feishu/webhook` as your Feishu event subscription URL.
 ## Security
 
 - `~/.maven/config.json` is set to `chmod 600` (owner read/write only)
-- `.gitignore` excludes `config.json`, `.env`, and workspace memory files
+- `.gitignore` excludes `config.json`
 - Use environment variables for sensitive values in CI/CD and production
 - Never commit real API keys or tokens to version control
 

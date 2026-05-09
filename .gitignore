@@ -32,7 +32,3 @@ Thumbs.db
 
 # Config with secrets
 config.json
-
-# Workspace data (user-specific)
-workspace/memory/*.md
-workspace/HEARTBEAT.md
