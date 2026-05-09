@@ -193,11 +193,23 @@ Shutdown is ordered and deterministic to prevent use-after-close and message los
 
 ### 4.4 Hot Reload
 
-Optional config watching (`internal/config/watch.go`) monitors `~/.maven/config.json`. On change (with debounce), it triggers `Apply`.
+Hot reload is optional config watching (`internal/config/watch.go`) that triggers `Apply` on changes to `~/.maven/config.json`. A debounce window (default 800ms, configurable via `gateway.reloadDebounceMs`) prevents rapid successive reloads from causing thrash.
 
-**Constraints:**
-- `agent.workspace` path cannot change during reload (requires restart)
-- Cron concurrency (`gateway.cron.maxConcurrentRuns`) is fixed at process start
+The reload sequence is:
+
+1. **Config watcher detects change** — `fsnotify` observes a write, create, rename, or remove event on the config file.
+2. **Debounce** — A timer resets on each event; only the trailing edge after the debounce period fires the reload.
+3. **Gateway calls `Apply`** — This rebuilds the runtime, reconfigures channels, and refreshes slash handlers.
+4. **Runtime swap under lock** — The pipeline holds `turnMu` (read lock) during active turns. `Apply` acquires the write lock, ensuring no turn is interrupted mid-flight.
+5. **Drain and restart** — The channel manager stops old channels and starts new ones. The heartbeat service is restarted. Cron continues with its existing schedule (concurrency is fixed at startup).
+
+Constraints:
+
+* **Workspace path cannot change** during reload. If the config specifies a different `agent.workspace`, the reload is rejected and logged.
+* **Cron concurrency** (`gateway.cron.maxConcurrentRuns`) is fixed at process start. Changing it requires a full restart.
+* **No in-flight turns are dropped** — The write lock on `turnMu` waits for active turns to complete before swapping the runtime.
+
+This design ensures that a running gateway can pick up model changes, channel reconfigurations, skill updates, and prompt edits without dropping connections or losing messages.
 
 ---
 
