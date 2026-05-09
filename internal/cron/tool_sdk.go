@@ -1,4 +1,4 @@
-package cronschedule
+package cron
 
 import (
 	"context"
@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/cron"
 )
 
-func Tools(svc *cron.Service) []tool.Tool {
+func Tools(svc *Service) []tool.Tool {
 	if svc == nil {
 		return nil
 	}
@@ -20,7 +19,7 @@ func Tools(svc *cron.Service) []tool.Tool {
 	}
 }
 
-type scheduleTool struct{ svc *cron.Service }
+type scheduleTool struct{ svc *Service }
 
 func (t *scheduleTool) Name() string { return "CronSchedule" }
 
@@ -31,7 +30,7 @@ func (t *scheduleTool) Description() string {
 		"You may also set deliver_to_incoming_chat true explicitly instead of guessing channel/to."
 }
 
-func (t *scheduleTool) Schema() *tool.JSONSchema { return scheduleSchema }
+func (t *scheduleTool) Schema() *tool.JSONSchema { return cronScheduleToolSchema }
 
 func (t *scheduleTool) Execute(ctx context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
 	job, err := AddFromToolMap(t.svc, ctx, params, time.Now())
@@ -41,7 +40,7 @@ func (t *scheduleTool) Execute(ctx context.Context, params map[string]interface{
 	return &tool.ToolResult{Success: true, Output: FormatJobAdded(job)}, nil
 }
 
-type listTool struct{ svc *cron.Service }
+type listTool struct{ svc *Service }
 
 func (t *listTool) Name() string { return "CronList" }
 
@@ -49,14 +48,14 @@ func (t *listTool) Description() string {
 	return "List all persisted gateway cron jobs (id, schedule, delivery targets)."
 }
 
-func (t *listTool) Schema() *tool.JSONSchema { return listSchema }
+func (t *listTool) Schema() *tool.JSONSchema { return cronListToolSchema }
 
 func (t *listTool) Execute(_ context.Context, _ map[string]interface{}) (*tool.ToolResult, error) {
 	out := FormatList(t.svc.ListJobs())
 	return &tool.ToolResult{Success: true, Output: out}, nil
 }
 
-type removeTool struct{ svc *cron.Service }
+type removeTool struct{ svc *Service }
 
 func (t *removeTool) Name() string { return "CronRemove" }
 
@@ -64,7 +63,7 @@ func (t *removeTool) Description() string {
 	return "Remove a gateway cron job by id (use CronList to see ids)."
 }
 
-func (t *removeTool) Schema() *tool.JSONSchema { return removeSchema }
+func (t *removeTool) Schema() *tool.JSONSchema { return cronRemoveToolSchema }
 
 func (t *removeTool) Execute(_ context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
 	id := stringFromMap(params, "id")

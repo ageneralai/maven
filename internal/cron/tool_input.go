@@ -1,4 +1,4 @@
-package cronschedule
+package cron
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	turnctx "github.com/ageneralai/maven/pkg/context"
-	"github.com/ageneralai/maven/internal/cron"
 )
 
+// CronToolInput is parsed JSON for CronSchedule / cron-add tool flows (gateway defaults applied separately).
 type CronToolInput struct {
 	Name                  string
 	Message               string
@@ -71,28 +71,28 @@ func (in *CronToolInput) ValidateDeliveryPolicy(ctx context.Context) error {
 	ch := strings.TrimSpace(in.Channel)
 	to := strings.TrimSpace(in.To)
 	if deliverIncoming && deliver {
-		return fmt.Errorf("cronschedule: use either deliver_to_incoming_chat or deliver with channel and to, not both")
+		return fmt.Errorf("tool: use either deliver_to_incoming_chat or deliver with channel and to — not both")
 	}
 	if deliverIncoming {
 		if ch != "" || to != "" {
-			return fmt.Errorf("cronschedule: with deliver_to_incoming_chat omit channel and to (they come from the current gateway chat)")
+			return fmt.Errorf("tool: with deliver_to_incoming_chat omit channel and to (they come from the current gateway chat)")
 		}
 		if _, ok := turnctx.From(ctx); !ok {
-			return fmt.Errorf("cronschedule: deliver_to_incoming_chat needs an active gateway conversation (missing inbound channel or chat id)")
+			return fmt.Errorf("tool: deliver_to_incoming_chat needs an active gateway conversation (missing inbound channel or chat id)")
 		}
 		return nil
 	}
 	if deliver {
 		if ch == "" || to == "" {
-			return fmt.Errorf("cronschedule: deliver=true requires non-empty channel and to")
+			return fmt.Errorf("tool: deliver=true requires non-empty channel and to")
 		}
-		if cron.IsReservedRecipient(to) {
-			return fmt.Errorf("cronschedule: invalid to=%q — use boolean deliver_to_incoming_chat for same-chat delivery, not a magic string in to", to)
+		if IsReservedRecipient(to) {
+			return fmt.Errorf("tool: invalid to=%q — use boolean deliver_to_incoming_chat for same-chat delivery, not a magic string in to", to)
 		}
 		return nil
 	}
 	if ch != "" || to != "" {
-		return fmt.Errorf("cronschedule: omit channel and to unless deliver=true or deliver_to_incoming_chat=true (got channel=%q to=%q)", ch, to)
+		return fmt.Errorf("tool: omit channel and to unless deliver=true or deliver_to_incoming_chat=true (got channel=%q to=%q)", ch, to)
 	}
 	return nil
 }

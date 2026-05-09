@@ -1,4 +1,4 @@
-package channels
+package manager
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channel"
+	chann "github.com/ageneralai/maven/internal/channel"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -35,7 +35,7 @@ func (m *mockManagedChannel) Send(ctx context.Context, msg bus.OutboundMessage) 
 	m.sentMsgs = append(m.sentMsgs, msg)
 	return nil
 }
-func (m *mockManagedChannel) Capabilities() channel.CapabilitySet { return channel.CapabilitySet{} }
+func (m *mockManagedChannel) Capabilities() chann.CapabilitySet { return chann.CapabilitySet{} }
 
 func TestChannelManager_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
@@ -49,7 +49,7 @@ func TestChannelManager_WithMockChannel(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock"}
 	m := &ChannelManager{
-		channels: map[string]channel.Channel{"mock": mock},
+		channels: map[string]chann.Channel{"mock": mock},
 		bus:      b,
 		log:      mgrTestLog,
 	}
@@ -92,7 +92,7 @@ func TestChannelManager_StartAll_Error(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock", startErr: fmt.Errorf("start failed")}
 	m := &ChannelManager{
-		channels: map[string]channel.Channel{"mock": mock},
+		channels: map[string]chann.Channel{"mock": mock},
 		bus:      b,
 		log:      mgrTestLog,
 	}
@@ -105,7 +105,7 @@ func TestChannelManager_StopAll_Error(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock", stopErr: fmt.Errorf("stop failed")}
 	m := &ChannelManager{
-		channels: map[string]channel.Channel{"mock": mock},
+		channels: map[string]chann.Channel{"mock": mock},
 		bus:      b,
 		log:      mgrTestLog,
 	}

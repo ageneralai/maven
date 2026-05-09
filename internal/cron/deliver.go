@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channels"
+	"github.com/ageneralai/maven/internal/channel/manager"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -12,7 +12,7 @@ import (
 // completes successfully. Nil or partial fields are ignored.
 type Deliver struct {
 	Bus      *bus.MessageBus
-	Channels *channels.ChannelManager
+	Channels *manager.ChannelManager
 	Log      mavenlog.PrintLogger
 }
 

@@ -99,7 +99,7 @@ flowchart TB
     end
 
     subgraph transports["Transports"]
-        CM[Channel Manager<br/>internal/channels]
+        CM[ChannelManager<br/>channel/manager]
         TG[Telegram]
         FS[Feishu]
         WC[WeCom]
@@ -323,8 +323,8 @@ channel:chatId → sessionId
 
 Background execution intentionally does **not** reuse chat sessions:
 
-- **Cron** uses `internal/cronsession` — stable session keys derived from job ID
-- **Heartbeat** uses `internal/heartbeatsession` — stable session keys per run
+- **Cron** uses `cron.SessionKey` — stable session keys derived from job ID
+- **Heartbeat** uses `heartbeat.SessionKey` — stable session keys per run
 
 This prevents background tool execution from polluting user conversation history.
 
@@ -568,19 +568,17 @@ internal/
   pipeline/             Turn execution coordinator
   bus/                  Inbound/outbound messaging
   agent/                Runtime adapter and post-actions
-  channels/             Transport implementations
+  channel/              Channel interface, streaming helpers, base types
+    manager/            Channel wiring (Apply / outbound subscribers)
     telegram/
     feishu/
     wecom/
     whatsapp/
     webui/
-  channel/              Channel interface and base types
   config/               Configuration loading, validation, and file watching
-  cron/                 Scheduler and persistent job store
-  cronschedule/         Cron tool input parsing and registration
-  cronsession/          Stable session keys for cron runs
-  heartbeat/            HEARTBEAT.md periodic runner
-  heartbeatsession/     Stable session keys for heartbeat runs
+  cron/                 Scheduler, persistent job store, SessionKey, Deliver; tool_*.go (CronSchedule tools / parsing)
+
+  heartbeat/            HEARTBEAT.md periodic runner and tick SessionKey
   session/              Session ID routing and rotation
   slash/                Command parsing and pre-turn handling
   skills/               SKILL.md loader and SDK registration

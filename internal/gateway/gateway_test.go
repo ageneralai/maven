@@ -14,10 +14,9 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channels"
+	"github.com/ageneralai/maven/internal/channel/manager"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
@@ -172,7 +171,7 @@ func TestGateway_Shutdown(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := channels.NewChannelManager(msgBus, testLG)
+	chMgr := manager.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	mockRt := &mockRuntime{}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
@@ -555,7 +554,7 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := channels.NewChannelManager(msgBus, testLG)
+	chMgr := manager.NewChannelManager(msgBus, testLG)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
@@ -895,7 +894,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	sid := cronsession.SessionKey(j.ID)
+	sid := cron.SessionKey(j.ID)
 	result, err := ge.RunTurn(context.Background(), j.Payload.Message, sid)
 	if err != nil {
 		t.Errorf("RunTurn error: %v", err)
@@ -905,7 +904,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	}
 	select {
 	case req := <-mockRt.reqCh:
-		if !cronsession.MatchesJob(j.ID, req.SessionID) {
+		if !cron.MatchesJob(j.ID, req.SessionID) {
 			t.Fatalf("SessionID = %q, want cron-isolated key for job %q", req.SessionID, j.ID)
 		}
 	case <-time.After(time.Second):
@@ -1034,7 +1033,7 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 		t.Fatal(err)
 	}
 	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	_, err = ge.RunTurn(context.Background(), j.Payload.Message, cronsession.SessionKey(j.ID))
+	_, err = ge.RunTurn(context.Background(), j.Payload.Message, cron.SessionKey(j.ID))
 	if err != context.DeadlineExceeded {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}

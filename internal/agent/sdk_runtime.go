@@ -8,7 +8,6 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/cronschedule"
 )
 
 type runtimeAdapter struct {
@@ -58,7 +57,7 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
 		Skills:      skillRegs,
-		CustomTools: cronschedule.Tools(cronSvc),
+		CustomTools: cron.Tools(cronSvc),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)

@@ -13,7 +13,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
-	"github.com/ageneralai/maven/internal/channels"
+	"github.com/ageneralai/maven/internal/channel/manager"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/internal/health"
@@ -49,7 +49,7 @@ type Gateway struct {
 	pipe           *pipeline.Pipeline
 	pipeWg         sync.WaitGroup
 	runCancel      context.CancelFunc
-	channelMgr *channels.ChannelManager
+	channelMgr     *manager.ChannelManager
 	cron           *cron.Service
 	hb             *heartbeat.Service
 	runtimeFactory RuntimeFactory
@@ -99,7 +99,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
-	g.channelMgr = channels.NewChannelManager(g.bus, g.logger)
+	g.channelMgr = manager.NewChannelManager(g.bus, g.logger)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}

@@ -1,4 +1,4 @@
-package cronsession
+package cron
 
 import (
 	"strings"
@@ -7,17 +7,17 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSessionKey_FormAndUniqueness(t *testing.T) {
+func TestCronSessionKey_FormAndUniqueness(t *testing.T) {
 	jobID := "job-abc"
 	a := SessionKey(jobID)
 	b := SessionKey(jobID)
 	if a == b {
 		t.Fatal("expected distinct keys per call")
 	}
-	if !strings.HasPrefix(a, keyPrefix+jobID+"-") {
+	if !strings.HasPrefix(a, cronSessionKeyPrefix+jobID+"-") {
 		t.Fatalf("prefix mismatch: %q", a)
 	}
-	suffix := strings.TrimPrefix(a, keyPrefix+jobID+"-")
+	suffix := strings.TrimPrefix(a, cronSessionKeyPrefix+jobID+"-")
 	if _, err := uuid.Parse(suffix); err != nil {
 		t.Fatalf("suffix not uuid: %v", err)
 	}

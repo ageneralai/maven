@@ -1,4 +1,4 @@
-package cronschedule
+package cron
 
 import (
 	"fmt"
@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/cron"
 )
 
-func FormatJobAdded(job *cron.CronJob) string {
+func FormatJobAdded(job *CronJob) string {
 	if job == nil {
 		return ""
 	}
@@ -32,7 +31,7 @@ func FormatJobAdded(job *cron.CronJob) string {
 	return fmt.Sprintf("Added job id=%s name=%q %s%s", j.ID, j.Name, sched, del)
 }
 
-func FormatJobLine(j cron.CronJob) string {
+func FormatJobLine(j CronJob) string {
 	en := "off"
 	if j.Enabled {
 		en = "on"
@@ -55,7 +54,7 @@ func FormatJobLine(j cron.CronJob) string {
 	return fmt.Sprintf("%s name=%q enabled=%s %s msg=%q%s", j.ID, j.Name, en, sched, j.Payload.Message, d)
 }
 
-func FormatList(jobs []cron.CronJob) string {
+func FormatList(jobs []CronJob) string {
 	if len(jobs) == 0 {
 		return "No cron jobs."
 	}
@@ -67,7 +66,7 @@ func FormatList(jobs []cron.CronJob) string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-var scheduleSchema = &tool.JSONSchema{
+var cronScheduleToolSchema = &tool.JSONSchema{
 	Type: "object",
 	Properties: map[string]interface{}{
 		"name": map[string]interface{}{
@@ -110,12 +109,12 @@ var scheduleSchema = &tool.JSONSchema{
 	Required: []string{"name", "message"},
 }
 
-var listSchema = &tool.JSONSchema{
+var cronListToolSchema = &tool.JSONSchema{
 	Type:       "object",
 	Properties: map[string]interface{}{},
 }
 
-var removeSchema = &tool.JSONSchema{
+var cronRemoveToolSchema = &tool.JSONSchema{
 	Type: "object",
 	Properties: map[string]interface{}{
 		"id": map[string]interface{}{

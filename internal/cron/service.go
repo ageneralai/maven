@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/adhocore/gronx"
-	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
@@ -236,7 +235,7 @@ func (s *Service) fire(job CronJob) {
 		return
 	}
 	defer s.sem.Release(1)
-	sessionID := cronsession.SessionKey(job.ID)
+	sessionID := SessionKey(job.ID)
 	out, err := s.exec.RunTurn(runCtx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()

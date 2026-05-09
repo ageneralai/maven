@@ -1,12 +1,10 @@
-package cronschedule
+package cron
 
 import (
 	"context"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/ageneralai/maven/internal/cron"
 )
 
 type AddParams struct {
@@ -23,7 +21,7 @@ type AddParams struct {
 	MessageID             int
 }
 
-func Add(svc *cron.Service, p AddParams, now time.Time) (*cron.CronJob, error) {
+func Add(svc *Service, p AddParams, now time.Time) (*CronJob, error) {
 	p.Name = strings.TrimSpace(p.Name)
 	p.Message = strings.TrimSpace(p.Message)
 	p.Expr = strings.TrimSpace(p.Expr)
@@ -53,23 +51,23 @@ func Add(svc *cron.Service, p AddParams, now time.Time) (*cron.CronJob, error) {
 	if n != 1 {
 		return nil, fmt.Errorf("exactly one of expr, in, or at_ms is required")
 	}
-	var sch cron.Schedule
+	var sch Schedule
 	switch {
 	case pp.Expr != "":
-		sch = cron.Schedule{Kind: "cron", Expr: pp.Expr}
+		sch = Schedule{Kind: "cron", Expr: pp.Expr}
 	case pp.In != "":
 		d, err := time.ParseDuration(pp.In)
 		if err != nil {
 			return nil, fmt.Errorf("in: %w", err)
 		}
-		sch = cron.Schedule{Kind: "at", AtMs: now.UnixMilli() + d.Round(time.Millisecond).Milliseconds()}
+		sch = Schedule{Kind: "at", AtMs: now.UnixMilli() + d.Round(time.Millisecond).Milliseconds()}
 	default:
-		sch = cron.Schedule{Kind: "at", AtMs: pp.AtMs}
+		sch = Schedule{Kind: "at", AtMs: pp.AtMs}
 	}
 	if pp.Deliver && (pp.Channel == "" || pp.To == "") {
 		return nil, fmt.Errorf("deliver requires channel and to, or use deliver_to_incoming_chat in a gateway chat session")
 	}
-	payload := cron.Payload{
+	payload := Payload{
 		Message: pp.Message,
 		Deliver: pp.Deliver,
 		Channel: pp.Channel,
@@ -81,7 +79,7 @@ func Add(svc *cron.Service, p AddParams, now time.Time) (*cron.CronJob, error) {
 	return svc.AddJob(pp.Name, sch, payload)
 }
 
-func AddFromToolMap(svc *cron.Service, ctx context.Context, m map[string]interface{}, now time.Time) (*cron.CronJob, error) {
+func AddFromToolMap(svc *Service, ctx context.Context, m map[string]interface{}, now time.Time) (*CronJob, error) {
 	in, err := ParseCronToolInput(m)
 	if err != nil {
 		return nil, err

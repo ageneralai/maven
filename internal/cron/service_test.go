@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ageneralai/maven/internal/cronsession"
 	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
@@ -46,7 +45,7 @@ func TestServiceFiresJobViaExecutor(t *testing.T) {
 	if gotPrompt != "hi" {
 		t.Fatalf("prompt %q", gotPrompt)
 	}
-	if !cronsession.MatchesJob(j.ID, gotSID) {
+	if !MatchesJob(j.ID, gotSID) {
 		t.Fatalf("session %q for job %q", gotSID, j.ID)
 	}
 }

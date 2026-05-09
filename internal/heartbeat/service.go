@@ -9,7 +9,6 @@ import (
 
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/internal/health"
-	"github.com/ageneralai/maven/internal/heartbeatsession"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
 	"golang.org/x/sync/semaphore"
@@ -100,7 +99,7 @@ func (s *Service) execute(ctx context.Context) {
 		return
 	}
 	s.log.Printf("[heartbeat] triggering with prompt (%d chars)", len(prompt))
-	sessionID := heartbeatsession.SessionKey()
+	sessionID := SessionKey()
 	result, err := s.exec.RunTurn(ctx, prompt, sessionID)
 	if err != nil {
 		s.log.Printf("[heartbeat] error: %v", err)

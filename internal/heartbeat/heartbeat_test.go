@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/health"
-	"github.com/ageneralai/maven/internal/heartbeatsession"
 	"github.com/ageneralai/maven/internal/testutil"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
@@ -221,7 +220,7 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 	if ids[0] == ids[1] {
 		t.Fatal("expected distinct session ids")
 	}
-	if !heartbeatsession.Matches(ids[0]) || !heartbeatsession.Matches(ids[1]) {
+	if !MatchesSession(ids[0]) || !MatchesSession(ids[1]) {
 		t.Fatalf("not heartbeat sessions: %v", ids)
 	}
 }
