@@ -305,6 +305,10 @@ header h1 {
     }, reconnectDelay);
   }
 
+  function formatTimeHMS(d) {
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+  }
+
   function send() {
     var text = inputEl.value.trim();
     if (!text || !ws || ws.readyState !== 1) return;
@@ -325,7 +329,9 @@ header h1 {
     div.appendChild(bodyDiv);
     var timeDiv = document.createElement('div');
     timeDiv.className = 'time';
-    timeDiv.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    var at = new Date();
+    timeDiv.textContent = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    timeDiv.title = formatTimeHMS(at);
     div.appendChild(timeDiv);
     messagesEl.appendChild(div);
     scrollToBottom();
