@@ -6,10 +6,13 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
+
+const ttsChunkWriteTimeout = 5 * time.Second
 
 // Session owns one voice route’s STT/TTS lifecycle and streaming TTS coordination.
 type Session struct {
@@ -126,18 +129,23 @@ func (s *Session) synthPhrase(ctx context.Context, text string, writeBinary func
 	if err != nil {
 		return err
 	}
-	for chunk := range chunks {
+	for {
 		select {
 		case <-subCtx.Done():
 			return nil
-		default:
-		}
-		if len(chunk) == 0 {
-			continue
-		}
-		if err := writeBinary(subCtx, chunk); err != nil {
-			return err
+		case chunk, ok := <-chunks:
+			if !ok {
+				return nil
+			}
+			if len(chunk) == 0 {
+				continue
+			}
+			writeCtx, wcancel := context.WithTimeout(subCtx, ttsChunkWriteTimeout)
+			werr := writeBinary(writeCtx, chunk)
+			wcancel()
+			if werr != nil {
+				return werr
+			}
 		}
 	}
-	return nil
 }
