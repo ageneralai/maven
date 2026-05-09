@@ -328,5 +328,5 @@ func SaveConfig(cfg *Config) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	return os.WriteFile(ConfigPath(), data, 0644)
+	return os.WriteFile(ConfigPath(), data, 0600)
 }

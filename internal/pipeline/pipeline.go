@@ -201,7 +201,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 				return
 			}
 			meta := cloneTransportMeta(msg.TransportMeta)
-			sendErr := sc.SendStream(ctx, msg.ChatID, meta, streamEvents)
+			sendErr := sc.SendStream(streamCtx, msg.ChatID, meta, streamEvents)
 			p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
 			if sendErr != nil {
 				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, sendErr)

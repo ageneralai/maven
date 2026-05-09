@@ -232,8 +232,6 @@ func (t *TelegramChannel) bufferMediaGroup(msg *telego.Message) {
 		g = &mediaGroup{}
 		t.mgBuffer[gid] = g
 		g.timer = time.AfterFunc(500*time.Millisecond, func() { t.flushMediaGroup(gid) })
-	} else {
-		g.timer.Reset(500 * time.Millisecond)
 	}
 	g.msgs = append(g.msgs, msg)
 }

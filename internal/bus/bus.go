@@ -199,7 +199,14 @@ func (b *MessageBus) DispatchOutbound(ctx context.Context) {
 			cb := b.subs[msg.Channel]
 			b.mu.RUnlock()
 			if cb != nil {
-				cb(msg)
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							b.log.Printf("[bus] panic in outbound subscriber: %v", rec)
+						}
+					}()
+					cb(msg)
+				}()
 			} else {
 				b.log.Printf("[bus] no subscriber for channel %q, dropping message", msg.Channel)
 			}

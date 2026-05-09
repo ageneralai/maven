@@ -27,6 +27,8 @@ type Service struct {
 	log       mavenlog.PrintLogger
 	mu        sync.RWMutex
 	jobs      []CronJob
+	runCtx    context.Context
+	runCancel context.CancelFunc
 	stopChan  chan struct{}
 	stopOnce  sync.Once
 	wakeChan  chan struct{}
@@ -229,13 +231,13 @@ func (s *Service) fire(job CronJob) {
 		s.mu.Unlock()
 		return
 	}
-	ctx := context.Background()
-	if err := s.sem.Acquire(ctx, 1); err != nil {
+	runCtx := s.runCtx
+	if err := s.sem.Acquire(runCtx, 1); err != nil {
 		return
 	}
 	defer s.sem.Release(1)
 	sessionID := cronsession.SessionKey(job.ID)
-	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
+	out, err := s.exec.RunTurn(runCtx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()
 	idx := s.findJobIndex(job.ID)
@@ -267,7 +269,7 @@ func (s *Service) fire(job CronJob) {
 	_ = s.saveAtomicLocked()
 	s.mu.Unlock()
 	if err == nil && s.deliver != nil {
-		s.deliver.AfterSuccessfulRun(ctx, job, out)
+		s.deliver.AfterSuccessfulRun(runCtx, job, out)
 	}
 }
 
@@ -283,6 +285,7 @@ func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	s.runCtx, s.runCancel = context.WithCancel(ctx)
 	if err := s.load(); err != nil {
 		s.log.Printf("[cron] warning: failed to load jobs: %v", err)
 	}
@@ -302,7 +305,12 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s *Service) Stop() {
-	s.stopOnce.Do(func() { close(s.stopChan) })
+	s.stopOnce.Do(func() {
+		close(s.stopChan)
+		if s.runCancel != nil {
+			s.runCancel()
+		}
+	})
 	s.log.Printf("[cron] stopped")
 }
 
