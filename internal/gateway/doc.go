@@ -7,12 +7,12 @@
 //   - Pipeline reload and shutdown drain via turnMu (pipeline.Pipeline).
 //   - Gateway.Apply is the single declarative path: ChannelManager.Apply, new runtime via factory,
 //     pipeline.Reload (no separate “first start” branch). Cron proactive delivery is cron.Deliver.AfterSuccessfulRun after a successful job run; TurnExecutor stays pipeline-only.
-//   - The message bus (internal/bus.NewMessageBus) defaults to internal/events.NoOp for EventPublisher.
+//   - The message bus (internal/bus.NewMessageBus) defaults to pkg/events.NoOp for EventPublisher.
 //     Wire internal/bus.WithEventPublisher to observe events.EventBusPublishFailure and
 //     events.EventBusClosed emits.
 //   - Streaming: internal/bus.StreamDelegate defaults to noop; wire WithStreamDelegate or
 //     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
-//   - Per-turn routing: internal/context (package turnctx): pipeline attaches WithInbound;
+//   - Per-turn routing: pkg/context (package turnctx): pipeline attaches WithInbound;
 //     tools resolve channel/chat with From / Channel / ChatID. TurnContext optionally carries Metadata
 //     (trimmed-string keys after normalize) and TurnBudget without passing them through the agent SDK yet.
 //   - Liveness: internal/health.HealthReporter defaults to NoOp. gateway.Options.HealthReporter receives

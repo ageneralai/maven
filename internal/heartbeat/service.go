@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeatsession"
 	mavenlog "github.com/ageneralai/maven/pkg/log"

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/cronsession"
-	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 

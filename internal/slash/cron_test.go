@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 

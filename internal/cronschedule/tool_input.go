@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	turnctx "github.com/ageneralai/maven/internal/context"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/internal/cron"
 )
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ageneralai/maven/internal/events"
+	"github.com/ageneralai/maven/pkg/events"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -42,7 +42,7 @@ type MessageBus struct {
 type Option func(*MessageBus)
 
 // WithEventPublisher wires lifecycle/diagnostic emits (publish failures, bus closed).
-// Passing nil behaves like internal/events.NoOp.
+// Passing nil behaves like pkg/events.NoOp.
 func WithEventPublisher(p events.EventPublisher) Option {
 	return func(b *MessageBus) {
 		b.publisher = events.OrPublisher(p)

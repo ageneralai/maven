@@ -146,6 +146,8 @@ cmd/maven/           CLI (agent, gateway, onboard, status, skills)
 pkg/
   log/               PrintLogger + Std() (stepping stone until structured logging)
   stringutil/        Small helpers (e.g. log truncation)
+  context/           Per-turn routing on context.Context (package turnctx)
+  memory/            MEMORY.md + daily journal files (MemoryStore)
 internal/
   agent/             Runtime adapter (ageneral-agents-go), invoke, post-actions
   bus/               Inbound/outbound channels, routing hints, dispatch
@@ -161,8 +163,6 @@ internal/
   health/            Coarse liveness taps (HealthReporter); gateway + heartbeat
   heartbeatsession/  Stable session keys for heartbeat runs
   heartbeat/         HEARTBEAT.md periodic runner
-  context/           Per-turn routing on context.Context (package turnctx)
-  memory/            MEMORY.md + daily journal files
   pipeline/          Inbound loop, runtime ownership, streaming/sync paths
   prompt/            System prompt from workspace files + memory
   session/           Session ID router (per chat route)

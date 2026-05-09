@@ -17,7 +17,7 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
-	"github.com/ageneralai/maven/internal/memory"
+	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/spf13/cobra"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"maps"
 
-	turnctx "github.com/ageneralai/maven/internal/context"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
 // enrichRequestMetadataWithTurnRouting merges handler metadata with channel/chat from ctx when

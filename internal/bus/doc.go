@@ -12,7 +12,7 @@
 // events.EventBusPublishFailure when an EventPublisher is wired via WithEventPublisher.
 //
 // MessageBus construction and WithEventPublisher register that same publisher as
-// internal/events.Publish default (events.SetDefaultPublisher). Gateway code that
+// pkg/events.Publish default (events.SetDefaultPublisher). Gateway code that
 // emits lifecycle/diagnostic events should use events.Publish instead of reaching into
 // the bus; the bus remains the only caller of SetDefaultPublisher.
 //

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/ageneralai/maven/internal/config"
-	"github.com/ageneralai/maven/internal/memory"
+	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	turnctx "github.com/ageneralai/maven/internal/context"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/internal/executor"
+	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 

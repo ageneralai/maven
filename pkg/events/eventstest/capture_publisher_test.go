@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ageneralai/maven/internal/events"
+	"github.com/ageneralai/maven/pkg/events"
 )
 
 func TestCapturePublisher_RecordsEvents(t *testing.T) {

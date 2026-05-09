@@ -8,9 +8,9 @@ import (
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/session"
-	turnctx "github.com/ageneralai/maven/internal/context"
-	"github.com/ageneralai/maven/internal/events"
-	"github.com/ageneralai/maven/internal/events/eventstest"
+	turnctx "github.com/ageneralai/maven/pkg/context"
+	"github.com/ageneralai/maven/pkg/events"
+	"github.com/ageneralai/maven/pkg/events/eventstest"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 

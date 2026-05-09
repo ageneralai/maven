@@ -1,11 +1,11 @@
-// Package eventstest holds test doubles for github.com/ageneralai/maven/internal/events.
+// Package eventstest holds test doubles for github.com/ageneralai/maven/pkg/events.
 package eventstest
 
 import (
 	"context"
 	"sync"
 
-	"github.com/ageneralai/maven/internal/events"
+	"github.com/ageneralai/maven/pkg/events"
 )
 
 // CapturePublisher records every published event (implements EventPublisher).

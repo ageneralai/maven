@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	turnctx "github.com/ageneralai/maven/internal/context"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
 func validateToolDeliveryPolicy(ctx context.Context, m map[string]interface{}) error {

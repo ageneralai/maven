@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ageneralai/maven/internal/events"
-	"github.com/ageneralai/maven/internal/events/eventstest"
+	"github.com/ageneralai/maven/pkg/events"
+	"github.com/ageneralai/maven/pkg/events/eventstest"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 

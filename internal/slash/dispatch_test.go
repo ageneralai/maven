@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	turnctx "github.com/ageneralai/maven/internal/context"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
 func TestPreTurn_EmptyOutput_ContinuesToModelWithTrail(t *testing.T) {
