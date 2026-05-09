@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// DeepgramTTS streams MP3 audio from Deepgram speak HTTP API.
+// DeepgramTTS streams linear16 PCM from Deepgram speak HTTP API (mono, 24 kHz).
 type DeepgramTTS struct {
 	APIKey string
 	Model  string
@@ -34,6 +34,9 @@ func (d *DeepgramTTS) Synthesize(ctx context.Context, text string) (<-chan []byt
 	}
 	q := url.Values{}
 	q.Set("model", model)
+	q.Set("encoding", "linear16")
+	q.Set("sample_rate", "24000")
+	q.Set("container", "none")
 	endpoint := "https://api.deepgram.com/v1/speak?" + q.Encode()
 	body, err := json.Marshal(map[string]string{"text": t})
 	if err != nil {

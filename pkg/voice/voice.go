@@ -20,7 +20,9 @@ type STT interface {
 	Transcribe(ctx context.Context, audio <-chan []byte) (<-chan string, error)
 }
 
-// TTS converts one text segment to streaming audio chunks (e.g. MP3 frames).
+// TTS converts one text segment to streaming PCM chunks (int16 LE mono, 24 kHz).
+// Chunks are raw samples with no container header — providers must be configured
+// accordingly (e.g. Deepgram container=none, ElevenLabs output_format=pcm_24000).
 type TTS interface {
 	Synthesize(ctx context.Context, text string) (<-chan []byte, error)
 }

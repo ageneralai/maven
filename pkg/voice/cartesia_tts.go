@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// CartesiaTTS streams MP3 from Cartesia TTS bytes API (https://docs.cartesia.ai/2024-11-13/api-reference/tts/bytes).
+// CartesiaTTS streams raw PCM (pcm_s16le) from Cartesia TTS bytes API.
 type CartesiaTTS struct {
 	APIKey  string
 	ModelID string
@@ -57,9 +57,9 @@ func (c *CartesiaTTS) Synthesize(ctx context.Context, text string) (<-chan []byt
 			"id":   voiceID,
 		},
 		OutputFormat: map[string]interface{}{
-			"container":   "mp3",
-			"sample_rate": 44100,
-			"bit_rate":    128000,
+			"container":   "raw",
+			"encoding":    "pcm_s16le",
+			"sample_rate": 24000,
 		},
 	})
 	if err != nil {

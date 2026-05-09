@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
-// ElevenLabsTTS streams audio from ElevenLabs streaming endpoint (usually MPEG chunks).
+// ElevenLabsTTS streams PCM (pcm_24000) from ElevenLabs streaming endpoint.
 type ElevenLabsTTS struct {
 	APIKey  string
 	VoiceID string
@@ -39,7 +40,11 @@ func (e *ElevenLabsTTS) Synthesize(ctx context.Context, text string) (<-chan []b
 	if err != nil {
 		return nil, err
 	}
-	endpoint := fmt.Sprintf("https://api.elevenlabs.io/v1/text-to-speech/%s/stream?optimize_streaming_latency=3", voice)
+	u := fmt.Sprintf("https://api.elevenlabs.io/v1/text-to-speech/%s/stream", voice)
+	q := url.Values{}
+	q.Set("optimize_streaming_latency", "3")
+	q.Set("output_format", "pcm_24000")
+	endpoint := u + "?" + q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err

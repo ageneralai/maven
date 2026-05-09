@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// OpenAITTS streams MP3 audio from OpenAI speech API (chunked response body).
+// OpenAITTS streams PCM audio from OpenAI speech API (chunked response body, 24 kHz mono).
 type OpenAITTS struct {
 	APIKey string
 	Model  string
@@ -47,7 +47,7 @@ func (o *OpenAITTS) Synthesize(ctx context.Context, text string) (<-chan []byte,
 		Model:          model,
 		Voice:          voice,
 		Input:          t,
-		ResponseFormat: "mp3",
+		ResponseFormat: "pcm",
 	})
 	if err != nil {
 		return nil, err

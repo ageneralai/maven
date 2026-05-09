@@ -487,17 +487,26 @@ header h1 {
     voice.playing = false;
   }
 
-  function decodeAndEnqueueVoiceChunk(arrayBuffer) {
+  function enqueueVoiceChunk(arrayBuffer) {
     var ctx = ensureVoicePlaybackCtx();
     if (ctx.state === 'suspended') {
       ctx.resume();
     }
-    ctx.decodeAudioData(arrayBuffer.slice(0)).then(function(audioBuf) {
-      voice.queue.push(audioBuf);
-      if (!voice.playing) {
-        voicePlayNext();
-      }
-    }).catch(function() {});
+    var byteLen = arrayBuffer.byteLength - (arrayBuffer.byteLength % 2);
+    if (byteLen === 0) {
+      return;
+    }
+    var int16 = new Int16Array(arrayBuffer, 0, byteLen / 2);
+    var float32 = new Float32Array(int16.length);
+    for (var i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 32768.0;
+    }
+    var audioBuf = ctx.createBuffer(1, float32.length, 24000);
+    audioBuf.copyToChannel(float32, 0);
+    voice.queue.push(audioBuf);
+    if (!voice.playing) {
+      voicePlayNext();
+    }
   }
 
   function voicePlayNext() {
@@ -563,7 +572,7 @@ header h1 {
           stopVoicePlayback();
           return;
         }
-        decodeAndEnqueueVoiceChunk(e.data);
+        enqueueVoiceChunk(e.data);
         return;
       }
     };
