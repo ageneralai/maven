@@ -26,3 +26,9 @@ type STT interface {
 type TTS interface {
 	Synthesize(ctx context.Context, text string) (<-chan []byte, error)
 }
+
+// TTSProvider is the plugin-facing name for TTS (same method set).
+type TTSProvider = TTS
+
+// STTProvider is the plugin-facing name for STT (same method set).
+type STTProvider = STT

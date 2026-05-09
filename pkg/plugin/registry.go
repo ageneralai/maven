@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/voice"
 )
 
 // Registry holds gateway plugins in registration order. Tools aggregates enabled plugins in that order.
@@ -51,7 +51,7 @@ func (r *Registry) Channels(cfg *config.Config) []channel.Channel {
 	return out
 }
 
-func (r *Registry) Provider(cfg *config.Config) api.ModelFactory {
+func (r *Registry) TTSProvider(cfg *config.Config) voice.TTSProvider {
 	if r == nil || cfg == nil {
 		return nil
 	}
@@ -59,8 +59,23 @@ func (r *Registry) Provider(cfg *config.Config) api.ModelFactory {
 		if !p.Enabled(cfg) {
 			continue
 		}
-		if prov := p.Provider(cfg); prov != nil {
-			return prov
+		if tts := p.TTSProvider(cfg); tts != nil {
+			return tts
+		}
+	}
+	return nil
+}
+
+func (r *Registry) STTProvider(cfg *config.Config) voice.STTProvider {
+	if r == nil || cfg == nil {
+		return nil
+	}
+	for _, p := range r.plugins {
+		if !p.Enabled(cfg) {
+			continue
+		}
+		if stt := p.STTProvider(cfg); stt != nil {
+			return stt
 		}
 	}
 	return nil

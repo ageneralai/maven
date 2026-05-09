@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/voice"
 )
 
 type stubPlugin struct {
@@ -18,7 +18,8 @@ type stubPlugin struct {
 	enabled  bool
 	tools    []tool.Tool
 	channels []channel.Channel
-	provider api.ModelFactory
+	tts      voice.TTSProvider
+	stt      voice.STTProvider
 	started  bool
 	stopped  bool
 }
@@ -31,7 +32,9 @@ func (s *stubPlugin) Tools(*config.Config) []tool.Tool { return s.tools }
 
 func (s *stubPlugin) Channels(*config.Config) []channel.Channel { return s.channels }
 
-func (s *stubPlugin) Provider(*config.Config) api.ModelFactory { return s.provider }
+func (s *stubPlugin) TTSProvider(*config.Config) voice.TTSProvider { return s.tts }
+
+func (s *stubPlugin) STTProvider(*config.Config) voice.STTProvider { return s.stt }
 
 func (s *stubPlugin) Start(context.Context) error {
 	s.started = true
@@ -100,27 +103,52 @@ func TestRegistry_Channels_NilCfg(t *testing.T) {
 	}
 }
 
-func TestRegistry_Provider_AllNil(t *testing.T) {
+func TestRegistry_TTSProvider_AllNil(t *testing.T) {
 	cfg := &config.Config{}
 	r := NewRegistry(
-		&stubPlugin{name: "a", enabled: true, provider: nil},
-		&stubPlugin{name: "b", enabled: true, provider: nil},
+		&stubPlugin{name: "a", enabled: true, tts: nil},
+		&stubPlugin{name: "b", enabled: true, tts: nil},
 	)
-	if got := r.Provider(cfg); got != nil {
-		t.Fatalf("Provider = %v, want nil", got)
+	if got := r.TTSProvider(cfg); got != nil {
+		t.Fatalf("TTSProvider = %v, want nil", got)
 	}
 }
 
-func TestRegistry_Provider_NilRegistry(t *testing.T) {
+func TestRegistry_TTSProvider_NilRegistry(t *testing.T) {
 	var r *Registry
-	if got := r.Provider(&config.Config{}); got != nil {
-		t.Fatalf("Provider = %v, want nil", got)
+	if got := r.TTSProvider(&config.Config{}); got != nil {
+		t.Fatalf("TTSProvider = %v, want nil", got)
 	}
 }
 
-func TestRegistry_Provider_NilCfg(t *testing.T) {
+func TestRegistry_TTSProvider_NilCfg(t *testing.T) {
 	r := NewRegistry(&stubPlugin{name: "x", enabled: true})
-	if got := r.Provider(nil); got != nil {
-		t.Fatalf("Provider(nil) = %v, want nil", got)
+	if got := r.TTSProvider(nil); got != nil {
+		t.Fatalf("TTSProvider(nil) = %v, want nil", got)
+	}
+}
+
+func TestRegistry_STTProvider_AllNil(t *testing.T) {
+	cfg := &config.Config{}
+	r := NewRegistry(
+		&stubPlugin{name: "a", enabled: true, stt: nil},
+		&stubPlugin{name: "b", enabled: true, stt: nil},
+	)
+	if got := r.STTProvider(cfg); got != nil {
+		t.Fatalf("STTProvider = %v, want nil", got)
+	}
+}
+
+func TestRegistry_STTProvider_NilRegistry(t *testing.T) {
+	var r *Registry
+	if got := r.STTProvider(&config.Config{}); got != nil {
+		t.Fatalf("STTProvider = %v, want nil", got)
+	}
+}
+
+func TestRegistry_STTProvider_NilCfg(t *testing.T) {
+	r := NewRegistry(&stubPlugin{name: "x", enabled: true})
+	if got := r.STTProvider(nil); got != nil {
+		t.Fatalf("STTProvider(nil) = %v, want nil", got)
 	}
 }
