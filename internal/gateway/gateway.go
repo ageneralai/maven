@@ -23,6 +23,7 @@ import (
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
+	mavoice "github.com/ageneralai/maven/internal/voice"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/pkg/acp"
@@ -103,8 +104,10 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
-	g.plugins = plugin.NewRegistry(acp.NewPlugin())
-	g.channelMgr = manager.NewChannelManager(g.bus, g.logger)
+	plugs := []plugin.Plugin{acp.NewPlugin()}
+	plugs = append(plugs, mavoice.VoicePlugins()...)
+	g.plugins = plugin.NewRegistry(plugs...)
+	g.channelMgr = manager.NewChannelManager(g.bus, g.logger, g.plugins)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}

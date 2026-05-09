@@ -1,4 +1,4 @@
-package voice
+package deepgram
 
 import (
 	"context"
@@ -13,14 +13,14 @@ import (
 	"github.com/coder/websocket"
 )
 
-// DeepgramSTT streams PCM16 LE mono audio to Deepgram live and emits final transcripts.
-type DeepgramSTT struct {
+// STT streams PCM16 LE mono audio to Deepgram live and emits final transcripts.
+type STT struct {
 	APIKey      string
 	Model       string
 	Endpointing string
 }
 
-func (d *DeepgramSTT) Transcribe(ctx context.Context, audio <-chan []byte) (<-chan string, error) {
+func (d *STT) Transcribe(ctx context.Context, audio <-chan []byte) (<-chan string, error) {
 	if strings.TrimSpace(d.APIKey) == "" {
 		return nil, errors.New("voice: deepgram api key is empty")
 	}
@@ -79,7 +79,7 @@ func (d *DeepgramSTT) Transcribe(ctx context.Context, audio <-chan []byte) (<-ch
 	return out, nil
 }
 
-func (d *DeepgramSTT) readLoop(ctx context.Context, conn *websocket.Conn, out chan<- string) error {
+func (d *STT) readLoop(ctx context.Context, conn *websocket.Conn, out chan<- string) error {
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -116,7 +116,7 @@ func (d *DeepgramSTT) readLoop(ctx context.Context, conn *websocket.Conn, out ch
 		if !isFinal && !speechFinal {
 			continue
 		}
-		tr := dgExtractTranscript(data)
+		tr := extractTranscript(data)
 		tr = strings.TrimSpace(tr)
 		if tr == "" {
 			continue
@@ -141,7 +141,7 @@ type dgResultMsg struct {
 	Channel dgChannel `json:"channel"`
 }
 
-func dgExtractTranscript(data []byte) string {
+func extractTranscript(data []byte) string {
 	var m dgResultMsg
 	if err := json.Unmarshal(data, &m); err != nil {
 		return ""

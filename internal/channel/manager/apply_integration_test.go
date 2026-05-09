@@ -13,7 +13,7 @@ import (
 func TestChannelManager_FeishuEnabled(t *testing.T) {
 	log := mavenlog.Std()
 	b := bus.NewMessageBus(10, log)
-	m := NewChannelManager(b, log)
+	m := NewChannelManager(b, log, nil)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workspace: t.TempDir()},
 		Channels: config.ChannelsConfig{
@@ -37,7 +37,7 @@ func TestChannelManager_FeishuEnabled(t *testing.T) {
 func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
 	log := mavenlog.Std()
 	b := bus.NewMessageBus(10, log)
-	m := NewChannelManager(b, log)
+	m := NewChannelManager(b, log, nil)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workspace: t.TempDir()},
 		Channels: config.ChannelsConfig{
@@ -53,7 +53,7 @@ func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
 func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
 	log := mavenlog.Std()
 	b := bus.NewMessageBus(10, log)
-	m := NewChannelManager(b, log)
+	m := NewChannelManager(b, log, nil)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workspace: t.TempDir()},
 		Channels: config.ChannelsConfig{
@@ -69,7 +69,7 @@ func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
 func TestChannelManager_WeComEnabled(t *testing.T) {
 	log := mavenlog.Std()
 	b := bus.NewMessageBus(10, log)
-	m := NewChannelManager(b, log)
+	m := NewChannelManager(b, log, nil)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workspace: t.TempDir()},
 		Channels: config.ChannelsConfig{
@@ -101,7 +101,7 @@ func TestNewWhatsApp_Disabled(t *testing.T) {
 	log := mavenlog.Std()
 	b := bus.NewMessageBus(10, log)
 	dir := t.TempDir()
-	m := NewChannelManager(b, log)
+	m := NewChannelManager(b, log, nil)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workspace: dir},
 		Channels: config.ChannelsConfig{

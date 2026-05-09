@@ -172,7 +172,7 @@ func TestGateway_Shutdown(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := manager.NewChannelManager(msgBus, testLG)
+	chMgr := manager.NewChannelManager(msgBus, testLG, nil)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	mockRt := &mockRuntime{}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
@@ -555,7 +555,7 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 	}
 
 	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := manager.NewChannelManager(msgBus, testLG)
+	chMgr := manager.NewChannelManager(msgBus, testLG, nil)
 	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {

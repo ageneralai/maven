@@ -152,7 +152,7 @@ type WebUIConfig struct {
 	Voice     VoiceConfig `json:"voice"`
 }
 
-// VoiceConfig selects optional browser voice I/O for Web UI (credentials via env; see internal/voice.MergeKeys).
+// VoiceConfig selects optional browser voice I/O for Web UI (credentials via env; see pkg/voice.MergeKeys).
 // ttsProvider: deepgram | openai | elevenlabs | cartesia
 type VoiceConfig struct {
 	Enabled     bool   `json:"enabled"`

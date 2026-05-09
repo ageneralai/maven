@@ -13,6 +13,7 @@ import (
 	"github.com/ageneralai/maven/internal/channel/wecom"
 	"github.com/ageneralai/maven/internal/channel/whatsapp"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/plugin"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -21,17 +22,19 @@ type ChannelManager struct {
 	channels map[string]chann.Channel
 	bus      *bus.MessageBus
 	log      mavenlog.PrintLogger
+	plugins  *plugin.Registry
 }
 
-func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger) *ChannelManager {
+func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry) *ChannelManager {
 	return &ChannelManager{
 		channels: make(map[string]chann.Channel),
 		bus:      b,
 		log:      lg,
+		plugins:  plugins,
 	}
 }
 
-func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger) (map[string]chann.Channel, error) {
+func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry) (map[string]chann.Channel, error) {
 	out := make(map[string]chann.Channel)
 	ws := cfg.Agent.Workspace
 	chcfg := cfg.Channels
@@ -64,7 +67,7 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLog
 		out[ch.Name()] = ch
 	}
 	if chcfg.WebUI.Enabled {
-		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, cfg, lg, b)
+		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, cfg, plugins, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("init webui channel: %w", err)
 		}
@@ -87,7 +90,7 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 		}
 		m.bus.SetOutboundSubscriber(n, nil)
 	}
-	next, err := buildChannelMap(cfg, m.bus, m.log)
+	next, err := buildChannelMap(cfg, m.bus, m.log, m.plugins)
 	if err != nil {
 		return err
 	}

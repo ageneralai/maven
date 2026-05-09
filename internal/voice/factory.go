@@ -6,64 +6,88 @@ import (
 	"strings"
 
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/plugin"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
 
-func normalizeSTT(p string) string {
-	p = strings.ToLower(strings.TrimSpace(p))
-	if p == "" {
-		return "deepgram"
+func resolveRegistry(reg *plugin.Registry) *plugin.Registry {
+	if reg != nil {
+		return reg
 	}
-	return p
+	return DefaultVoiceRegistry()
 }
 
-func normalizeTTS(p string) string {
-	p = strings.ToLower(strings.TrimSpace(p))
-	if p == "" {
-		return "openai"
+// NewSTT builds STT from full config and plugin registry (gateway registry or DefaultVoiceRegistry).
+func NewSTT(cfg *config.Config, reg *plugin.Registry) (pkgvoice.STT, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("voice: nil config")
 	}
-	return p
-}
-
-// NewSTT builds an STT implementation from channel voice settings.
-func NewSTT(cfg config.VoiceConfig, k Keys) (pkgvoice.STT, error) {
-	switch normalizeSTT(cfg.STTProvider) {
-	case "deepgram":
-		return &pkgvoice.DeepgramSTT{APIKey: k.Deepgram}, nil
+	vc := cfg.Channels.WebUI.Voice
+	if !vc.Enabled {
+		return nil, fmt.Errorf("voice: webui voice not enabled")
+	}
+	reg = resolveRegistry(reg)
+	if stt := reg.STTProvider(cfg); stt != nil {
+		return stt, nil
+	}
+	want := pkgvoice.NormalizeSTT(vc.STTProvider)
+	switch want {
 	case "openai":
-		return nil, fmt.Errorf("voice: sttProvider %q is not supported yet; use %q", cfg.STTProvider, "deepgram")
+		return nil, fmt.Errorf("voice: sttProvider %q is not supported yet; use %q", vc.STTProvider, "deepgram")
+	case "deepgram":
+		k := pkgvoice.MergeKeys(cfg)
+		if strings.TrimSpace(k.Deepgram) == "" {
+			return nil, fmt.Errorf("voice: deepgram api key is empty")
+		}
 	default:
-		return nil, fmt.Errorf("voice: unknown sttProvider %q", cfg.STTProvider)
+		return nil, fmt.Errorf("voice: unknown sttProvider %q", vc.STTProvider)
 	}
+	return nil, fmt.Errorf("voice: stt provider %q failed to initialize", want)
 }
 
-// NewTTS builds a TTS implementation from channel voice settings.
-func NewTTS(cfg config.VoiceConfig, k Keys) (pkgvoice.TTS, error) {
-	switch normalizeTTS(cfg.TTSProvider) {
+// NewTTS builds TTS from full config and plugin registry.
+func NewTTS(cfg *config.Config, reg *plugin.Registry) (pkgvoice.TTS, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("voice: nil config")
+	}
+	vc := cfg.Channels.WebUI.Voice
+	if !vc.Enabled {
+		return nil, fmt.Errorf("voice: webui voice not enabled")
+	}
+	reg = resolveRegistry(reg)
+	if tts := reg.TTSProvider(cfg); tts != nil {
+		return tts, nil
+	}
+	want := pkgvoice.NormalizeTTS(vc.TTSProvider)
+	switch want {
 	case "deepgram":
-		return &pkgvoice.DeepgramTTS{APIKey: k.Deepgram}, nil
+		k := pkgvoice.MergeKeys(cfg)
+		if strings.TrimSpace(k.Deepgram) == "" {
+			return nil, fmt.Errorf("voice: deepgram api key is empty")
+		}
 	case "openai":
-		return &pkgvoice.OpenAITTS{APIKey: k.OpenAI}, nil
+		k := pkgvoice.MergeKeys(cfg)
+		if strings.TrimSpace(k.OpenAI) == "" {
+			return nil, fmt.Errorf("voice: openai api key is empty")
+		}
 	case "elevenlabs":
-		voiceID := strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID"))
-		if voiceID == "" {
+		if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
 			return nil, fmt.Errorf("voice: ELEVENLABS_VOICE_ID is required for elevenlabs tts")
 		}
-		return &pkgvoice.ElevenLabsTTS{APIKey: k.ElevenLabs, VoiceID: voiceID}, nil
+		k := pkgvoice.MergeKeys(cfg)
+		if strings.TrimSpace(k.ElevenLabs) == "" {
+			return nil, fmt.Errorf("voice: elevenlabs api key is empty")
+		}
 	case "cartesia":
-		voiceID := strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID"))
-		if voiceID == "" {
+		if strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID")) == "" {
 			return nil, fmt.Errorf("voice: CARTESIA_VOICE_ID is required for cartesia tts")
 		}
-		cts := &pkgvoice.CartesiaTTS{APIKey: k.Cartesia, VoiceID: voiceID}
-		if m := strings.TrimSpace(os.Getenv("CARTESIA_MODEL_ID")); m != "" {
-			cts.ModelID = m
+		k := pkgvoice.MergeKeys(cfg)
+		if strings.TrimSpace(k.Cartesia) == "" {
+			return nil, fmt.Errorf("voice: cartesia api key is empty")
 		}
-		if v := strings.TrimSpace(os.Getenv("CARTESIA_API_VERSION")); v != "" {
-			cts.Version = v
-		}
-		return cts, nil
 	default:
-		return nil, fmt.Errorf("voice: unknown ttsProvider %q", cfg.TTSProvider)
+		return nil, fmt.Errorf("voice: unknown ttsProvider %q", vc.TTSProvider)
 	}
+	return nil, fmt.Errorf("voice: tts provider %q failed to initialize", want)
 }

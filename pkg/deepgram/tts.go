@@ -1,4 +1,4 @@
-package voice
+package deepgram
 
 import (
 	"bytes"
@@ -12,13 +12,13 @@ import (
 	"strings"
 )
 
-// DeepgramTTS streams linear16 PCM from Deepgram speak HTTP API (mono, 24 kHz).
-type DeepgramTTS struct {
+// TTS streams linear16 PCM from Deepgram speak HTTP API (mono, 24 kHz).
+type TTS struct {
 	APIKey string
 	Model  string
 }
 
-func (d *DeepgramTTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
+func (d *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		ch := make(chan []byte)

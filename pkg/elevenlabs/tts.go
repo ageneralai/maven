@@ -1,4 +1,4 @@
-package voice
+package elevenlabs
 
 import (
 	"bytes"
@@ -12,17 +12,17 @@ import (
 	"strings"
 )
 
-// ElevenLabsTTS streams PCM (pcm_24000) from ElevenLabs streaming endpoint.
-type ElevenLabsTTS struct {
+// TTS streams PCM (pcm_24000) from ElevenLabs streaming endpoint.
+type TTS struct {
 	APIKey  string
 	VoiceID string
 }
 
-type elevenLabsReq struct {
+type ttsReq struct {
 	Text string `json:"text"`
 }
 
-func (e *ElevenLabsTTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
+func (e *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		ch := make(chan []byte)
@@ -36,7 +36,7 @@ func (e *ElevenLabsTTS) Synthesize(ctx context.Context, text string) (<-chan []b
 	if voice == "" {
 		return nil, errors.New("voice: elevenlabs voice id is empty")
 	}
-	payload, err := json.Marshal(elevenLabsReq{Text: t})
+	payload, err := json.Marshal(ttsReq{Text: t})
 	if err != nil {
 		return nil, err
 	}

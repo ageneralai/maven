@@ -73,14 +73,13 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		w.Log.Printf("[webui] voice websocket accept error: %v", err)
 		return
 	}
-	keys := voice.MergeKeys(w.appCfg)
-	stt, err := voice.NewSTT(w.voiceCfg, keys)
+	stt, err := voice.NewSTT(w.appCfg, w.plugins)
 	if err != nil {
 		w.Log.Printf("[webui] voice stt init: %v", err)
 		_ = conn.CloseNow()
 		return
 	}
-	tts, err := voice.NewTTS(w.voiceCfg, keys)
+	tts, err := voice.NewTTS(w.appCfg, w.plugins)
 	if err != nil {
 		w.Log.Printf("[webui] voice tts init: %v", err)
 		_ = conn.CloseNow()

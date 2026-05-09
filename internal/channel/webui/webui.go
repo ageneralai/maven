@@ -16,6 +16,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/plugin"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/coder/websocket"
 )
@@ -45,9 +46,10 @@ type WebUIChannel struct {
 	nextID        atomic.Int64
 	voiceCfg      config.VoiceConfig
 	appCfg        *config.Config
+	plugins       *plugin.Registry
 }
 
-func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, appCfg *config.Config, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WebUIChannel, error) {
+func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, appCfg *config.Config, plugins *plugin.Registry, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WebUIChannel, error) {
 	port := gwCfg.Port
 	if port == 0 {
 		port = config.DefaultPort
@@ -58,6 +60,7 @@ func NewWebUIChannel(cfg config.WebUIConfig, gwCfg config.GatewayConfig, appCfg 
 		port:        port,
 		voiceCfg:    cfg.Voice,
 		appCfg:      appCfg,
+		plugins:     plugins,
 	}
 	return ch, nil
 }

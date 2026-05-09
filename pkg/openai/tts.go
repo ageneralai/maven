@@ -1,4 +1,4 @@
-package voice
+package openai
 
 import (
 	"bytes"
@@ -11,21 +11,21 @@ import (
 	"strings"
 )
 
-// OpenAITTS streams PCM audio from OpenAI speech API (chunked response body, 24 kHz mono).
-type OpenAITTS struct {
+// TTS streams PCM audio from OpenAI speech API (chunked response body, 24 kHz mono).
+type TTS struct {
 	APIKey string
 	Model  string
 	Voice  string
 }
 
-type openAISpeechReq struct {
+type speechReq struct {
 	Model          string `json:"model"`
 	Voice          string `json:"voice"`
 	Input          string `json:"input"`
 	ResponseFormat string `json:"response_format"`
 }
 
-func (o *OpenAITTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
+func (o *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		ch := make(chan []byte)
@@ -43,7 +43,7 @@ func (o *OpenAITTS) Synthesize(ctx context.Context, text string) (<-chan []byte,
 	if voice == "" {
 		voice = "alloy"
 	}
-	payload, err := json.Marshal(openAISpeechReq{
+	payload, err := json.Marshal(speechReq{
 		Model:          model,
 		Voice:          voice,
 		Input:          t,

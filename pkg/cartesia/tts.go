@@ -1,4 +1,4 @@
-package voice
+package cartesia
 
 import (
 	"bytes"
@@ -11,23 +11,22 @@ import (
 	"strings"
 )
 
-// CartesiaTTS streams raw PCM (pcm_s16le) from Cartesia TTS bytes API.
-type CartesiaTTS struct {
+// TTS streams raw PCM (pcm_s16le) from Cartesia TTS bytes API.
+type TTS struct {
 	APIKey  string
 	ModelID string
 	VoiceID string
-	// Version is the Cartesia-Version header (e.g. 2025-04-16). See API versioning in Cartesia docs.
 	Version string
 }
 
-type cartesiaTTSRequest struct {
+type ttsRequest struct {
 	ModelID      string                 `json:"model_id"`
 	Transcript   string                 `json:"transcript"`
 	Voice        map[string]string      `json:"voice"`
 	OutputFormat map[string]interface{} `json:"output_format"`
 }
 
-func (c *CartesiaTTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
+func (c *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		ch := make(chan []byte)
@@ -49,7 +48,7 @@ func (c *CartesiaTTS) Synthesize(ctx context.Context, text string) (<-chan []byt
 	if ver == "" {
 		ver = "2025-04-16"
 	}
-	body, err := json.Marshal(cartesiaTTSRequest{
+	body, err := json.Marshal(ttsRequest{
 		ModelID:    model,
 		Transcript: t,
 		Voice: map[string]string{
