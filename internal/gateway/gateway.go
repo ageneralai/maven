@@ -25,8 +25,8 @@ import (
 	"github.com/ageneralai/maven/internal/slash"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
+	"github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/plugin"
-	plugacp "github.com/ageneralai/maven/pkg/plugin/acp"
 	"github.com/ageneralai/maven/pkg/prompt"
 )
 
@@ -103,7 +103,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		factory = DefaultRuntimeFactory
 	}
 	g.runtimeFactory = factory
-	g.plugins = plugin.NewRegistry(plugacp.New())
+	g.plugins = plugin.NewRegistry(acp.NewPlugin())
 	g.channelMgr = manager.NewChannelManager(g.bus, g.logger)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}

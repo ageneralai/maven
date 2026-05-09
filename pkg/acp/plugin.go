@@ -6,15 +6,15 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
-	mavenacp "github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/plugin"
 	"github.com/ageneralai/maven/pkg/voice"
 )
 
-// Plugin registers ACP delegate_task when configuration yields tools (single source of truth: pkg/acp.Tools).
+// Plugin registers DelegateTask when configuration yields tools (see Tools).
 type Plugin struct{}
 
-func New() plugin.Plugin { return Plugin{} }
+// NewPlugin returns plugin.Plugin for gateway registration.
+func NewPlugin() plugin.Plugin { return Plugin{} }
 
 func (Plugin) Name() string { return "acp" }
 
@@ -22,14 +22,14 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 	if cfg == nil {
 		return false
 	}
-	return len(mavenacp.Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)) > 0
+	return len(Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)) > 0
 }
 
 func (Plugin) Tools(cfg *config.Config) []tool.Tool {
 	if cfg == nil {
 		return nil
 	}
-	return mavenacp.Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)
+	return Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)
 }
 
 func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
