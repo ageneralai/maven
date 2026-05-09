@@ -135,11 +135,15 @@ func (p *Pipeline) Run(ctx context.Context) {
 
 func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string, err error) {
 	p.Log.Printf("[pipeline] %s/%s error: %v", chName, chatID, err)
-	_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+	// TODO(mvp): add dead-letter or delivery-failure counters before external launch; callers cannot observe PublishOutbound failures.
+	pubErr := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: chName,
 		ChatID:  chatID,
 		Content: userMsg,
 	})
+	if pubErr != nil {
+		p.Log.Printf("[pipeline] %s/%s error reply publish failed: %v", chName, chatID, pubErr)
+	}
 }
 
 func (p *Pipeline) turnContext(ctx context.Context, msg bus.InboundMessage) context.Context {

@@ -170,10 +170,7 @@ func (s *streamState) flushContent(now time.Time, force bool) {
 			s.contentMsg.dirty = true
 			return
 		}
-	} else {
-		if !s.upsertMessage(&s.contentMsg, text, telego.ModeHTML, true, now) {
-			return
-		}
+	} else if !s.upsertMessage(&s.contentMsg, text, telego.ModeHTML, true, now) {
 		return
 	}
 	s.contentMsg.lastEdit = now
