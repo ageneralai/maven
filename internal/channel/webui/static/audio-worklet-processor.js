@@ -1,5 +1,8 @@
 // AudioWorklet capture: downsample to 16 kHz mono int16 (Deepgram live linear16).
 // Loaded via audioContext.audioWorklet.addModule('/audio-worklet-processor.js').
+const VOICE_DETECT_RMS_THRESHOLD = 0.01;
+let voiceDetectArmed = true;
+
 class MavenPcmCaptureProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const input = inputs[0];
@@ -9,6 +12,20 @@ class MavenPcmCaptureProcessor extends AudioWorkletProcessor {
     const channel = input[0];
     if (!channel || channel.length === 0) {
       return true;
+    }
+    let sumSq = 0;
+    for (let i = 0; i < channel.length; i++) {
+      const x = channel[i];
+      sumSq += x * x;
+    }
+    const rms = Math.sqrt(sumSq / channel.length);
+    if (rms > VOICE_DETECT_RMS_THRESHOLD) {
+      if (voiceDetectArmed) {
+        voiceDetectArmed = false;
+        this.port.postMessage({ type: "voice_detected" });
+      }
+    } else {
+      voiceDetectArmed = true;
     }
     const inRate = globalThis.sampleRate;
     const outRate = 16000;

@@ -269,7 +269,9 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	if ch != nil && !msg.Hints.ForceSync {
 		if sc, ok := ch.(channel.StreamChannel); ok {
 			if err := p.runStream(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, sc); err != nil {
-				p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
+				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+					p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
+				}
 				return
 			}
 			return

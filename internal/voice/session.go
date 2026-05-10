@@ -2,136 +2,74 @@ package voice
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
 
-const ttsChunkWriteTimeout = 5 * time.Second
-
-// Session owns one voice route’s STT/TTS lifecycle and streaming TTS coordination.
+// Session coordinates mic-scoped STT and agent-scoped TTS without transport.
 type Session struct {
-	stt       pkgvoice.STT
-	tts       pkgvoice.TTS
-	mu        sync.Mutex
-	ttsCancel context.CancelFunc
-	speaking  atomic.Bool
+	stt pkgvoice.STT
+	tts pkgvoice.TTS
+
+	micCtx    context.Context
+	micCancel context.CancelFunc
+
+	mu          sync.Mutex
+	agentCancel context.CancelFunc
 }
 
-// NewSession wires provider implementations created once per transport session.
-func NewSession(stt pkgvoice.STT, tts pkgvoice.TTS) *Session {
-	return &Session{stt: stt, tts: tts}
+func NewSession(ctx context.Context, stt pkgvoice.STT, tts pkgvoice.TTS) *Session {
+	micCtx, micCancel := context.WithCancel(ctx)
+	return &Session{
+		stt:       stt,
+		tts:       tts,
+		micCtx:    micCtx,
+		micCancel: micCancel,
+	}
 }
 
-// Speaking is true for the duration of one assistant StreamEventsToTTS response (all phrases).
-func (s *Session) Speaking() bool {
-	return s.speaking.Load()
-}
-
-// InterruptPlayback cancels in-flight phrase synthesis and optionally sends a transport-level clear (e.g. sentinel bytes).
-func (s *Session) InterruptPlayback(ctx context.Context, sendClear func(context.Context) error) error {
+func (s *Session) Interrupt() {
 	s.mu.Lock()
-	if s.ttsCancel != nil {
-		s.ttsCancel()
-		s.ttsCancel = nil
+	defer s.mu.Unlock()
+	if s.agentCancel != nil {
+		s.agentCancel()
+		s.agentCancel = nil
 	}
-	s.mu.Unlock()
-	if sendClear != nil {
-		return sendClear(ctx)
-	}
-	return nil
 }
 
-// ConsumeTranscripts runs STT until audio input ends or ctx is done. onFinal receives trimmed non-empty transcripts.
-func (s *Session) ConsumeTranscripts(ctx context.Context, audio <-chan []byte, onFinal func(context.Context, string) error) error {
-	txtCh, err := s.stt.Transcribe(ctx, audio)
+func (s *Session) Close() {
+	s.Interrupt()
+	s.micCancel()
+}
+
+func (s *Session) RunSTT(audio <-chan []byte, onTranscript func(string)) error {
+	txtCh, err := s.stt.Transcribe(s.micCtx, audio)
 	if err != nil {
 		return err
 	}
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-s.micCtx.Done():
+			return nil
 		case t, ok := <-txtCh:
 			if !ok {
 				return nil
 			}
 			t = strings.TrimSpace(t)
-			if t == "" {
-				continue
-			}
-			if err := onFinal(ctx, t); err != nil {
-				return err
+			if t != "" {
+				onTranscript(t)
 			}
 		}
 	}
 }
 
-// StreamEventsToTTS maps streamed model deltas to TTS binary chunks via sentence-sized phrases.
-func (s *Session) StreamEventsToTTS(ctx context.Context, events <-chan api.StreamEvent, writeBinary func(context.Context, []byte) error) error {
-	s.speaking.Store(true)
-	defer s.speaking.Store(false)
-	sentenceBuf := ""
+func drainTTSChunks(ctx context.Context, chunks <-chan []byte, writeAudio func([]byte) error) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case ev, ok := <-events:
-			if !ok {
-				tail := pkgvoice.FlushRemainder(&sentenceBuf)
-				if err := s.synthPhrase(ctx, tail, writeBinary); err != nil {
-					return err
-				}
-				return nil
-			}
-			if ev.Type == api.EventError {
-				return streamEventError(ev)
-			}
-			if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
-				sentenceBuf += ev.Delta.Text
-				for _, sent := range pkgvoice.TakeCompleteSentences(&sentenceBuf) {
-					if err := s.synthPhrase(ctx, sent, writeBinary); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-}
-
-func streamEventError(ev api.StreamEvent) error {
-	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
-	if msg == "" {
-		msg = "stream error"
-	}
-	return fmt.Errorf("%s", msg)
-}
-
-func (s *Session) synthPhrase(ctx context.Context, text string, writeBinary func(context.Context, []byte) error) error {
-	t := strings.TrimSpace(text)
-	if t == "" {
-		return nil
-	}
-	subCtx, cancel := context.WithCancel(ctx)
-	s.mu.Lock()
-	if s.ttsCancel != nil {
-		s.ttsCancel()
-	}
-	s.ttsCancel = cancel
-	s.mu.Unlock()
-	defer cancel()
-	chunks, err := s.tts.Synthesize(subCtx, t)
-	if err != nil {
-		return err
-	}
-	for {
-		select {
-		case <-subCtx.Done():
 			return nil
 		case chunk, ok := <-chunks:
 			if !ok {
@@ -140,12 +78,47 @@ func (s *Session) synthPhrase(ctx context.Context, text string, writeBinary func
 			if len(chunk) == 0 {
 				continue
 			}
-			writeCtx, wcancel := context.WithTimeout(subCtx, ttsChunkWriteTimeout)
-			werr := writeBinary(writeCtx, chunk)
-			wcancel()
-			if werr != nil {
-				return werr
+			if err := writeAudio(chunk); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+func (s *Session) RunTTS(ctx context.Context, textCh <-chan string, writeAudio func([]byte) error) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case text, ok := <-textCh:
+			if !ok {
+				return nil
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			chunks, err := s.tts.Synthesize(ctx, text)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
+				return err
+			}
+			if err := drainTTSChunks(ctx, chunks, writeAudio); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (s *Session) NewAgentCtx() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.agentCancel != nil {
+		s.agentCancel()
+	}
+	ctx, cancel := context.WithCancel(s.micCtx)
+	s.agentCancel = cancel
+	return ctx
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 	"github.com/ageneralai/maven/pkg/plugin"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/coder/websocket"
@@ -199,8 +201,8 @@ func (w *WebUIChannel) writeVoiceClient(ctx context.Context, chatID string, typ 
 	if !ok {
 		return nil
 	}
-	vb := v.(*voiceBinding)
-	return vb.conn.Write(ctx, typ, data)
+	vc := v.(*voiceClient)
+	return vc.conn.Write(ctx, typ, data)
 }
 
 func streamEventError(ev api.StreamEvent) error {
@@ -247,14 +249,70 @@ func (w *WebUIChannel) SendStream(ctx context.Context, chatID string, metadata m
 func (w *WebUIChannel) sendStreamVoice(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
 	v, ok := w.voiceSessions.Load(chatID)
 	if !ok {
-		return fmt.Errorf("webui: voice session missing for %s", chatID)
+		return nil
 	}
-	vb := v.(*voiceBinding)
-	conn := vb.conn
-	writeBinary := func(c context.Context, b []byte) error {
-		return conn.Write(c, websocket.MessageBinary, b)
+	vc := v.(*voiceClient)
+	sess := vc.sess
+	conn := vc.conn
+	micAgentCtx := sess.NewAgentCtx()
+	agentCtx, cancelAgent := context.WithCancel(micAgentCtx)
+	defer cancelAgent()
+	go func() {
+		<-ctx.Done()
+		cancelAgent()
+	}()
+	textCh := make(chan string, 8)
+	var wg sync.WaitGroup
+	var drainErr error
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(textCh)
+		buf := ""
+		for {
+			select {
+			case <-agentCtx.Done():
+				return
+			case ev, ok := <-events:
+				if !ok {
+					tail := pkgvoice.FlushRemainder(&buf)
+					if tail != "" {
+						select {
+						case textCh <- tail:
+						case <-agentCtx.Done():
+							return
+						}
+					}
+					return
+				}
+				if ev.Type == api.EventError {
+					drainErr = streamEventError(ev)
+					sess.Interrupt()
+					return
+				}
+				if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
+					buf += ev.Delta.Text
+					for _, sent := range pkgvoice.TakeCompleteSentences(&buf) {
+						select {
+						case textCh <- sent:
+						case <-agentCtx.Done():
+							return
+						}
+					}
+				}
+			}
+		}
+	}()
+	writeAudio := func(b []byte) error {
+		writeCtx, cancel := context.WithTimeout(agentCtx, 5*time.Second)
+		defer cancel()
+		return conn.Write(writeCtx, websocket.MessageBinary, b)
 	}
-	streamErr := vb.session.StreamEventsToTTS(ctx, events, writeBinary)
+	ttsErr := sess.RunTTS(agentCtx, textCh, writeAudio)
+	if ttsErr != nil {
+		sess.Interrupt()
+	}
+	wg.Wait()
 	done, err := json.Marshal(wsMessage{Type: "stream_done"})
 	if err != nil {
 		return err
@@ -262,11 +320,17 @@ func (w *WebUIChannel) sendStreamVoice(ctx context.Context, chatID string, event
 	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if werr := conn.Write(writeCtx, websocket.MessageText, done); werr != nil {
-		if streamErr == nil {
+		if drainErr == nil && ttsErr == nil {
 			return werr
 		}
 	}
-	return streamErr
+	if drainErr != nil {
+		return drainErr
+	}
+	if ttsErr != nil && !errors.Is(ttsErr, context.Canceled) && !errors.Is(ttsErr, context.DeadlineExceeded) {
+		return ttsErr
+	}
+	return nil
 }
 
 func (w *WebUIChannel) Capabilities() chann.CapabilitySet {
@@ -287,8 +351,9 @@ func (w *WebUIChannel) Stop() error {
 		return true
 	})
 	w.voiceSessions.Range(func(key, value any) bool {
-		vb := value.(*voiceBinding)
-		_ = vb.conn.CloseNow()
+		vc := value.(*voiceClient)
+		vc.sess.Close()
+		_ = vc.conn.CloseNow()
 		return true
 	})
 	w.Log.Printf("[webui] stopped")

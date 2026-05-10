@@ -13,52 +13,13 @@ import (
 
 const voiceClearSentinel = byte(0)
 
-// voiceBinding attaches a voice.Session to one WebSocket (transport adapter only).
-type voiceBinding struct {
-	session *voice.Session
-	conn    *websocket.Conn
-}
+// voiceControlDetect: client signals mic energy above threshold — interrupt agent turn early.
+const voiceControlDetect = byte(1)
 
-func (w *WebUIChannel) pumpVoiceAudio(ctx context.Context, conn *websocket.Conn, audioCh chan<- []byte) {
-	defer close(audioCh)
-	for {
-		typ, data, err := conn.Read(ctx)
-		if err != nil {
-			return
-		}
-		if typ != websocket.MessageBinary || len(data) == 0 {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case audioCh <- data:
-		}
-	}
-}
-
-func (w *WebUIChannel) consumeTranscripts(ctx context.Context, sess *voice.Session, conn *websocket.Conn, clientID string, audio <-chan []byte) {
-	err := sess.ConsumeTranscripts(ctx, audio, func(ctx context.Context, t string) error {
-		if !w.IsAllowed(clientID) {
-			w.Log.Printf("[webui] rejected voice transcript from %s", clientID)
-			return nil
-		}
-		if sess.Speaking() {
-			_ = sess.InterruptPlayback(ctx, func(c context.Context) error {
-				return conn.Write(c, websocket.MessageBinary, []byte{voiceClearSentinel})
-			})
-		}
-		return w.Bus.PublishInbound(ctx, bus.InboundMessage{
-			Channel:   webUIChannelName,
-			SenderID:  clientID,
-			ChatID:    clientID,
-			Content:   t,
-			Timestamp: time.Now(),
-		})
-	})
-	if err != nil && err != context.Canceled {
-		w.Log.Printf("[webui] voice transcript loop: %v", err)
-	}
+// voiceClient binds a voice Session to one WebSocket (transport only).
+type voiceClient struct {
+	sess *voice.Session
+	conn *websocket.Conn
 }
 
 func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
@@ -85,18 +46,66 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		_ = conn.CloseNow()
 		return
 	}
-	sess := voice.NewSession(stt, tts)
+	sess := voice.NewSession(r.Context(), stt, tts)
+	defer sess.Close()
 	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
-	vb := &voiceBinding{session: sess, conn: conn}
-	w.voiceSessions.Store(clientID, vb)
+	vc := &voiceClient{sess: sess, conn: conn}
+	w.voiceSessions.Store(clientID, vc)
 	w.Log.Printf("[webui] voice client connected: %s", clientID)
 	defer func() {
 		w.voiceSessions.Delete(clientID)
 		_ = conn.CloseNow()
 		w.Log.Printf("[webui] voice client disconnected: %s", clientID)
 	}()
-	ctx := r.Context()
 	audioCh := make(chan []byte, 64)
-	go w.pumpVoiceAudio(ctx, conn, audioCh)
-	w.consumeTranscripts(ctx, sess, conn, clientID, audioCh)
+	go func() {
+		defer close(audioCh)
+		for {
+			typ, data, err := conn.Read(r.Context())
+			if err != nil {
+				return
+			}
+			if typ != websocket.MessageBinary {
+				continue
+			}
+			if len(data) == 0 {
+				continue
+			}
+			if len(data) == 1 && data[0] == voiceControlDetect {
+				sess.Interrupt()
+				writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
+				cancel()
+				continue
+			}
+			select {
+			case <-r.Context().Done():
+				return
+			case audioCh <- data:
+			}
+		}
+	}()
+	go func() {
+		err := sess.RunSTT(audioCh, func(t string) {
+			if !w.IsAllowed(clientID) {
+				w.Log.Printf("[webui] rejected voice transcript from %s", clientID)
+				return
+			}
+			sess.Interrupt()
+			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
+			cancel()
+			_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{
+				Channel:   webUIChannelName,
+				SenderID:  clientID,
+				ChatID:    clientID,
+				Content:   t,
+				Timestamp: time.Now(),
+			})
+		})
+		if err != nil && err != context.Canceled {
+			w.Log.Printf("[webui] voice STT: %v", err)
+		}
+	}()
+	<-r.Context().Done()
 }

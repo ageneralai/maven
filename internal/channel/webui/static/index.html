@@ -485,6 +485,10 @@ header h1 {
       voice.currentSource = null;
     }
     voice.playing = false;
+    if (voice.playCtx) {
+      try { voice.playCtx.close(); } catch (e) {}
+      voice.playCtx = null;
+    }
   }
 
   function enqueueVoiceChunk(arrayBuffer) {
@@ -596,7 +600,13 @@ header h1 {
           if (!voice.ws || voice.ws.readyState !== 1) {
             return;
           }
-          voice.ws.send(ev.data);
+          var d = ev.data;
+          if (d && typeof d === 'object' && !(d instanceof ArrayBuffer) && d.type === 'voice_detected') {
+            stopVoicePlayback();
+            voice.ws.send(new Uint8Array([1]).buffer);
+            return;
+          }
+          voice.ws.send(d);
         };
         source.connect(node);
         var mute = voice.captureCtx.createGain();

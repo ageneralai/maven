@@ -3,8 +3,6 @@ package voice
 import (
 	"context"
 	"testing"
-
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 )
 
 type chunkTTS struct {
@@ -34,22 +32,22 @@ func (c *chunkTTS) Synthesize(ctx context.Context, text string) (<-chan []byte, 
 	return out, nil
 }
 
-func TestSession_StreamEventsToTTS(t *testing.T) {
+func TestSession_RunTTS(t *testing.T) {
 	var got [][]byte
 	tts := &chunkTTS{chunks: [][]byte{[]byte("a"), []byte("b")}}
-	s := NewSession(nil, tts) // nil STT: ConsumeTranscripts not exercised here
-	events := make(chan api.StreamEvent, 3)
-	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "Hello."}}
-	close(events)
-	ctx := context.Background()
-	err := s.StreamEventsToTTS(ctx, events, func(_ context.Context, b []byte) error {
+	s := NewSession(context.Background(), nil, tts)
+	textCh := make(chan string, 2)
+	textCh <- "Hello."
+	close(textCh)
+	agentCtx := s.NewAgentCtx()
+	err := s.RunTTS(agentCtx, textCh, func(b []byte) error {
 		cp := make([]byte, len(b))
 		copy(cp, b)
 		got = append(got, cp)
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("StreamEventsToTTS: %v", err)
+		t.Fatalf("RunTTS: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("writes = %d, want 2", len(got))
