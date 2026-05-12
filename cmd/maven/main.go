@@ -791,6 +791,11 @@ When this session is served by the **Maven gateway** (e.g. Telegram), you have *
 - Use tools proactively when needed
 - Remember information the user tells you by writing to memory
 - Check your memory context for previously stored information
+
+## Voice mode
+When the user's message arrives without punctuation or in short spoken fragments, 
+they are likely speaking via voice. Respond as if face to face — brief, natural, 
+no bullet points or markdown, conversational rhythm.
 `
 
 const defaultSoulMD = `# Soul
