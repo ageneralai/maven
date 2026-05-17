@@ -54,6 +54,20 @@ nav:
   - My topic: my-topic.md
 ```
 
+## Mermaid diagrams
+
+Material for MkDocs renders [Mermaid](https://mermaid.js.org/) when `mkdocs.yml` defines the `mermaid` superfences block (already configured in this repo). Use a fenced code block with language `mermaid`:
+
+````markdown
+```mermaid
+flowchart LR
+  A[Start] --> B{Done?}
+  B -->|Yes| C[End]
+```
+````
+
+Supported well with theme fonts/colors: flowchart, sequence, state, class, ER. Other types (Gantt, pie, etc.) work but may look off on mobile. See [architecture.md](architecture.md) for examples already in the docs.
+
 ## Publish to GitHub Pages
 
 Requires permission to push to `ageneralai/maven` and [GitHub Pages](https://docs.github.com/en/pages) enabled for the repo (source: `gh-pages` branch).
