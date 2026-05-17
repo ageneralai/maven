@@ -2150,13 +2150,13 @@
 <li><strong>System Administrator</strong> provides configuration via <code>~/.maven/config.json</code> and workspace files under <code>~/.maven/workspace/</code>.</li>
 </ul>
 <h3 id="22-high-level-topology">2.2 High-Level Topology</h3>
-<pre><code class="language-mermaid">flowchart LR
+<pre class="mermaid"><code>flowchart LR
     subgraph External
         Users[Users&lt;br/&gt;Telegram · Feishu · WeCom · WhatsApp · Web]
         LLM[LLM APIs&lt;br/&gt;Anthropic · OpenAI]
     end
 
-    subgraph &quot;Maven Process&quot;
+    subgraph "Maven Process"
         subgraph Ingress
             CH[Channels]
             BUS[Message Bus]
@@ -2171,8 +2171,7 @@
     BUS --&gt; PIPE
     BG --&gt; PIPE
     PIPE --&gt; RT
-    RT --&gt; LLM
-</code></pre>
+    RT --&gt; LLM</code></pre>
 <hr />
 <h2 id="3-core-architecture">3. Core Architecture</h2>
 <h3 id="31-design-philosophy">3.1 Design Philosophy</h3>
@@ -2186,19 +2185,19 @@
 </ul>
 <p>This abstraction ensures that a tool invoked from a Telegram message behaves identically to the same tool invoked from a cron job.</p>
 <h3 id="33-component-map">3.3 Component Map</h3>
-<pre><code class="language-mermaid">flowchart TB
-    subgraph cmd[&quot;cmd/maven&quot;]
+<pre class="mermaid"><code>flowchart TB
+    subgraph cmd["cmd/maven"]
         CLI[CLI Commands&lt;br/&gt;agent · gateway · onboard · status]
     end
 
-    subgraph gw[&quot;internal/gateway&quot;]
+    subgraph gw["internal/gateway"]
         G[Gateway]
         APPLY[Apply]
         RUN[Run]
         SH[Shutdown]
     end
 
-    subgraph core[&quot;Core Subsystems&quot;]
+    subgraph core["Core Subsystems"]
         BUS[MessageBus&lt;br/&gt;internal/bus]
         PIPE[Pipeline&lt;br/&gt;internal/pipeline]
         RT[Agent Runtime&lt;br/&gt;internal/agent]
@@ -2206,7 +2205,7 @@
         SLASH[Slash System&lt;br/&gt;internal/slash]
     end
 
-    subgraph transports[&quot;Transports&quot;]
+    subgraph transports["Transports"]
         CM[ChannelManager&lt;br/&gt;channel/manager]
         TG[Telegram]
         FS[Feishu]
@@ -2215,12 +2214,12 @@
         WUI[Web UI]
     end
 
-    subgraph bg[&quot;Background&quot;]
+    subgraph bg["Background"]
         CR[Cron&lt;br/&gt;internal/cron]
         HB[Heartbeat&lt;br/&gt;internal/heartbeat]
     end
 
-    subgraph data[&quot;Data &amp; Config&quot;]
+    subgraph data["Data &amp; Config"]
         CFG[Config&lt;br/&gt;internal/config]
         MEM[Memory &amp; Prompts&lt;br/&gt;pkg/memory · pkg/prompt]
         WS[Workspace&lt;br/&gt;AGENTS.md · SOUL.md · HEARTBEAT.md]
@@ -2251,8 +2250,7 @@
     HB --&gt; PIPE
     RT --&gt; MEM
     CFG --&gt; G
-    WS --&gt; MEM
-</code></pre>
+    WS --&gt; MEM</code></pre>
 <hr />
 <h2 id="4-gateway-lifecycle">4. Gateway Lifecycle</h2>
 <p>The Gateway (<code>internal/gateway</code>) owns process-level orchestration. It is the only component that constructs and swaps the agent runtime, manages channels, and coordinates shutdown.</p>
@@ -2393,8 +2391,8 @@
 <hr />
 <h2 id="8-session-management">8. Session Management</h2>
 <p>Session routing (<code>internal/session</code>) provides stable conversation identity:</p>
-<pre><code>channel:chatId → sessionId
-</code></pre>
+<div class="highlight"><pre><span></span><code>channel:chatId → sessionId
+</code></pre></div>
 <h3 id="81-properties">8.1 Properties</h3>
 <ul>
 <li><strong>Stable:</strong> A given chat route always maps to the same session ID across restarts (unless rotated)</li>
@@ -2576,7 +2574,7 @@
 <hr />
 <h2 id="15-data-flows">15. Data Flows</h2>
 <h3 id="151-chat-inbound-outbound-synchronous">15.1 Chat Inbound → Outbound (Synchronous)</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid"><code>sequenceDiagram
     autonumber
     actor User
     participant Ch as Channel
@@ -2602,10 +2600,9 @@
     end
     Pipe-&gt;&gt;Bus: PublishOutbound
     Bus-&gt;&gt;Ch: Dispatch to subscriber
-    Ch-&gt;&gt;User: Deliver reply
-</code></pre>
+    Ch-&gt;&gt;User: Deliver reply</code></pre>
 <h3 id="152-streaming-turn">15.2 Streaming Turn</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid"><code>sequenceDiagram
     autonumber
     participant Bus as MessageBus
     participant Pipe as Pipeline
@@ -2620,10 +2617,9 @@
         Pipe-&gt;&gt;Ch: SendStream (incremental update)
     end
     Pipe-&gt;&gt;Bus: OnStreamEnd
-    Ch-&gt;&gt;Bus: Finalize / cleanup placeholders
-</code></pre>
+    Ch-&gt;&gt;Bus: Finalize / cleanup placeholders</code></pre>
 <h3 id="153-background-execution-cron">15.3 Background Execution (Cron)</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid"><code>sequenceDiagram
     autonumber
     participant Cron as Cron Service
     participant Pipe as Pipeline
@@ -2640,8 +2636,7 @@
         Pipe-&gt;&gt;Bus: PublishOutbound
         Bus-&gt;&gt;Ch: Dispatch
     end
-    Cron-&gt;&gt;Cron: Release semaphore &amp; persist state
-</code></pre>
+    Cron-&gt;&gt;Cron: Release semaphore &amp; persist state</code></pre>
 <hr />
 <h2 id="16-design-principles-decisions">16. Design Principles &amp; Decisions</h2>
 <table>
@@ -2684,7 +2679,7 @@
 </table>
 <hr />
 <h2 id="17-repository-structure">17. Repository Structure</h2>
-<pre><code>cmd/maven/              CLI entrypoints (agent, gateway, onboard, status, skills)
+<div class="highlight"><pre><span></span><code>cmd/maven/              CLI entrypoints (agent, gateway, onboard, status, skills)
 internal/
   gateway/              Process lifecycle orchestration
   pipeline/             Turn execution coordinator
@@ -2717,7 +2712,7 @@ pkg/
   prompt/               System prompt builder
   stringutil/           String helpers
 docs/                   Setup guides and sample workspace
-</code></pre>
+</code></pre></div>
 <hr />
 <h2 id="18-operational-notes">18. Operational Notes</h2>
 <ul>

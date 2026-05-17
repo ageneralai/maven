@@ -1278,7 +1278,8 @@
 <ol>
 <li>Open <strong>Events &amp; callbacks</strong> → <strong>Event configuration</strong></li>
 <li>Set <strong>Request URL</strong> to your public URL:
-   <code>https://your-domain.com/feishu/webhook</code></li>
+   <div class="highlight"><pre><span></span><code>https://your-domain.com/feishu/webhook
+</code></pre></div></li>
 <li>Feishu sends a challenge; maven answers automatically</li>
 <li>Under <strong>Encryption strategy</strong>, note <strong>Verification Token</strong></li>
 <li>Add event: <code>im.message.receive_v1</code> (receive message v2.0)</li>
@@ -1295,29 +1296,29 @@
 <h2 id="step-6-configure-maven">Step 6: Configure maven</h2>
 <h3 id="option-a-config-file">Option A: Config file</h3>
 <p>Edit <code>~/.maven/config.json</code>:</p>
-<pre><code class="language-json">{
-  &quot;channels&quot;: {
-    &quot;feishu&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;appId&quot;: &quot;cli_a5xxxxx&quot;,
-      &quot;appSecret&quot;: &quot;your-app-secret&quot;,
-      &quot;verificationToken&quot;: &quot;your-verification-token&quot;,
-      &quot;port&quot;: 9876,
-      &quot;allowFrom&quot;: []
-    }
-  }
-}
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;feishu&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;appId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cli_a5xxxxx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;appSecret&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-app-secret&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;verificationToken&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-verification-token&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9876</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;allowFrom&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="option-b-environment-variables">Option B: Environment variables</h3>
-<pre><code class="language-bash">export MAVEN_FEISHU_APP_ID=&quot;cli_a5xxxxx&quot;
-export MAVEN_FEISHU_APP_SECRET=&quot;your-app-secret&quot;
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MAVEN_FEISHU_APP_ID</span><span class="o">=</span><span class="s2">&quot;cli_a5xxxxx&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MAVEN_FEISHU_APP_SECRET</span><span class="o">=</span><span class="s2">&quot;your-app-secret&quot;</span>
+</code></pre></div>
 <blockquote>
 <p><code>verificationToken</code> and <code>port</code> are config-file only.</p>
 </blockquote>
 <h3 id="option-c-interactive-setup">Option C: Interactive setup</h3>
-<pre><code class="language-bash">make setup
-</code></pre>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>setup
+</code></pre></div>
 <h2 id="configuration-reference">Configuration reference</h2>
 <table>
 <thead>
@@ -1368,39 +1369,39 @@ export MAVEN_FEISHU_APP_SECRET=&quot;your-app-secret&quot;
 <h2 id="step-7-expose-localhost-tunnel">Step 7: Expose localhost (tunnel)</h2>
 <p>Feishu needs a public URL. For dev/test, <code>cloudflared</code> is convenient.</p>
 <h3 id="ephemeral-tunnel">Ephemeral tunnel</h3>
-<pre><code class="language-bash"># Install cloudflared
-brew install cloudflared
+<div class="highlight"><pre><span></span><code><span class="c1"># Install cloudflared</span>
+brew<span class="w"> </span>install<span class="w"> </span>cloudflared
 
-# Start tunnel
-make tunnel
-# or
-cloudflared tunnel --url http://localhost:9876
-</code></pre>
+<span class="c1"># Start tunnel</span>
+make<span class="w"> </span>tunnel
+<span class="c1"># or</span>
+cloudflared<span class="w"> </span>tunnel<span class="w"> </span>--url<span class="w"> </span>http://localhost:9876
+</code></pre></div>
 <p>Output includes a temporary URL:</p>
-<pre><code>https://xxx-xxx-xxx.trycloudflare.com
-</code></pre>
+<div class="highlight"><pre><span></span><code>https://xxx-xxx-xxx.trycloudflare.com
+</code></pre></div>
 <p>Use that base URL + <code>/feishu/webhook</code> as the Feishu event URL.</p>
 <blockquote>
 <p>The ephemeral URL changes on restart; update Feishu when it does.</p>
 </blockquote>
 <h3 id="named-tunnel-production">Named tunnel (production)</h3>
-<pre><code class="language-bash">cloudflared tunnel login
-cloudflared tunnel create maven
-cloudflared tunnel route dns maven feishu-bot.yourdomain.com
-cloudflared tunnel run maven
-</code></pre>
+<div class="highlight"><pre><span></span><code>cloudflared<span class="w"> </span>tunnel<span class="w"> </span>login
+cloudflared<span class="w"> </span>tunnel<span class="w"> </span>create<span class="w"> </span>maven
+cloudflared<span class="w"> </span>tunnel<span class="w"> </span>route<span class="w"> </span>dns<span class="w"> </span>maven<span class="w"> </span>feishu-bot.yourdomain.com
+cloudflared<span class="w"> </span>tunnel<span class="w"> </span>run<span class="w"> </span>maven
+</code></pre></div>
 <p>Set the Feishu URL to <code>https://feishu-bot.yourdomain.com/feishu/webhook</code>.</p>
 <h3 id="docker-compose-tunnel">Docker Compose tunnel</h3>
-<pre><code class="language-bash">docker compose --profile tunnel up -d
-docker compose logs tunnel | grep trycloudflare
-</code></pre>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>--profile<span class="w"> </span>tunnel<span class="w"> </span>up<span class="w"> </span>-d
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>tunnel<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>trycloudflare
+</code></pre></div>
 <h2 id="step-8-run-and-test">Step 8: Run and test</h2>
-<pre><code class="language-bash">make gateway
-</code></pre>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>gateway
+</code></pre></div>
 <p>Success logs:</p>
-<pre><code>[feishu] webhook server listening on :9876
+<div class="highlight"><pre><span></span><code>[feishu] webhook server listening on :9876
 [gateway] channels started: [feishu]
-</code></pre>
+</code></pre></div>
 <p>In Feishu, open a chat with your bot and send a message.</p>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <p><strong>Q: Feishu messages get no reply?</strong>
@@ -1420,8 +1421,8 @@ docker compose logs tunnel | grep trycloudflare
 <p><strong>Q: Restrict to myself?</strong>
 - Send a message, read <code>open_id</code> from logs
 - Add to <code>allowFrom</code>:</p>
-<p><code>json
-  "allowFrom": ["ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]</code></p>
+<div class="highlight"><pre><span></span><code><span class="nt">&quot;allowFrom&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&quot;</span><span class="p">]</span>
+</code></pre></div>
 
 
 

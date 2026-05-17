@@ -899,18 +899,18 @@
 <h1 id="getting-started">Getting started</h1>
 <p>Maven is a personal AI assistant built on <a href="https://github.com/ageneralai/ageneral-agents-go">ageneral-agents-go</a>. This page covers the fastest path to a running binary; channel setup links are in the sidebar.</p>
 <h2 id="build-and-run">Build and run</h2>
-<pre><code class="language-bash">make build
-make setup          # interactive config → ~/.maven/config.json
-export MAVEN_API_KEY=your-api-key
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>build
+make<span class="w"> </span>setup<span class="w">          </span><span class="c1"># interactive config → ~/.maven/config.json</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MAVEN_API_KEY</span><span class="o">=</span>your-api-key
 
-./maven agent -m &quot;Hello&quot;   # single message
-make run                   # REPL
-make gateway               # channels + cron + heartbeat
-</code></pre>
+./maven<span class="w"> </span>agent<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Hello&quot;</span><span class="w">   </span><span class="c1"># single message</span>
+make<span class="w"> </span>run<span class="w">                   </span><span class="c1"># REPL</span>
+make<span class="w"> </span>gateway<span class="w">               </span><span class="c1"># channels + cron + heartbeat</span>
+</code></pre></div>
 <p>Smaller release binary: <code>make build-release</code>. Package for distribution: <code>make package</code> or <code>make package-all</code>.</p>
 <h2 id="first-time-workspace">First-time workspace</h2>
-<pre><code class="language-bash">make onboard
-</code></pre>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>onboard
+</code></pre></div>
 <p>Creates default workspace files under your configured <code>agent.workspace</code> (skills dir, memory templates, etc.).</p>
 <h2 id="next-steps">Next steps</h2>
 <ul>

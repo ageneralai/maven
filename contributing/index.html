@@ -822,6 +822,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mermaid-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mermaid diagrams
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publish-to-github-pages" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -933,6 +944,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mermaid-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mermaid diagrams
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publish-to-github-pages" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -992,19 +1014,19 @@
 </ul>
 <h2 id="one-time-setup">One-time setup</h2>
 <p>From the repository root:</p>
-<pre><code class="language-bash">pip install -r requirements-docs.txt
-</code></pre>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements-docs.txt
+</code></pre></div>
 <p>Or install the same packages directly:</p>
-<pre><code class="language-bash">pip install mkdocs mkdocs-material
-</code></pre>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>mkdocs<span class="w"> </span>mkdocs-material
+</code></pre></div>
 <p>If <code>docs/</code> already exists, do <strong>not</strong> run <code>mkdocs new .</code> on top of this repo — it overwrites <code>mkdocs.yml</code>. The project is already initialized.</p>
 <h2 id="preview-locally">Preview locally</h2>
-<pre><code class="language-bash">mkdocs serve
-</code></pre>
+<div class="highlight"><pre><span></span><code>mkdocs<span class="w"> </span>serve
+</code></pre></div>
 <p>Open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. MkDocs reloads when you edit files under <code>docs/</code> or change <code>mkdocs.yml</code>.</p>
 <p>Build static HTML without serving:</p>
-<pre><code class="language-bash">mkdocs build
-</code></pre>
+<div class="highlight"><pre><span></span><code>mkdocs<span class="w"> </span>build
+</code></pre></div>
 <p>Output goes to <code>site/</code> (gitignored).</p>
 <h2 id="add-or-edit-a-page">Add or edit a page</h2>
 <ol>
@@ -1013,15 +1035,24 @@
 <li>Run <code>mkdocs serve</code> and fix any broken links or nav warnings before opening a PR.</li>
 </ol>
 <p>Example nav entry:</p>
-<pre><code class="language-yaml">nav:
-  - Home: index.md
-  - My topic: my-topic.md
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="nt">nav</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">Home</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">index.md</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">My topic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-topic.md</span>
+</code></pre></div>
+<h2 id="mermaid-diagrams">Mermaid diagrams</h2>
+<p>Material for MkDocs renders <a href="https://mermaid.js.org/">Mermaid</a> when <code>mkdocs.yml</code> defines the <code>mermaid</code> superfences block (already configured in this repo). Use a fenced code block with language <code>mermaid</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="sb">```mermaid</span>
+<span class="s">flowchart LR</span>
+<span class="s">  A[Start] --&gt; B{Done?}</span>
+<span class="s">  B --&gt;|Yes| C[End]</span>
+<span class="sb">```</span>
+</code></pre></div>
+<p>Supported well with theme fonts/colors: flowchart, sequence, state, class, ER. Other types (Gantt, pie, etc.) work but may look off on mobile. See <a href="../architecture/">architecture.md</a> for examples already in the docs.</p>
 <h2 id="publish-to-github-pages">Publish to GitHub Pages</h2>
 <p>Requires permission to push to <code>ageneralai/maven</code> and <a href="https://docs.github.com/en/pages">GitHub Pages</a> enabled for the repo (source: <code>gh-pages</code> branch).</p>
 <p>From the repository root, on <code>main</code> with doc changes merged or committed:</p>
-<pre><code class="language-bash">mkdocs gh-deploy --force
-</code></pre>
+<div class="highlight"><pre><span></span><code>mkdocs<span class="w"> </span>gh-deploy<span class="w"> </span>--force
+</code></pre></div>
 <p>This builds <code>site/</code>, commits the result to the <code>gh-pages</code> branch, and pushes. The site updates at <a href="https://ageneralai.github.io/maven/">https://ageneralai.github.io/maven/</a> after GitHub finishes processing (usually within a minute).</p>
 <p><code>--force</code> on <code>gh-deploy</code> overwrites the remote <code>gh-pages</code> branch when needed; use it when redeploying after nav or theme changes.</p>
 <h2 id="what-not-to-commit">What not to commit</h2>

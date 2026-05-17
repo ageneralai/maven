@@ -1091,27 +1091,28 @@
 <li>When prompted, enter the bot display name (e.g. <code>My Claw Assistant</code>)</li>
 <li>Enter the bot username (must end with <code>bot</code>, e.g. <code>maven_bot</code>)</li>
 <li>BotFather returns a <strong>bot token</strong>, for example:
-   <code>1234567890:ABCdefGHIjklMNOpqrsTUVwxyz</code></li>
+   <div class="highlight"><pre><span></span><code>1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+</code></pre></div></li>
 <li>Save this token</li>
 </ol>
 <h2 id="step-2-configure-maven">Step 2: Configure maven</h2>
 <h3 id="option-a-config-file">Option A: Config file</h3>
 <p>Edit <code>~/.maven/config.json</code>:</p>
-<pre><code class="language-json">{
-  &quot;channels&quot;: {
-    &quot;telegram&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;token&quot;: &quot;1234567890:ABCdefGHIjklMNOpqrsTUVwxyz&quot;,
-      &quot;allowFrom&quot;: [],
-      &quot;proxy&quot;: &quot;&quot;,
-      &quot;rootDir&quot;: &quot;&quot;
-    }
-  }
-}
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;telegram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1234567890:ABCdefGHIjklMNOpqrsTUVwxyz&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;allowFrom&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">&quot;proxy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;rootDir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="option-b-environment-variable">Option B: Environment variable</h3>
-<pre><code class="language-bash">export MAVEN_TELEGRAM_TOKEN=&quot;1234567890:ABCdefGHIjklMNOpqrsTUVwxyz&quot;
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MAVEN_TELEGRAM_TOKEN</span><span class="o">=</span><span class="s2">&quot;1234567890:ABCdefGHIjklMNOpqrsTUVwxyz&quot;</span>
+</code></pre></div>
 <h2 id="step-3-configuration-reference">Step 3: Configuration reference</h2>
 <table>
 <thead>
@@ -1154,33 +1155,33 @@
 <li>In Telegram, search for <strong>@userinfobot</strong> and send any message</li>
 <li>It replies with your numeric user ID</li>
 <li>Add the ID to <code>allowFrom</code> so only you can use the bot:
-   <code>json
-   "allowFrom": ["123456789"]</code></li>
+   <div class="highlight"><pre><span></span><code><span class="nt">&quot;allowFrom&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;123456789&quot;</span><span class="p">]</span>
+</code></pre></div></li>
 </ol>
 <h2 id="step-4-run-and-test">Step 4: Run and test</h2>
-<pre><code class="language-bash"># Start gateway
-make gateway
+<div class="highlight"><pre><span></span><code><span class="c1"># Start gateway</span>
+make<span class="w"> </span>gateway
 
-# Or run directly
-./maven gateway
-</code></pre>
+<span class="c1"># Or run directly</span>
+./maven<span class="w"> </span>gateway
+</code></pre></div>
 <p>Success is indicated by log lines like:</p>
-<pre><code>[telegram] authorized as @maven_bot
+<div class="highlight"><pre><span></span><code>[telegram] authorized as @maven_bot
 [telegram] polling started
-</code></pre>
+</code></pre></div>
 <p>In Telegram, find your bot by username and send a message to test.</p>
 <h2 id="proxy-regions-without-direct-telegram-api-access">Proxy (regions without direct Telegram API access)</h2>
 <p>If you cannot reach the Telegram API directly, configure a proxy:</p>
-<pre><code class="language-json">{
-  &quot;channels&quot;: {
-    &quot;telegram&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;token&quot;: &quot;your-token&quot;,
-      &quot;proxy&quot;: &quot;socks5://127.0.0.1:1080&quot;
-    }
-  }
-}
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;telegram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-token&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;proxy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;socks5://127.0.0.1:1080&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Supported schemes: <code>socks5://</code>, <code>http://</code>, <code>https://</code></p>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <p><strong>Q: The bot does not respond?</strong>

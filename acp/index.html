@@ -1005,25 +1005,25 @@
 </table>
 <p><strong>Workspace</strong>: Tool parameter <strong><code>cwd</code></strong> is resolved and, when <strong><code>tools.restrictToWorkspace</code></strong> is true, must stay inside <strong><code>agent.workspace</code></strong> (same idea as other sandboxed tools). Client FS hooks (<strong><code>ReadTextFile</code></strong> / <strong><code>WriteTextFile</code></strong>) enforce the same rule for paths the ACP agent requests.</p>
 <p>Example:</p>
-<pre><code class="language-json">{
-  &quot;tools&quot;: {
-    &quot;restrictToWorkspace&quot;: true,
-    &quot;acp&quot;: {
-      &quot;enabled&quot;: true,
-      &quot;agents&quot;: {
-        &quot;claude&quot;: {
-          &quot;command&quot;: &quot;npx&quot;,
-          &quot;args&quot;: [&quot;-y&quot;, &quot;@zed-industries/claude-code-acp@latest&quot;]
-        },
-        &quot;gemini&quot;: {
-          &quot;command&quot;: &quot;gemini&quot;,
-          &quot;args&quot;: [&quot;--experimental-acp&quot;]
-        }
-      }
-    }
-  }
-}
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;restrictToWorkspace&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;acp&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;claude&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;npx&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;-y&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;@zed-industries/claude-code-acp@latest&quot;</span><span class="p">]</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;gemini&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--experimental-acp&quot;</span><span class="p">]</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <p>Adjust commands to whatever your host installs (<code>codex-acp</code>, local binaries, etc.).</p>
 <h2 id="tool-delegatetask">Tool: <code>DelegateTask</code></h2>
 <table>

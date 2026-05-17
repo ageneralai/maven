@@ -926,7 +926,7 @@
 <h1 id="workspace-layout">Workspace layout</h1>
 <p><code>make onboard</code> / <code>maven onboard</code> prepares your config and workspace. Paths below assume the default <strong><code>agent.workspace</code></strong> of <strong><code>~/.maven/workspace</code></strong>; change it in <strong><code>~/.maven/config.json</code></strong> if you prefer another directory (including inside a Git checkout—not recommended unless you intend to track those files).</p>
 <h2 id="after-onboard">After onboard</h2>
-<pre><code class="language-text">~/.maven/
+<div class="highlight"><pre><span></span><code>~/.maven/
   config.json
   workspace/
     AGENTS.md              # system prompt persona (edit to taste)
@@ -937,7 +937,7 @@
     skills/
       &lt;skill-name&gt;/
         SKILL.md           # optional skills; see Skills in README.md
-</code></pre>
+</code></pre></div>
 <h2 id="skills-directory">Skills directory</h2>
 <p>Default skills root is <strong><code>{agent.workspace}/skills</code></strong>. Set <strong><code>skills.dir</code></strong> in config to override.</p>
 <h2 id="telegram-slash-commands-optional">Telegram slash commands (optional)</h2>
