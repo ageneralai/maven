@@ -1,4 +1,5 @@
 site_name: Maven Agent
+site_url: https://ageneralai.github.io/maven/
 
 theme:
   name: material
@@ -11,4 +12,17 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  # Add more pages here as you create them
+  - Architecture: architecture.md
+  - Channels:
+    - Telegram: telegram-setup.md
+    - Feishu: feishu-setup.md
+    - WeCom: wecom-setup.md
+  - Features:
+    - ACP: acp.md
+    - Voice: voice.md
+    - Plugins: plugins.md
+    - Workspace: workspace.md
+  - Contributing: contributing.md
+
+exclude_docs: |
+  workspace/**

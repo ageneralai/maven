@@ -415,6 +415,20 @@ make test-cover      # Run with coverage report
 make lint            # Run golangci-lint
 ```
 
+## Documentation
+
+Published docs: [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/)
+
+Source lives in `docs/` (MkDocs + Material). To preview or publish:
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve                    # http://127.0.0.1:8000/
+mkdocs gh-deploy --force        # push to gh-pages (maintainers)
+```
+
+See [docs/contributing.md](docs/contributing.md) for the full contributor workflow (nav in `mkdocs.yml`, what to commit, deploy permissions).
+
 ## License
 
 MIT
