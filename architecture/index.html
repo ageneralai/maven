@@ -1,0 +1,1646 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Maven Architecture - Maven Agent</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#maven-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Maven Agent" class="md-header__button md-logo" aria-label="Maven Agent" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Maven Agent
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Maven Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Maven Agent" class="md-nav__button md-logo" aria-label="Maven Agent" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Maven Agent
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-system-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. System Context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. System Context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-external-actors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 External Actors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-high-level-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 High-Level Topology
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-core-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Core Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Core Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-design-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Design Philosophy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-the-unified-execution-abstraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 The Unified Execution Abstraction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-component-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Component Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-gateway-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Gateway Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Gateway Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Apply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Shutdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Hot Reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-message-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Message Bus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Message Bus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-streaming-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Streaming Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-event-emission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Event Emission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-concurrency-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Concurrency Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-execution-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Execution Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-agent-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Agent Runtime
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Agent Runtime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Construction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-execution-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Execution Surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-session-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Session Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Session Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 Properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-background-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Background Isolation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-slash-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Slash System
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Slash System">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-post-action-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 Post-Action System
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Channels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Channels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 Responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 Implementations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-reactive-only-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 Reactive-Only Channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-background-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Background Execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Background Execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111-cron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 Cron
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-heartbeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 Heartbeat
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#121-hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12.1 Hot Reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Observability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Observability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.1 Logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-events-pkgevents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.2 Events (pkg/events)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-health-internalhealth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 Health (internal/health)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-data-and-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Data and Workspace
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-data-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Data Flows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="15. Data Flows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#151-chat-inbound-outbound-synchronous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.1 Chat Inbound → Outbound (Synchronous)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#152-streaming-turn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.2 Streaming Turn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#153-background-execution-cron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.3 Background Execution (Cron)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-design-principles-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Design Principles &amp; Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17-repository-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. Repository Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-operational-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Operational Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="maven-architecture">Maven Architecture</h1>
+<h2 id="1-overview">1. Overview</h2>
+<p>Maven is a single-process Go application that serves as both a CLI agent and a persistent gateway service for personal AI assistance. It unifies multiple chat transports, scheduled background execution, and periodic health checks into a single coherent execution model built on top of <code>ageneral-agents-go</code>.</p>
+<p>The system is designed around three core constraints:</p>
+<ol>
+<li><strong>Single Execution Surface</strong> — All work, whether initiated by chat, cron, or heartbeat, flows through the same pipeline and agent runtime.</li>
+<li><strong>Single Configuration Path</strong> — <code>Apply</code> is the sole mechanism for mutating system state; there are no ad-hoc reconfigurations.</li>
+<li><strong>Explicit Boundaries</strong> — The message bus handles transport decoupling, the pipeline handles execution coordination, and the runtime handles model interaction.</li>
+</ol>
+<p>This document describes Maven's system architecture, execution model, major subsystems, and design rationale. It is intended for engineers navigating the implementation and should be read alongside the source code.</p>
+<hr />
+<h2 id="2-system-context">2. System Context</h2>
+<p>Maven operates as a single OS process that bridges users (via chat applications) and large language model (LLM) APIs. At runtime, the system can be decomposed into three logical planes:</p>
+<table>
+<thead>
+<tr>
+<th>Plane</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ingress</strong></td>
+<td>Normalization of inbound stimuli from chat channels and background triggers</td>
+</tr>
+<tr>
+<td><strong>Execution</strong></td>
+<td>Turn coordination, session routing, tool execution, and model invocation</td>
+</tr>
+<tr>
+<td><strong>Egress</strong></td>
+<td>Outbound message dispatch back to channels</td>
+</tr>
+</tbody>
+</table>
+<h3 id="21-external-actors">2.1 External Actors</h3>
+<ul>
+<li><strong>Users</strong> interact via Telegram, Feishu (Lark), WeCom, WhatsApp, or a built-in Web UI.</li>
+<li><strong>LLM Providers</strong> (Anthropic, OpenAI) serve model inference via HTTP APIs.</li>
+<li><strong>System Administrator</strong> provides configuration via <code>~/.maven/config.json</code> and workspace files under <code>~/.maven/workspace/</code>.</li>
+</ul>
+<h3 id="22-high-level-topology">2.2 High-Level Topology</h3>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph External
+        Users[Users&lt;br/&gt;Telegram · Feishu · WeCom · WhatsApp · Web]
+        LLM[LLM APIs&lt;br/&gt;Anthropic · OpenAI]
+    end
+
+    subgraph &quot;Maven Process&quot;
+        subgraph Ingress
+            CH[Channels]
+            BUS[Message Bus]
+            BG[Background&lt;br/&gt;Cron · Heartbeat]
+        end
+        PIPE[Pipeline]
+        RT[Agent Runtime]
+    end
+
+    Users &lt;--&gt; CH
+    CH &lt;--&gt; BUS
+    BUS --&gt; PIPE
+    BG --&gt; PIPE
+    PIPE --&gt; RT
+    RT --&gt; LLM
+</code></pre>
+<hr />
+<h2 id="3-core-architecture">3. Core Architecture</h2>
+<h3 id="31-design-philosophy">3.1 Design Philosophy</h3>
+<p>Maven intentionally avoids distributed complexity. It is a single binary with a shared-nothing threading model (per-turn isolation) and explicit backpressure. Background systems do not introduce parallel execution stacks; they invoke the same <code>TurnExecutor</code> interface used by chat flows to guarantee identical behavior across all entry points.</p>
+<h3 id="32-the-unified-execution-abstraction">3.2 The Unified Execution Abstraction</h3>
+<p>At the center of Maven is a single logical execution unit:</p>
+<ul>
+<li><strong>One Runtime</strong> — An <code>ageneral-agents-go</code> SDK instance wrapped by <code>internal/agent</code>.</li>
+<li><strong>One Pipeline</strong> — The <code>internal/pipeline</code> turn coordinator.</li>
+<li><strong>One Execution Contract</strong> — The <code>TurnExecutor</code> interface (<code>pkg/executor</code>).</li>
+</ul>
+<p>This abstraction ensures that a tool invoked from a Telegram message behaves identically to the same tool invoked from a cron job.</p>
+<h3 id="33-component-map">3.3 Component Map</h3>
+<pre><code class="language-mermaid">flowchart TB
+    subgraph cmd[&quot;cmd/maven&quot;]
+        CLI[CLI Commands&lt;br/&gt;agent · gateway · onboard · status]
+    end
+
+    subgraph gw[&quot;internal/gateway&quot;]
+        G[Gateway]
+        APPLY[Apply]
+        RUN[Run]
+        SH[Shutdown]
+    end
+
+    subgraph core[&quot;Core Subsystems&quot;]
+        BUS[MessageBus&lt;br/&gt;internal/bus]
+        PIPE[Pipeline&lt;br/&gt;internal/pipeline]
+        RT[Agent Runtime&lt;br/&gt;internal/agent]
+        SESS[Session Router&lt;br/&gt;internal/session]
+        SLASH[Slash System&lt;br/&gt;internal/slash]
+    end
+
+    subgraph transports[&quot;Transports&quot;]
+        CM[ChannelManager&lt;br/&gt;channel/manager]
+        TG[Telegram]
+        FS[Feishu]
+        WC[WeCom]
+        WA[WhatsApp]
+        WUI[Web UI]
+    end
+
+    subgraph bg[&quot;Background&quot;]
+        CR[Cron&lt;br/&gt;internal/cron]
+        HB[Heartbeat&lt;br/&gt;internal/heartbeat]
+    end
+
+    subgraph data[&quot;Data &amp; Config&quot;]
+        CFG[Config&lt;br/&gt;internal/config]
+        MEM[Memory &amp; Prompts&lt;br/&gt;pkg/memory · pkg/prompt]
+        WS[Workspace&lt;br/&gt;AGENTS.md · SOUL.md · HEARTBEAT.md]
+    end
+
+    CLI --&gt; G
+    G --&gt; APPLY
+    G --&gt; RUN
+    G --&gt; SH
+    RUN --&gt; BUS
+    RUN --&gt; CM
+    RUN --&gt; CR
+    RUN --&gt; HB
+    APPLY --&gt; RT
+    APPLY --&gt; CM
+    APPLY --&gt; SLASH
+    APPLY --&gt; HB
+    BUS --&gt; PIPE
+    PIPE --&gt; RT
+    PIPE --&gt; SESS
+    PIPE --&gt; SLASH
+    CM --&gt; TG
+    CM --&gt; FS
+    CM --&gt; WC
+    CM --&gt; WA
+    CM --&gt; WUI
+    CR --&gt; PIPE
+    HB --&gt; PIPE
+    RT --&gt; MEM
+    CFG --&gt; G
+    WS --&gt; MEM
+</code></pre>
+<hr />
+<h2 id="4-gateway-lifecycle">4. Gateway Lifecycle</h2>
+<p>The Gateway (<code>internal/gateway</code>) owns process-level orchestration. It is the only component that constructs and swaps the agent runtime, manages channels, and coordinates shutdown.</p>
+<h3 id="41-run">4.1 Run</h3>
+<p><code>Run</code> initializes and starts, in order:</p>
+<ol>
+<li>Outbound dispatch loop (reads from <code>MessageBus.OutboundChan</code>)</li>
+<li>Configuration application (<code>Apply</code>)</li>
+<li>Channel manager startup</li>
+<li>Cron scheduler startup</li>
+<li>Heartbeat service startup</li>
+<li>Inbound pipeline loop (reads from <code>MessageBus.InboundChan</code>)</li>
+</ol>
+<p><code>Run</code> blocks until shutdown or reload is triggered.</p>
+<h3 id="42-apply">4.2 Apply</h3>
+<p><code>Apply</code> is the <strong>only</strong> supported configuration mutation path. It performs an atomic reconfiguration:</p>
+<ol>
+<li>Load and validate configuration (<code>internal/config</code>)</li>
+<li>Build system prompt from workspace files (<code>AGENTS.md</code>, <code>SOUL.md</code>) and memory</li>
+<li>Load skills (<code>internal/skills</code>)</li>
+<li>Construct a new agent runtime (<code>internal/agent/sdk_runtime.go</code>)</li>
+<li>Configure channels via the channel manager</li>
+<li>Swap the runtime pointer into the pipeline under <code>turnMu</code> (write lock)</li>
+<li>Refresh slash command handlers</li>
+<li>Restart the heartbeat service</li>
+</ol>
+<p>This guarantees that runtime, channels, and tools remain consistent. Partial failures during <code>Apply</code> do not leave the system in a mixed state because the runtime swap is atomic.</p>
+<h3 id="43-shutdown">4.3 Shutdown</h3>
+<p>Shutdown is ordered and deterministic to prevent use-after-close and message loss:</p>
+<ol>
+<li>Stop inbound processing (pipeline stops consuming)</li>
+<li>Cancel active operations (context cancellation propagates to runtime)</li>
+<li>Stop cron and heartbeat</li>
+<li>Stop channels</li>
+<li>Close runtime</li>
+<li>Close message bus</li>
+</ol>
+<h3 id="44-hot-reload">4.4 Hot Reload</h3>
+<p>Hot reload is optional config watching (<code>internal/config/watch.go</code>) that triggers <code>Apply</code> on changes to <code>~/.maven/config.json</code>. A debounce window (default 800ms, configurable via <code>gateway.reloadDebounceMs</code>) prevents rapid successive reloads from causing thrash.</p>
+<p>The reload sequence is:</p>
+<ol>
+<li><strong>Config watcher detects change</strong> — <code>fsnotify</code> observes a write, create, rename, or remove event on the config file.</li>
+<li><strong>Debounce</strong> — A timer resets on each event; only the trailing edge after the debounce period fires the reload.</li>
+<li><strong>Gateway calls <code>Apply</code></strong> — This rebuilds the runtime, reconfigures channels, and refreshes slash handlers.</li>
+<li><strong>Runtime swap under lock</strong> — The pipeline holds <code>turnMu</code> (read lock) during active turns. <code>Apply</code> acquires the write lock, ensuring no turn is interrupted mid-flight.</li>
+<li><strong>Drain and restart</strong> — The channel manager stops old channels and starts new ones. The heartbeat service is restarted. Cron continues with its existing schedule (concurrency is fixed at startup).</li>
+</ol>
+<p>Constraints:</p>
+<ul>
+<li><strong>Workspace path cannot change</strong> during reload. If the config specifies a different <code>agent.workspace</code>, the reload is rejected and logged.</li>
+<li><strong>Cron concurrency</strong> (<code>gateway.cron.maxConcurrentRuns</code>) is fixed at process start. Changing it requires a full restart.</li>
+<li><strong>No in-flight turns are dropped</strong> — The write lock on <code>turnMu</code> waits for active turns to complete before swapping the runtime.</li>
+</ul>
+<p>This design ensures that a running gateway can pick up model changes, channel reconfigurations, skill updates, and prompt edits without dropping connections or losing messages.</p>
+<hr />
+<h2 id="5-message-bus">5. Message Bus</h2>
+<p>The message bus (<code>internal/bus</code>) is the central nervous system for chat-driven work. It provides strictly bounded, blocking queues for both inbound and outbound traffic.</p>
+<h3 id="51-semantics">5.1 Semantics</h3>
+<ul>
+<li><strong>Backpressure, not dropping:</strong> <code>PublishInbound</code> and <code>PublishOutbound</code> block until buffer space is available, the context is canceled, or the bus is closed. No messages are silently dropped.</li>
+<li><strong>At-most-one subscriber per channel:</strong> Outbound dispatch routes to a single handler per channel name.</li>
+<li><strong>Panic containment:</strong> Subscriber panics are recovered and logged; they do not crash the bus.</li>
+</ul>
+<h3 id="52-streaming-lifecycle">5.2 Streaming Lifecycle</h3>
+<p>For streaming-capable channels (e.g., Telegram private chats), the bus supports optional <code>StreamDelegate</code> hooks:</p>
+<ul>
+<li><code>OnStreamBegin</code> — Called before <code>RunStream</code> consumes the runtime</li>
+<li><code>OnStreamEnd</code> — Called after the stream completes or fails</li>
+</ul>
+<h3 id="53-event-emission">5.3 Event Emission</h3>
+<p>The bus emits structured events via <code>pkg/events</code>:
+- <code>EventBusPublishFailure</code> — Enqueue failures (with stream, channel, and error attributes)
+- <code>EventBusClosed</code> — Emitted after queues are drained and closed</p>
+<p>These integrate with the global event publisher for observability.</p>
+<hr />
+<h2 id="6-pipeline">6. Pipeline</h2>
+<p>The pipeline (<code>internal/pipeline</code>) is the execution coordinator. It is the only component that directly invokes the agent runtime.</p>
+<h3 id="61-responsibilities">6.1 Responsibilities</h3>
+<ul>
+<li>Consume inbound messages from the bus</li>
+<li>Resolve session routing (<code>channel:chatId → sessionId</code>)</li>
+<li>Execute slash pre-processing</li>
+<li>Invoke the runtime (streaming or synchronous)</li>
+<li>Apply post-turn actions</li>
+<li>Publish outbound messages</li>
+</ul>
+<h3 id="62-concurrency-model">6.2 Concurrency Model</h3>
+<p>The runtime pointer is protected by <code>turnMu</code>:
+- <strong>Read lock</strong> held during turn execution
+- <strong>Write lock</strong> used only during <code>Apply</code> when swapping runtimes</p>
+<p>This prevents runtime replacement while a turn is in flight.</p>
+<h3 id="63-execution-paths">6.3 Execution Paths</h3>
+<p>For every inbound message, the pipeline evaluates the following ordered paths:</p>
+<ol>
+<li><strong>Built-in command</strong> (e.g., <code>/new</code>) — Handled without model invocation</li>
+<li><strong>Slash <code>PreTurn</code></strong> — May return a direct response or attach metadata</li>
+<li><strong>Runtime execution</strong></li>
+<li><code>RunStream</code> for streaming channels</li>
+<li><code>RunResponse</code> otherwise</li>
+<li><strong>Post actions</strong> — Compaction, session rotation</li>
+<li><strong>Outbound publish</strong> — Results enqueued on the bus</li>
+</ol>
+<hr />
+<h2 id="7-agent-runtime">7. Agent Runtime</h2>
+<p>The runtime (<code>internal/agent</code>) wraps <code>ageneral-agents-go</code> and presents a clean execution surface to the pipeline.</p>
+<h3 id="71-construction">7.1 Construction</h3>
+<p>The runtime is constructed during <code>Apply</code> with:</p>
+<ul>
+<li>Provider configuration (Anthropic or OpenAI)</li>
+<li>System prompt (workspace + memory merged)</li>
+<li>Skill registrations</li>
+<li>MCP server definitions (optional)</li>
+<li>Auto-compact configuration</li>
+<li>Cron tools (<code>CronSchedule</code>, <code>CronList</code>, <code>CronRemove</code>)</li>
+</ul>
+<h3 id="72-execution-surface">7.2 Execution Surface</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Run</code></td>
+<td>Synchronous non-streaming turn</td>
+</tr>
+<tr>
+<td><code>RunStream</code></td>
+<td>Streaming turn (token-by-token delivery)</td>
+</tr>
+</tbody>
+</table>
+<p>Both accept prompt text, multimodal content blocks, session ID, and optional metadata.</p>
+<h3 id="73-tools">7.3 Tools</h3>
+<p>Cron tools are injected into the runtime so the agent can schedule future work. Slash commands are <strong>not</strong> part of the runtime; they execute in the pipeline layer to avoid model round-trips for administrative operations.</p>
+<hr />
+<h2 id="8-session-management">8. Session Management</h2>
+<p>Session routing (<code>internal/session</code>) provides stable conversation identity:</p>
+<pre><code>channel:chatId → sessionId
+</code></pre>
+<h3 id="81-properties">8.1 Properties</h3>
+<ul>
+<li><strong>Stable:</strong> A given chat route always maps to the same session ID across restarts (unless rotated)</li>
+<li><strong>Persisted:</strong> Session state survives process restarts</li>
+<li><strong>Rotatable:</strong> Explicitly rotated on <code>/new</code> or compaction triggers</li>
+</ul>
+<h3 id="82-background-isolation">8.2 Background Isolation</h3>
+<p>Background execution intentionally does <strong>not</strong> reuse chat sessions:</p>
+<ul>
+<li><strong>Cron</strong> uses <code>cron.SessionKey</code> — stable session keys derived from job ID</li>
+<li><strong>Heartbeat</strong> uses <code>heartbeat.SessionKey</code> — stable session keys per run</li>
+</ul>
+<p>This prevents background tool execution from polluting user conversation history.</p>
+<hr />
+<h2 id="9-slash-system">9. Slash System</h2>
+<p>Slash handling (<code>internal/slash</code>) runs before model execution in the pipeline. It provides:</p>
+<ul>
+<li>Command parsing and routing</li>
+<li>Pre-turn interception (direct responses without LLM cost)</li>
+<li>Metadata injection into the turn context</li>
+<li>Post-action signaling (e.g., "compact this conversation after the turn")</li>
+</ul>
+<h3 id="91-post-action-system">9.1 Post-Action System</h3>
+<p>Post-actions (<code>internal/agent/postaction.go</code>) execute after the runtime returns a response. The canonical example is <strong>compaction</strong>:</p>
+<ol>
+<li>Generate a conversation summary</li>
+<li>Rotate the session (new session ID)</li>
+<li>Persist the summary as seed history for the new session</li>
+</ol>
+<p>This ensures continuity without unbounded context growth.</p>
+<hr />
+<h2 id="10-channels">10. Channels</h2>
+<p>Channels implement <code>internal/channel.Channel</code> and act as interchangeable transport adapters.</p>
+<h3 id="101-responsibilities">10.1 Responsibilities</h3>
+<ul>
+<li>Normalize inbound messages to <code>bus.InboundMessage</code></li>
+<li>Publish inbound work to the bus</li>
+<li>Deliver outbound messages from the bus</li>
+<li>Optional streaming support (<code>StreamChannel</code> interface)</li>
+</ul>
+<h3 id="102-implementations">10.2 Implementations</h3>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Inbound</th>
+<th>Outbound</th>
+<th>Streaming</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Telegram</strong></td>
+<td>Long polling</td>
+<td>HTML + Bot API</td>
+<td>Yes (private chats)</td>
+<td>Supports reactions, file upload, media groups</td>
+</tr>
+<tr>
+<td><strong>Feishu</strong></td>
+<td>Webhook</td>
+<td>Open API</td>
+<td>No</td>
+<td>Token-based auth; image download via tenant token</td>
+</tr>
+<tr>
+<td><strong>WeCom</strong></td>
+<td>Encrypted callback</td>
+<td><code>response_url</code> markdown</td>
+<td>No</td>
+<td>Reactive-only; no proactive delivery</td>
+</tr>
+<tr>
+<td><strong>WhatsApp</strong></td>
+<td><code>whatsmeow</code> events</td>
+<td>Text send</td>
+<td>No</td>
+<td>QR-code login; SQLite session store</td>
+</tr>
+<tr>
+<td><strong>Web UI</strong></td>
+<td>WebSocket</td>
+<td>WebSocket</td>
+<td>No</td>
+<td>Responsive; gateway-hosted static files</td>
+</tr>
+</tbody>
+</table>
+<h3 id="103-reactive-only-channels">10.3 Reactive-Only Channels</h3>
+<p>WeCom is <strong>reactive-only</strong>: outbound <code>Send</code> depends on a cached <code>response_url</code> from a recent inbound message. Proactive cron delivery is explicitly skipped for these channels.</p>
+<hr />
+<h2 id="11-background-execution">11. Background Execution</h2>
+<h3 id="111-cron">11.1 Cron</h3>
+<p>Cron (<code>internal/cron</code>) provides persistent scheduled execution backed by <code>jobs.json</code>.</p>
+<p><strong>Features:</strong>
+- Persistent job store (JSON, atomic writes)
+- Concurrency control via semaphore (<code>gateway.cron.maxConcurrentRuns</code>)
+- Validation of job payloads before execution
+- Optional delivery to chat channels</p>
+<p><strong>Execution Model:</strong>
+- Each run uses a <strong>new session</strong> (no history accumulation)
+- Delivery occurs only when <code>deliver=true</code> and the target channel supports proactive outbound</p>
+<h3 id="112-heartbeat">11.2 Heartbeat</h3>
+<p>Heartbeat (<code>internal/heartbeat</code>) runs periodic unattended checks.</p>
+<p><strong>Behavior:</strong>
+- Reads <code>HEARTBEAT.md</code> from the workspace
+- Skips if the file is empty or missing
+- Single-flight execution (no overlapping runs)
+- Uses a new session per run</p>
+<p><strong>Special Handling:</strong>
+- Responses containing <code>HEARTBEAT_OK</code> are treated as no-op (no visible output)</p>
+<hr />
+<h2 id="12-configuration">12. Configuration</h2>
+<p>Configuration (<code>internal/config</code>) merges three layers:</p>
+<ol>
+<li><strong>Defaults</strong> — Hard-coded sensible defaults</li>
+<li><strong>JSON file</strong> — <code>~/.maven/config.json</code></li>
+<li><strong>Environment variables</strong> — Override file values (e.g., <code>MAVEN_API_KEY</code>, <code>MAVEN_TELEGRAM_TOKEN</code>)</li>
+</ol>
+<p>Validation enforces required fields for enabled components and cross-section consistency.</p>
+<h3 id="121-hot-reload">12.1 Hot Reload</h3>
+<p>When <code>gateway.hotReload</code> is enabled, <code>fsnotify</code> watches the config file. Changes trigger <code>Apply</code> after a debounce period (default 800ms). Immutable fields (workspace path, cron concurrency) require a full restart.</p>
+<hr />
+<h2 id="13-observability">13. Observability</h2>
+<p>Maven includes a lightweight, structured observability layer.</p>
+<h3 id="131-logging">13.1 Logging</h3>
+<p>Centralized via <code>pkg/log</code> (currently a <code>PrintLogger</code> stepping stone toward structured logging). Used across all subsystems.</p>
+<h3 id="132-events-pkgevents">13.2 Events (<code>pkg/events</code>)</h3>
+<ul>
+<li>Structured event system with a global publisher</li>
+<li>Used by the bus and other components for lifecycle signals</li>
+<li>Event types: <code>EventBusPublishFailure</code>, <code>EventBusClosed</code>, and custom system signals</li>
+</ul>
+<h3 id="133-health-internalhealth">13.3 Health (<code>internal/health</code>)</h3>
+<ul>
+<li><code>HealthReporter</code> hooks provide coarse-grained liveness</li>
+<li>Consumed by the gateway and heartbeat services</li>
+</ul>
+<p>Observability is intentionally minimal and extensible; the system avoids heavy metric dependencies.</p>
+<hr />
+<h2 id="14-data-and-workspace">14. Data and Workspace</h2>
+<p>The workspace directory (default <code>~/.maven/workspace</code>) provides:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AGENTS.md</code> / <code>SOUL.md</code></td>
+<td>System prompt construction (persona + identity)</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT.md</code></td>
+<td>Heartbeat runner task text</td>
+</tr>
+<tr>
+<td><code>memory/MEMORY.md</code></td>
+<td>Long-term memory</td>
+</tr>
+<tr>
+<td><code>memory/</code> (daily journals)</td>
+<td>Daily memory entries</td>
+</tr>
+<tr>
+<td><code>skills/&lt;name&gt;/SKILL.md</code></td>
+<td>Custom skill definitions</td>
+</tr>
+<tr>
+<td><code>.telegram/slashes/</code></td>
+<td>Optional Telegram slash command definitions</td>
+</tr>
+</tbody>
+</table>
+<p>Prompt construction merges workspace files and memory context at runtime build time.</p>
+<hr />
+<h2 id="15-data-flows">15. Data Flows</h2>
+<h3 id="151-chat-inbound-outbound-synchronous">15.1 Chat Inbound → Outbound (Synchronous)</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor User
+    participant Ch as Channel
+    participant Bus as MessageBus
+    participant Pipe as Pipeline
+    participant Slash as Slash Handler
+    participant RT as Agent Runtime
+    participant LLM as LLM API
+
+    User-&gt;&gt;Ch: Send message
+    Ch-&gt;&gt;Bus: PublishInbound
+    Bus-&gt;&gt;Pipe: Consume inbound
+    Pipe-&gt;&gt;Pipe: Resolve session
+    Pipe-&gt;&gt;Slash: PreTurn
+    alt Direct reply
+        Slash--&gt;&gt;Pipe: Return text
+    else Model required
+        Pipe-&gt;&gt;RT: RunResponse
+        RT-&gt;&gt;LLM: API request
+        LLM--&gt;&gt;RT: Response
+        RT--&gt;&gt;Pipe: Result
+        Pipe-&gt;&gt;Pipe: Post actions
+    end
+    Pipe-&gt;&gt;Bus: PublishOutbound
+    Bus-&gt;&gt;Ch: Dispatch to subscriber
+    Ch-&gt;&gt;User: Deliver reply
+</code></pre>
+<h3 id="152-streaming-turn">15.2 Streaming Turn</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant Bus as MessageBus
+    participant Pipe as Pipeline
+    participant RT as Agent Runtime
+    participant Ch as StreamChannel
+
+    Bus-&gt;&gt;Pipe: Inbound message
+    Pipe-&gt;&gt;Bus: OnStreamBegin
+    Pipe-&gt;&gt;RT: RunStream
+    RT--&gt;&gt;Pipe: StreamEvent channel
+    loop Token deltas
+        Pipe-&gt;&gt;Ch: SendStream (incremental update)
+    end
+    Pipe-&gt;&gt;Bus: OnStreamEnd
+    Ch-&gt;&gt;Bus: Finalize / cleanup placeholders
+</code></pre>
+<h3 id="153-background-execution-cron">15.3 Background Execution (Cron)</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant Cron as Cron Service
+    participant Pipe as Pipeline
+    participant RT as Agent Runtime
+    participant Bus as MessageBus
+    participant Ch as Channel
+
+    Cron-&gt;&gt;Cron: Check schedules
+    Cron-&gt;&gt;Cron: Acquire semaphore
+    Cron-&gt;&gt;Pipe: RunTurn (direct call, no bus)
+    Pipe-&gt;&gt;RT: RunResponse
+    RT--&gt;&gt;Pipe: Result
+    alt deliver=true &amp; channel capable
+        Pipe-&gt;&gt;Bus: PublishOutbound
+        Bus-&gt;&gt;Ch: Dispatch
+    end
+    Cron-&gt;&gt;Cron: Release semaphore &amp; persist state
+</code></pre>
+<hr />
+<h2 id="16-design-principles-decisions">16. Design Principles &amp; Decisions</h2>
+<table>
+<thead>
+<tr>
+<th>Principle</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Single execution surface</strong></td>
+<td>Eliminates behavior drift between chat and background work</td>
+</tr>
+<tr>
+<td><strong>Single configuration path</strong></td>
+<td><code>Apply</code> guarantees atomic, consistent state changes</td>
+</tr>
+<tr>
+<td><strong>Explicit boundaries</strong></td>
+<td>Bus, pipeline, and runtime are separate packages with narrow interfaces</td>
+</tr>
+<tr>
+<td><strong>Background isolation</strong></td>
+<td>Cron and heartbeat use dedicated sessions to prevent context pollution</td>
+</tr>
+<tr>
+<td><strong>Explicit backpressure</strong></td>
+<td>Blocking queues prevent silent message loss under load</td>
+</tr>
+<tr>
+<td><strong>Channels as adapters</strong></td>
+<td>New transports require only the <code>Channel</code> interface implementation</td>
+</tr>
+<tr>
+<td><strong>Minimal observability</strong></td>
+<td>Structured events and logging without heavy external dependencies</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-repository-structure">17. Repository Structure</h2>
+<pre><code>cmd/maven/              CLI entrypoints (agent, gateway, onboard, status, skills)
+internal/
+  gateway/              Process lifecycle orchestration
+  pipeline/             Turn execution coordinator
+  bus/                  Inbound/outbound messaging
+  agent/                Runtime adapter and post-actions
+  channel/              Channel interface, streaming helpers, base types
+    manager/            Channel wiring (Apply / outbound subscribers)
+    telegram/
+    feishu/
+    wecom/
+    whatsapp/
+    webui/
+  config/               Configuration loading, validation, and file watching
+  cron/                 Scheduler, persistent job store, SessionKey, Deliver
+
+  tools/
+    cron/               CronSchedule / CronList / CronRemove SDK tools + slash helpers
+
+  heartbeat/            HEARTBEAT.md periodic runner and tick SessionKey
+  session/              Session ID routing and rotation
+  slash/                Command parsing and pre-turn handling
+  skills/               SKILL.md loader and SDK registration
+  testutil/             Shared test helpers
+pkg/
+  context/              Per-turn metadata on context.Context
+  events/               Structured event system
+  executor/             TurnExecutor interface
+  log/                  Centralized logging
+  memory/               MEMORY.md and daily journal management
+  prompt/               System prompt builder
+  stringutil/           String helpers
+docs/                   Setup guides and sample workspace
+</code></pre>
+<hr />
+<h2 id="18-operational-notes">18. Operational Notes</h2>
+<ul>
+<li><strong>Config file permissions:</strong> <code>~/.maven/config.json</code> is created with <code>0600</code> (owner read/write only)</li>
+<li><strong>Workspace immutability:</strong> Changing <code>agent.workspace</code> requires a process restart, not just hot reload</li>
+<li><strong>Cron concurrency:</strong> Changing <code>gateway.cron.maxConcurrentRuns</code> requires a restart</li>
+<li><strong>WeCom limitations:</strong> Outbound is reactive-only; cron delivery is skipped with a log line</li>
+<li><strong>Memory growth:</strong> Auto-compaction is opt-in (<code>autoCompact.enabled</code>) and triggers at a configurable context threshold</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.tabs", "navigation.sections", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

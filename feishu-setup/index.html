@@ -1,0 +1,776 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Feishu (Lark) bot setup - Maven Agent</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#feishu-lark-bot-setup" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Maven Agent" class="md-header__button md-logo" aria-label="Maven Agent" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Maven Agent
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Feishu (Lark) bot setup
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Maven Agent" class="md-nav__button md-logo" aria-label="Maven Agent" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Maven Agent
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-a-feishu-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create a Feishu app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-add-bot-capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Add bot capability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-configure-scopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Configure scopes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-event-subscription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Event subscription
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-5-publish-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 5: Publish the app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-6-configure-maven" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 6: Configure maven
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 6: Configure maven">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-config-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A: Config file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B: Environment variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-c-interactive-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option C: Interactive setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-7-expose-localhost-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 7: Expose localhost (tunnel)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 7: Expose localhost (tunnel)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ephemeral-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ephemeral tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#named-tunnel-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named tunnel (production)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker-compose-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Compose tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-8-run-and-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 8: Run and test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="feishu-lark-bot-setup">Feishu (Lark) bot setup</h1>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>A Feishu account (must belong to a team; free teams work)</li>
+<li><code>maven</code> built (<code>make build</code>)</li>
+<li>A publicly reachable URL for the webhook (e.g. a <code>cloudflared</code> tunnel)</li>
+</ul>
+<h2 id="step-1-create-a-feishu-app">Step 1: Create a Feishu app</h2>
+<ol>
+<li>Open <a href="https://open.feishu.cn/">Feishu Open Platform</a></li>
+<li>Click <strong>Create app</strong> → <strong>Custom app</strong></li>
+<li>Enter app name (e.g. <code>maven</code>) and description</li>
+<li>In the app, open <strong>Credentials &amp; basic info</strong> and record:</li>
+<li><strong>App ID</strong> (e.g. <code>cli_a5xxxxx</code>)</li>
+<li><strong>App Secret</strong></li>
+</ol>
+<h2 id="step-2-add-bot-capability">Step 2: Add bot capability</h2>
+<ol>
+<li>Open <strong>App capabilities</strong> → <strong>Add capability</strong></li>
+<li>Choose <strong>Bot</strong></li>
+</ol>
+<h2 id="step-3-configure-scopes">Step 3: Configure scopes</h2>
+<p>Open <strong>Permissions</strong> and enable:</p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>im:message</code></td>
+<td>Read and send messages</td>
+</tr>
+<tr>
+<td><code>im:message:send_as_bot</code></td>
+<td>Send as the app bot</td>
+</tr>
+</tbody>
+</table>
+<h2 id="step-4-event-subscription">Step 4: Event subscription</h2>
+<ol>
+<li>Open <strong>Events &amp; callbacks</strong> → <strong>Event configuration</strong></li>
+<li>Set <strong>Request URL</strong> to your public URL:
+   <code>https://your-domain.com/feishu/webhook</code></li>
+<li>Feishu sends a challenge; maven answers automatically</li>
+<li>Under <strong>Encryption strategy</strong>, note <strong>Verification Token</strong></li>
+<li>Add event: <code>im.message.receive_v1</code> (receive message v2.0)</li>
+</ol>
+<h2 id="step-5-publish-the-app">Step 5: Publish the app</h2>
+<ol>
+<li>Open <strong>Version management &amp; release</strong></li>
+<li>Create a version, set version number and release notes</li>
+<li>Submit review (custom apps can often be approved by your own admin)</li>
+</ol>
+<blockquote>
+<p>After permission changes, publish a new version for them to take effect.</p>
+</blockquote>
+<h2 id="step-6-configure-maven">Step 6: Configure maven</h2>
+<h3 id="option-a-config-file">Option A: Config file</h3>
+<p>Edit <code>~/.maven/config.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;channels&quot;: {
+    &quot;feishu&quot;: {
+      &quot;enabled&quot;: true,
+      &quot;appId&quot;: &quot;cli_a5xxxxx&quot;,
+      &quot;appSecret&quot;: &quot;your-app-secret&quot;,
+      &quot;verificationToken&quot;: &quot;your-verification-token&quot;,
+      &quot;port&quot;: 9876,
+      &quot;allowFrom&quot;: []
+    }
+  }
+}
+</code></pre>
+<h3 id="option-b-environment-variables">Option B: Environment variables</h3>
+<pre><code class="language-bash">export MAVEN_FEISHU_APP_ID=&quot;cli_a5xxxxx&quot;
+export MAVEN_FEISHU_APP_SECRET=&quot;your-app-secret&quot;
+</code></pre>
+<blockquote>
+<p><code>verificationToken</code> and <code>port</code> are config-file only.</p>
+</blockquote>
+<h3 id="option-c-interactive-setup">Option C: Interactive setup</h3>
+<pre><code class="language-bash">make setup
+</code></pre>
+<h2 id="configuration-reference">Configuration reference</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td>bool</td>
+<td>Enable the Feishu channel</td>
+</tr>
+<tr>
+<td><code>appId</code></td>
+<td>string</td>
+<td>Feishu app App ID</td>
+</tr>
+<tr>
+<td><code>appSecret</code></td>
+<td>string</td>
+<td>Feishu app App Secret</td>
+</tr>
+<tr>
+<td><code>verificationToken</code></td>
+<td>string</td>
+<td>Event subscription verification token (empty = skip verification)</td>
+</tr>
+<tr>
+<td><code>encryptKey</code></td>
+<td>string</td>
+<td>Event encryption key (optional)</td>
+</tr>
+<tr>
+<td><code>port</code></td>
+<td>int</td>
+<td>Webhook HTTP port (default 9876)</td>
+</tr>
+<tr>
+<td><code>allowFrom</code></td>
+<td>[]string</td>
+<td>Allowed <code>open_id</code> values (<code>[]</code> = everyone)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="step-7-expose-localhost-tunnel">Step 7: Expose localhost (tunnel)</h2>
+<p>Feishu needs a public URL. For dev/test, <code>cloudflared</code> is convenient.</p>
+<h3 id="ephemeral-tunnel">Ephemeral tunnel</h3>
+<pre><code class="language-bash"># Install cloudflared
+brew install cloudflared
+
+# Start tunnel
+make tunnel
+# or
+cloudflared tunnel --url http://localhost:9876
+</code></pre>
+<p>Output includes a temporary URL:</p>
+<pre><code>https://xxx-xxx-xxx.trycloudflare.com
+</code></pre>
+<p>Use that base URL + <code>/feishu/webhook</code> as the Feishu event URL.</p>
+<blockquote>
+<p>The ephemeral URL changes on restart; update Feishu when it does.</p>
+</blockquote>
+<h3 id="named-tunnel-production">Named tunnel (production)</h3>
+<pre><code class="language-bash">cloudflared tunnel login
+cloudflared tunnel create maven
+cloudflared tunnel route dns maven feishu-bot.yourdomain.com
+cloudflared tunnel run maven
+</code></pre>
+<p>Set the Feishu URL to <code>https://feishu-bot.yourdomain.com/feishu/webhook</code>.</p>
+<h3 id="docker-compose-tunnel">Docker Compose tunnel</h3>
+<pre><code class="language-bash">docker compose --profile tunnel up -d
+docker compose logs tunnel | grep trycloudflare
+</code></pre>
+<h2 id="step-8-run-and-test">Step 8: Run and test</h2>
+<pre><code class="language-bash">make gateway
+</code></pre>
+<p>Success logs:</p>
+<pre><code>[feishu] webhook server listening on :9876
+[gateway] channels started: [feishu]
+</code></pre>
+<p>In Feishu, open a chat with your bot and send a message.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p><strong>Q: Feishu messages get no reply?</strong>
+- Confirm the event URL is set and challenge verification passed
+- Confirm <code>im.message.receive_v1</code> is subscribed
+- Confirm the app is published and approved
+- Confirm the tunnel is up</p>
+<p><strong>Q: “Access denied”?</strong>
+- Confirm <code>im:message</code> and/or <code>im:message:send_as_bot</code> are granted
+- Republish after permission changes</p>
+<p><strong>Q: Webhook 401?</strong>
+- Match <code>verificationToken</code> to the open platform value
+- Empty string skips verification (dev/test only)</p>
+<p><strong>Q: How do I get a user <code>open_id</code>?</strong>
+- Check maven logs for <code>inbound from feishu/ou_xxx</code>
+- <code>ou_xxx</code> is the <code>open_id</code>; add it to <code>allowFrom</code></p>
+<p><strong>Q: Restrict to myself?</strong>
+- Send a message, read <code>open_id</code> from logs
+- Add to <code>allowFrom</code>:</p>
+<p><code>json
+  "allowFrom": ["ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]</code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.tabs", "navigation.sections", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
