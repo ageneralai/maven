@@ -208,6 +208,7 @@ func extractPrompt(input any) string {
 	case string:
 		return v
 	case []any:
+		last := ""
 		for _, item := range v {
 			m, ok := item.(map[string]any)
 			if !ok {
@@ -215,10 +216,11 @@ func extractPrompt(input any) string {
 			}
 			if m["type"] == "message" && m["role"] == "user" {
 				if c, ok := m["content"].(string); ok {
-					return c
+					last = c
 				}
 			}
 		}
+		return last
 	}
 	return ""
 }
