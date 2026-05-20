@@ -52,7 +52,7 @@ type ChannelsConfig struct {
 	Feishu   FeishuConfig   `json:"feishu"`
 	WeCom    WeComConfig    `json:"wecom"`
 	WhatsApp WhatsAppConfig `json:"whatsapp"`
-	WebUI    WebUIConfig    `json:"webui"`
+	Web    WebConfig    `json:"web"`
 }
 
 type TelegramConfig struct {
@@ -146,7 +146,7 @@ type WhatsAppConfig struct {
 	AllowFrom []string `json:"allowFrom,omitempty"`
 }
 
-type WebUIConfig struct {
+type WebConfig struct {
 	Enabled   bool        `json:"enabled"`
 	AllowFrom []string    `json:"allowFrom,omitempty"`
 	Voice     VoiceConfig `json:"voice"`

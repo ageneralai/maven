@@ -22,7 +22,7 @@ func NewSTT(cfg *config.Config, reg *plugin.Registry) (pkgvoice.STT, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("voice: nil config")
 	}
-	vc := cfg.Channels.WebUI.Voice
+	vc := cfg.Channels.Web.Voice
 	if !vc.Enabled {
 		return nil, fmt.Errorf("voice: webui voice not enabled")
 	}
@@ -50,7 +50,7 @@ func NewTTS(cfg *config.Config, reg *plugin.Registry) (pkgvoice.TTS, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("voice: nil config")
 	}
-	vc := cfg.Channels.WebUI.Voice
+	vc := cfg.Channels.Web.Voice
 	if !vc.Enabled {
 		return nil, fmt.Errorf("voice: webui voice not enabled")
 	}

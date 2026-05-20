@@ -1,4 +1,4 @@
-package webui
+package web
 
 import (
 	"context"
@@ -22,7 +22,7 @@ type voiceClient struct {
 	conn *websocket.Conn
 }
 
-func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
+func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	if !w.voiceCfg.Enabled {
 		http.NotFound(wr, r)
 		return
@@ -31,18 +31,18 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		w.Log.Printf("[webui] voice websocket accept error: %v", err)
+		w.Log.Printf("[web] voice websocket accept error: %v", err)
 		return
 	}
 	stt, err := voice.NewSTT(w.appCfg, w.plugins)
 	if err != nil {
-		w.Log.Printf("[webui] voice stt init: %v", err)
+		w.Log.Printf("[web] voice stt init: %v", err)
 		_ = conn.CloseNow()
 		return
 	}
 	tts, err := voice.NewTTS(w.appCfg, w.plugins)
 	if err != nil {
-		w.Log.Printf("[webui] voice tts init: %v", err)
+		w.Log.Printf("[web] voice tts init: %v", err)
 		_ = conn.CloseNow()
 		return
 	}
@@ -51,11 +51,11 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
 	vc := &voiceClient{sess: sess, conn: conn}
 	w.voiceSessions.Store(clientID, vc)
-	w.Log.Printf("[webui] voice client connected: %s", clientID)
+	w.Log.Printf("[web] voice client connected: %s", clientID)
 	defer func() {
 		w.voiceSessions.Delete(clientID)
 		_ = conn.CloseNow()
-		w.Log.Printf("[webui] voice client disconnected: %s", clientID)
+		w.Log.Printf("[web] voice client disconnected: %s", clientID)
 	}()
 	audioCh := make(chan []byte, 64)
 	go func() {
@@ -88,7 +88,7 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	go func() {
 		err := sess.RunSTT(audioCh, func(t string) {
 			if !w.IsAllowed(clientID) {
-				w.Log.Printf("[webui] rejected voice transcript from %s", clientID)
+				w.Log.Printf("[web] rejected voice transcript from %s", clientID)
 				return
 			}
 			sess.Interrupt()
@@ -96,7 +96,7 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
 			cancel()
 			_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{
-				Channel:   webUIChannelName,
+				Channel:   webChannelName,
 				SenderID:  clientID,
 				ChatID:    clientID,
 				Content:   t,
@@ -104,7 +104,7 @@ func (w *WebUIChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			})
 		})
 		if err != nil && err != context.Canceled {
-			w.Log.Printf("[webui] voice STT: %v", err)
+			w.Log.Printf("[web] voice STT: %v", err)
 		}
 	}()
 	<-r.Context().Done()

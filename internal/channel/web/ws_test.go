@@ -1,4 +1,4 @@
-package webui
+package web
 
 import (
 	"context"
@@ -17,26 +17,26 @@ import (
 
 var webuiTestLog = mavenlog.Std()
 
-func TestNewWebUIChannel(t *testing.T) {
+func TestNewWebChannel(t *testing.T) {
 	b := bus.NewMessageBus(10, webuiTestLog)
-	cfg := config.WebUIConfig{Enabled: true}
+	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 0}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, nil, nil, webuiTestLog, b)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
 	if err != nil {
-		t.Fatalf("NewWebUIChannel: %v", err)
+		t.Fatalf("NewWebChannel: %v", err)
 	}
-	if ch.Name() != "webui" {
-		t.Errorf("Name() = %q, want %q", ch.Name(), "webui")
+	if ch.Name() != "web" {
+		t.Errorf("Name() = %q, want %q", ch.Name(), "web")
 	}
 }
 
-func TestWebUIChannel_StartStop(t *testing.T) {
+func TestWebChannel_StartStop(t *testing.T) {
 	b := bus.NewMessageBus(10, webuiTestLog)
-	cfg := config.WebUIConfig{Enabled: true}
+	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19876}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, nil, nil, webuiTestLog, b)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,12 +64,12 @@ func TestWebUIChannel_StartStop(t *testing.T) {
 	}
 }
 
-func TestWebUIChannel_WebSocket(t *testing.T) {
+func TestWebChannel_WebSocket(t *testing.T) {
 	b := bus.NewMessageBus(10, webuiTestLog)
-	cfg := config.WebUIConfig{Enabled: true}
+	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19877}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, nil, nil, webuiTestLog, b)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,18 +98,18 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 
 	select {
 	case inbound := <-b.InboundChan():
-		if inbound.Channel != "webui" {
-			t.Errorf("channel = %q, want %q", inbound.Channel, "webui")
+		if inbound.Channel != "web" {
+			t.Errorf("channel = %q, want %q", inbound.Channel, "web")
 		}
 		if inbound.Content != "hello from test" {
 			t.Errorf("content = %q, want %q", inbound.Content, "hello from test")
 		}
-		if !strings.HasPrefix(inbound.ChatID, "webui-") {
-			t.Errorf("chatID = %q, want prefix %q", inbound.ChatID, "webui-")
+		if !strings.HasPrefix(inbound.ChatID, "web-") {
+			t.Errorf("chatID = %q, want prefix %q", inbound.ChatID, "web-")
 		}
 
 		if err := ch.Send(ctx, bus.OutboundMessage{
-			Channel: "webui",
+			Channel: "web",
 			ChatID:  inbound.ChatID,
 			Content: "reply from bot",
 		}); err != nil {
@@ -136,12 +136,12 @@ func TestWebUIChannel_WebSocket(t *testing.T) {
 	}
 }
 
-func TestWebUIChannel_SendBroadcast(t *testing.T) {
+func TestWebChannel_SendBroadcast(t *testing.T) {
 	b := bus.NewMessageBus(10, webuiTestLog)
-	cfg := config.WebUIConfig{Enabled: true}
+	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19878}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, nil, nil, webuiTestLog, b)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	if err := ch.Send(ctx, bus.OutboundMessage{
-		Channel: "webui",
+		Channel: "web",
 		ChatID:  "unknown-id",
 		Content: "broadcast msg",
 	}); err != nil {
@@ -195,12 +195,12 @@ func TestWebUIChannel_SendBroadcast(t *testing.T) {
 	}
 }
 
-func TestWebUIChannel_SendStream(t *testing.T) {
+func TestWebChannel_SendStream(t *testing.T) {
 	b := bus.NewMessageBus(10, webuiTestLog)
-	cfg := config.WebUIConfig{Enabled: true}
+	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19879}
 
-	ch, err := NewWebUIChannel(cfg, gwCfg, nil, nil, webuiTestLog, b)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

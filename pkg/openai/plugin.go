@@ -19,7 +19,7 @@ func NewPlugin() plugin.Plugin { return Plugin{} }
 func (Plugin) Name() string { return "openai" }
 
 func (Plugin) Enabled(cfg *config.Config) bool {
-	return cfg != nil && cfg.Channels.WebUI.Voice.Enabled
+	return cfg != nil && cfg.Channels.Web.Voice.Enabled
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -27,10 +27,10 @@ func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
 func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
 
 func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
-	if cfg == nil || !cfg.Channels.WebUI.Voice.Enabled {
+	if cfg == nil || !cfg.Channels.Web.Voice.Enabled {
 		return nil
 	}
-	if pkgvoice.NormalizeTTS(cfg.Channels.WebUI.Voice.TTSProvider) != "openai" {
+	if pkgvoice.NormalizeTTS(cfg.Channels.Web.Voice.TTSProvider) != "openai" {
 		return nil
 	}
 	k := pkgvoice.MergeKeys(cfg)

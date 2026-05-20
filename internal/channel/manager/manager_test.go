@@ -39,7 +39,7 @@ func (m *mockManagedChannel) Capabilities() chann.CapabilitySet { return chann.C
 
 func TestChannelManager_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil)
+	m := NewChannelManager(b, mgrTestLog, nil, nil)
 	if len(m.EnabledChannels()) != 0 {
 		t.Errorf("expected 0 enabled channels, got %d", len(m.EnabledChannels()))
 	}
@@ -74,7 +74,7 @@ func TestChannelManager_WithMockChannel(t *testing.T) {
 
 func TestChannelManager_StartAll_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil)
+	m := NewChannelManager(b, mgrTestLog, nil, nil)
 	if err := m.StartAll(context.Background()); err != nil {
 		t.Errorf("StartAll error: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestChannelManager_StartAll_Empty(t *testing.T) {
 
 func TestChannelManager_StopAll_Empty(t *testing.T) {
 	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil)
+	m := NewChannelManager(b, mgrTestLog, nil, nil)
 	if err := m.StopAll(); err != nil {
 		t.Errorf("StopAll error: %v", err)
 	}

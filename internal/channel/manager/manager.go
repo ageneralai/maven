@@ -9,7 +9,7 @@ import (
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/channel/feishu"
 	"github.com/ageneralai/maven/internal/channel/telegram"
-	"github.com/ageneralai/maven/internal/channel/webui"
+	"github.com/ageneralai/maven/internal/channel/web"
 	"github.com/ageneralai/maven/internal/channel/wecom"
 	"github.com/ageneralai/maven/internal/channel/whatsapp"
 	"github.com/ageneralai/maven/internal/config"
@@ -23,18 +23,20 @@ type ChannelManager struct {
 	bus      *bus.MessageBus
 	log      mavenlog.PrintLogger
 	plugins  *plugin.Registry
+	runner   web.StreamRunner
 }
 
-func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry) *ChannelManager {
+func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
 	return &ChannelManager{
 		channels: make(map[string]chann.Channel),
 		bus:      b,
 		log:      lg,
 		plugins:  plugins,
+		runner:   runner,
 	}
 }
 
-func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry) (map[string]chann.Channel, error) {
+func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry, runner web.StreamRunner) (map[string]chann.Channel, error) {
 	out := make(map[string]chann.Channel)
 	ws := cfg.Agent.Workspace
 	chcfg := cfg.Channels
@@ -66,10 +68,10 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLog
 		}
 		out[ch.Name()] = ch
 	}
-	if chcfg.WebUI.Enabled {
-		ch, err := webui.NewWebUIChannel(chcfg.WebUI, cfg.Gateway, cfg, plugins, lg, b)
+	if chcfg.Web.Enabled {
+		ch, err := web.NewWebChannel(chcfg.Web, cfg.Gateway, cfg, plugins, lg, b, runner)
 		if err != nil {
-			return nil, fmt.Errorf("init webui channel: %w", err)
+			return nil, fmt.Errorf("init web channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}
@@ -90,7 +92,7 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 		}
 		m.bus.SetOutboundSubscriber(n, nil)
 	}
-	next, err := buildChannelMap(cfg, m.bus, m.log, m.plugins)
+	next, err := buildChannelMap(cfg, m.bus, m.log, m.plugins, m.runner)
 	if err != nil {
 		return err
 	}

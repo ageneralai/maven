@@ -107,9 +107,10 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	plugs := []plugin.Plugin{acp.NewPlugin()}
 	plugs = append(plugs, mavoice.VoicePlugins()...)
 	g.plugins = plugin.NewRegistry(plugs...)
-	g.channelMgr = manager.NewChannelManager(g.bus, g.logger, g.plugins)
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
+	pipeRunner := &pipelineStreamRunner{pipeFn: func() *pipeline.Pipeline { return pipe }}
+	g.channelMgr = manager.NewChannelManager(g.bus, g.logger, g.plugins, pipeRunner)
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
 	g.cron = cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
 	g.signalChan = opts.SignalChan
