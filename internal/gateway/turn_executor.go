@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/pipeline"
 )
 
@@ -32,9 +31,5 @@ func (r *pipelineStreamRunner) RunStream(ctx context.Context, prompt, sessionID 
 	if p == nil {
 		return nil, fmt.Errorf("gateway: pipeline not initialized")
 	}
-	rt := p.CurrentRuntime()
-	if rt == nil {
-		return nil, fmt.Errorf("gateway: runtime not initialized")
-	}
-	return agent.RunStream(ctx, rt, prompt, sessionID, nil)
+	return p.RunStream(ctx, prompt, sessionID)
 }

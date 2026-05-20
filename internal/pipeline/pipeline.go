@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/bus"
@@ -75,6 +76,15 @@ func (p *Pipeline) RunText(ctx context.Context, prompt, sessionID string, conten
 // RunTurn implements executor.TurnExecutor.
 func (p *Pipeline) RunTurn(ctx context.Context, prompt, sessionID string) (string, error) {
 	return p.RunText(ctx, prompt, sessionID, nil)
+}
+
+// RunStream runs a streaming agent turn while holding the turn lock, so reload cannot
+// Close the runtime mid-call. Safe to call concurrently with RunText and inbound pipeline.
+func (p *Pipeline) RunStream(ctx context.Context, prompt, sessionID string) (<-chan api.StreamEvent, error) {
+	p.turnMu.RLock()
+	defer p.turnMu.RUnlock()
+	rt := p.rt
+	return agent.RunStream(ctx, rt, prompt, sessionID, nil)
 }
 
 var _ executor.TurnExecutor = (*Pipeline)(nil)
