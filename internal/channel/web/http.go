@@ -18,6 +18,7 @@ import (
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/plugin"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/google/uuid"
 )
 
 //go:embed static
@@ -136,7 +137,11 @@ func (w *WebChannel) handleResponses(wr http.ResponseWriter, r *http.Request) {
 		http.Error(wr, `{"error":{"message":"input is required","type":"invalid_request_error"}}`, http.StatusBadRequest)
 		return
 	}
-	sessionID := strings.TrimSpace(req.PreviousResponseID)
+	sessionID, err := resolveMavenSessionID(r, req.PreviousResponseID)
+	if err != nil {
+		http.Error(wr, `{"error":{"message":"`+err.Error()+`","type":"invalid_request_error"}}`, http.StatusBadRequest)
+		return
+	}
 
 	events, err := w.runner.RunStream(r.Context(), prompt, sessionID)
 	if err != nil {
@@ -144,7 +149,7 @@ func (w *WebChannel) handleResponses(wr http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseID := fmt.Sprintf("resp_%d", w.nextID.Add(1))
+	responseID := "resp_" + uuid.NewString()
 	wr.Header().Set("Content-Type", "text/event-stream")
 	wr.Header().Set("Cache-Control", "no-cache")
 	wr.Header().Set("Connection", "keep-alive")
@@ -199,6 +204,7 @@ func (w *WebChannel) handleResponses(wr http.ResponseWriter, r *http.Request) {
 		"type":     "response.completed",
 		"response": map[string]any{"id": responseID, "status": "completed"},
 	})
+	storeMavenResponseSession(responseID, sessionID)
 	fmt.Fprint(wr, "data: [DONE]\n\n")
 	fl.Flush()
 }
