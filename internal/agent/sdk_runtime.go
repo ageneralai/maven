@@ -29,7 +29,7 @@ func (r *runtimeAdapter) Close() {
 }
 
 // NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).
-func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (Runtime, error) {
+func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (Runtime, error) {
 	var provider api.ModelFactory
 	switch cfg.Provider.Type {
 	case "openai":
@@ -60,8 +60,9 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 			Threshold:     cfg.AutoCompact.Threshold,
 			PreserveCount: cfg.AutoCompact.PreserveCount,
 		},
-		Skills:      skillRegs,
-		CustomTools: customTools,
+		Skills:       skillRegs,
+		CustomTools:  customTools,
+		SessionStore: sessionStore,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)

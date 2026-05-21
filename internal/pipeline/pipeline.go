@@ -47,8 +47,8 @@ type Pipeline struct {
 	SlashRegistry *slash.Registry
 	Sessions      session.Resolver
 	Posts         *agent.PostActionHandler
-	turnMu        sync.RWMutex
-	rt            agent.Runtime
+	turnMu sync.RWMutex
+	rt             agent.Runtime
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunText.

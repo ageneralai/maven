@@ -582,14 +582,14 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 
 // mockRuntimeFactory returns a factory that creates mock runtimes
 func mockRuntimeFactory(rt agent.Runtime) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore) (agent.Runtime, error) {
 		return rt, nil
 	}
 }
 
 // errorRuntimeFactory returns a factory that always fails
 func errorRuntimeFactory(err error) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore) (agent.Runtime, error) {
 		return nil, err
 	}
 }
@@ -856,7 +856,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 
 	// DefaultRuntimeFactory will try to create real runtime
 	// which may fail in different ways depending on SDK behavior
-	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil, nil)
+	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil, nil, nil)
 	// Just ensure it doesn't panic - error is expected
 	_ = err
 }
@@ -1093,7 +1093,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 		t.Fatal("expected compact to rotate session")
 	}
 
-	seedPath := filepath.Join(tmpDir, ".claude", "history", currentSession+".json")
+	seedPath := filepath.Join(tmpDir, ".maven", "history", currentSession+".json")
 	data, err := os.ReadFile(seedPath)
 	if err != nil {
 		t.Fatalf("read compact seed: %v", err)

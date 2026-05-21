@@ -97,7 +97,7 @@ func seedSessionSummary(workspace, sessionID, summary string) error {
 	if workspace == "" || sessionID == "" || summary == "" {
 		return fmt.Errorf("invalid compact seed payload")
 	}
-	historyDir := filepath.Join(workspace, ".claude", "history")
+	historyDir := filepath.Join(workspace, ".maven", "history")
 	if err := os.MkdirAll(historyDir, 0o700); err != nil {
 		return fmt.Errorf("mkdir compact history dir: %w", err)
 	}

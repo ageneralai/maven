@@ -20,7 +20,7 @@ import (
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
 	"github.com/ageneralai/maven/internal/pipeline"
-	"github.com/ageneralai/maven/internal/session"
+	mavsession "github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
 	mavoice "github.com/ageneralai/maven/internal/voice"
@@ -32,7 +32,7 @@ import (
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
-type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error)
+type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (agent.Runtime, error)
 
 // Options for creating a Gateway.
 type Options struct {
@@ -42,8 +42,8 @@ type Options struct {
 }
 
 // DefaultRuntimeFactory wires agentsdk-go with the given skills, cron command/tool registration, and gateway plugin tools.
-func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool) (agent.Runtime, error) {
-	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc, pluginTools)
+func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (agent.Runtime, error) {
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc, pluginTools, sessionStore)
 }
 
 // Gateway wires channels, bus, cron, heartbeat, and the inbound pipeline. Business logic lives in internal/pipeline.
@@ -60,7 +60,8 @@ type Gateway struct {
 	plugins        *plugin.Registry
 	mem            *memory.MemoryStore
 	skillRegs      []api.SkillRegistration
-	sessions       *session.Router
+	sessions       *mavsession.Router
+	historyStore   *mavsession.Store
 	signalChan     chan os.Signal
 	logger         mavenlog.PrintLogger
 	liveness       health.HealthReporter
@@ -94,11 +95,16 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g := &Gateway{cfg: cfg, logger: mavenlog.Std()}
 	g.bus = bus.NewMessageBus(config.DefaultBufSize, g.logger)
 	g.mem = memory.NewMemoryStore(cfg.Agent.Workspace)
-	router, routerErr := session.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
+	router, routerErr := mavsession.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
 	if routerErr != nil {
 		return nil, routerErr
 	}
 	g.sessions = router
+	histStore, err := mavsession.NewStore(filepath.Join(cfg.Agent.Workspace, ".maven", "sessions"))
+	if err != nil {
+		return nil, fmt.Errorf("session store: %w", err)
+	}
+	g.historyStore = histStore
 	factory := opts.RuntimeFactory
 	if factory == nil {
 		factory = DefaultRuntimeFactory
@@ -116,7 +122,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g.signalChan = opts.SignalChan
 	liveness := health.OrHealthReporter(opts.HealthReporter)
 	g.liveness = liveness
-	sessRes := &session.SessionResolver{Router: g.sessions}
+	sessRes := &mavsession.SessionResolver{Router: g.sessions}
 	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
 	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
 	pipe.Channels = g.channelMgr
@@ -138,7 +144,7 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 	if g.plugins != nil {
 		pluginTools = g.plugins.Tools(cfg)
 	}
-	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools)
+	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools, g.historyStore)
 }
 
 func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
