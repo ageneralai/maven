@@ -100,7 +100,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		return nil, routerErr
 	}
 	g.sessions = router
-	histStore, err := mavsession.NewStore(filepath.Join(cfg.Agent.Workspace, ".maven", "sessions"))
+	histStore, err := mavsession.NewStore(filepath.Join(config.ConfigDir(), "sessions"))
 	if err != nil {
 		return nil, fmt.Errorf("session store: %w", err)
 	}
