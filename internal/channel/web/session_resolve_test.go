@@ -29,4 +29,9 @@ func TestResolveMavenSessionID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected Maven-Session-Id required")
 	}
+	req5 := httptest.NewRequest("GET", "/ws/voice?session=sess-query", nil)
+	got, err = resolveMavenSessionID(req5, "")
+	if err != nil || got != "sess-query" {
+		t.Fatalf("query session: got %q err=%v", got, err)
+	}
 }

@@ -8,6 +8,9 @@ import (
 
 func resolveMavenSessionID(r *http.Request, previousResponseID string) (string, error) {
 	headerSession := strings.TrimSpace(r.Header.Get(HeaderMavenSessionID))
+	if headerSession == "" {
+		headerSession = strings.TrimSpace(r.URL.Query().Get("session"))
+	}
 	prev := strings.TrimSpace(previousResponseID)
 	if prev != "" {
 		if !isMavenResponseID(prev) {

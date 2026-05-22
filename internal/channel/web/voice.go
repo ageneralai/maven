@@ -2,11 +2,9 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/voice"
 	"github.com/coder/websocket"
 )
@@ -18,13 +16,19 @@ const voiceControlDetect = byte(1)
 
 // voiceClient binds a voice Session to one WebSocket (transport only).
 type voiceClient struct {
-	sess *voice.Session
-	conn *websocket.Conn
+	sess      *voice.Session
+	conn      *websocket.Conn
+	sessionID string
 }
 
 func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	if !w.voiceCfg.Enabled {
 		http.NotFound(wr, r)
+		return
+	}
+	sessionID, err := resolveMavenSessionID(r, "")
+	if err != nil {
+		http.Error(wr, `{"error":{"message":"`+err.Error()+`","type":"invalid_request_error"}}`, http.StatusBadRequest)
 		return
 	}
 	conn, err := websocket.Accept(wr, r, &websocket.AcceptOptions{
@@ -48,14 +52,13 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	}
 	sess := voice.NewSession(r.Context(), stt, tts)
 	defer sess.Close()
-	clientID := fmt.Sprintf("webui-%d", w.nextID.Add(1))
-	vc := &voiceClient{sess: sess, conn: conn}
-	w.voiceSessions.Store(clientID, vc)
-	w.Log.Printf("[web] voice client connected: %s", clientID)
+	vc := &voiceClient{sess: sess, conn: conn, sessionID: sessionID}
+	w.voiceSessions.Store(sessionID, vc)
+	w.Log.Printf("[web] voice client connected: session=%s", sessionID)
 	defer func() {
-		w.voiceSessions.Delete(clientID)
+		w.voiceSessions.Delete(sessionID)
 		_ = conn.CloseNow()
-		w.Log.Printf("[web] voice client disconnected: %s", clientID)
+		w.Log.Printf("[web] voice client disconnected: session=%s", sessionID)
 	}()
 	audioCh := make(chan []byte, 64)
 	go func() {
@@ -87,21 +90,18 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		err := sess.RunSTT(audioCh, func(t string) {
-			if !w.IsAllowed(clientID) {
-				w.Log.Printf("[web] rejected voice transcript from %s", clientID)
-				return
-			}
 			sess.Interrupt()
 			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
 			cancel()
-			_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{
-				Channel:   webChannelName,
-				SenderID:  clientID,
-				ChatID:    clientID,
-				Content:   t,
-				Timestamp: time.Now(),
-			})
+			events, err := w.runner.RunStream(r.Context(), t, sessionID)
+			if err != nil {
+				w.Log.Printf("[web] voice agent stream session=%s: %v", sessionID, err)
+				return
+			}
+			if err := w.sendStreamVoice(r.Context(), sessionID, events); err != nil {
+				w.Log.Printf("[web] voice tts stream session=%s: %v", sessionID, err)
+			}
 		})
 		if err != nil && err != context.Canceled {
 			w.Log.Printf("[web] voice STT: %v", err)
