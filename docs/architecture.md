@@ -574,7 +574,7 @@ internal/
     feishu/
     wecom/
     whatsapp/
-    webui/
+    web/
   config/               Configuration loading, validation, and file watching
   cron/                 Scheduler, persistent job store, SessionKey, Deliver
 

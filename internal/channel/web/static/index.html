@@ -293,10 +293,10 @@ header h1 {
     };
   }
   var voice = voiceDefaultState();
-  var webuiSessionID = crypto.randomUUID();
+  var webSessionID = crypto.randomUUID();
 
-  function ensureWebuiSessionID() {
-    return webuiSessionID;
+  function ensureWebSessionID() {
+    return webSessionID;
   }
 
   function setStatus(state, text) {
@@ -468,7 +468,7 @@ header h1 {
   sendBtn.addEventListener('click', send);
 
   function fetchVoiceFlag() {
-    fetch('/webui/config').then(function(r) { return r.json(); }).then(function(cfg) {
+    fetch('/web/config').then(function(r) { return r.json(); }).then(function(cfg) {
       if (cfg && cfg.voiceEnabled) {
         micBtn.style.display = 'flex';
       }
@@ -572,7 +572,7 @@ header h1 {
       return;
     }
     var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var sessionID = ensureWebuiSessionID();
+    var sessionID = ensureWebSessionID();
     voice.ws = new WebSocket(proto + '//' + location.host + '/ws/voice?session=' + encodeURIComponent(sessionID));
     voice.ws.binaryType = 'arraybuffer';
     voice.ws.onmessage = function(e) {

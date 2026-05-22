@@ -134,7 +134,7 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
       "enabled": true,
       "allowFrom": []
     },
-    "webui": {
+    "web": {
       "enabled": true,
       "allowFrom": [],
       "voice": {
@@ -339,7 +339,7 @@ Quick steps:
 ### Web UI
 
 Quick steps:
-1. Set `"webui": {"enabled": true}` in config
+1. Set `"web": {"enabled": true}` in config
 2. Run `make gateway`
 3. Open `http://localhost:18790` in your browser (PC or mobile)
 

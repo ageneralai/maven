@@ -15,14 +15,14 @@ import (
 	"github.com/coder/websocket"
 )
 
-var webuiTestLog = mavenlog.Std()
+var webTestLog = mavenlog.Std()
 
 func TestNewWebChannel(t *testing.T) {
-	b := bus.NewMessageBus(10, webuiTestLog)
+	b := bus.NewMessageBus(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 0}
 
-	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webTestLog, b, nil)
 	if err != nil {
 		t.Fatalf("NewWebChannel: %v", err)
 	}
@@ -32,11 +32,11 @@ func TestNewWebChannel(t *testing.T) {
 }
 
 func TestWebChannel_StartStop(t *testing.T) {
-	b := bus.NewMessageBus(10, webuiTestLog)
+	b := bus.NewMessageBus(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19876}
 
-	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,11 +65,11 @@ func TestWebChannel_StartStop(t *testing.T) {
 }
 
 func TestWebChannel_WebSocket(t *testing.T) {
-	b := bus.NewMessageBus(10, webuiTestLog)
+	b := bus.NewMessageBus(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19877}
 
-	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,11 +137,11 @@ func TestWebChannel_WebSocket(t *testing.T) {
 }
 
 func TestWebChannel_SendBroadcast(t *testing.T) {
-	b := bus.NewMessageBus(10, webuiTestLog)
+	b := bus.NewMessageBus(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19878}
 
-	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,11 +196,11 @@ func TestWebChannel_SendBroadcast(t *testing.T) {
 }
 
 func TestWebChannel_SendStream(t *testing.T) {
-	b := bus.NewMessageBus(10, webuiTestLog)
+	b := bus.NewMessageBus(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19879}
 
-	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webuiTestLog, b, nil)
+	ch, err := NewWebChannel(cfg, gwCfg, nil, nil, webTestLog, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

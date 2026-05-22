@@ -24,7 +24,7 @@ func NewSTT(cfg *config.Config, reg *plugin.Registry) (pkgvoice.STT, error) {
 	}
 	vc := cfg.Channels.Web.Voice
 	if !vc.Enabled {
-		return nil, fmt.Errorf("voice: webui voice not enabled")
+		return nil, fmt.Errorf("voice: web voice not enabled")
 	}
 	reg = resolveRegistry(reg)
 	if stt := reg.STTProvider(cfg); stt != nil {
@@ -52,7 +52,7 @@ func NewTTS(cfg *config.Config, reg *plugin.Registry) (pkgvoice.TTS, error) {
 	}
 	vc := cfg.Channels.Web.Voice
 	if !vc.Enabled {
-		return nil, fmt.Errorf("voice: webui voice not enabled")
+		return nil, fmt.Errorf("voice: web voice not enabled")
 	}
 	reg = resolveRegistry(reg)
 	if tts := reg.TTSProvider(cfg); tts != nil {

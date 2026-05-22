@@ -1,6 +1,6 @@
 # Web UI voice (STT / TTS)
 
-Optional browser voice for the Web UI: microphone capture → STT → agent → TTS → WebSocket binary playback. Code: `internal/channel/webui` (wire), `internal/voice` (session, factory, plugin list), `pkg/voice` (interfaces, `MergeKeys`, normalization), `pkg/{deepgram,cartesia,elevenlabs,openai}` (provider implementations + `plugin.Plugin`).
+Optional browser voice for the Web UI: microphone capture → STT → agent → TTS → WebSocket binary playback. Code: `internal/channel/web` (wire), `internal/voice` (session, factory, plugin list), `pkg/voice` (interfaces, `MergeKeys`, normalization), `pkg/{deepgram,cartesia,elevenlabs,openai}` (provider implementations + `plugin.Plugin`).
 
 ## Audio contract (TTS → browser)
 
@@ -10,7 +10,7 @@ If a new TTS provider returns **WAV** (or any headered format) without changing 
 
 ## Configuration
 
-In `~/.maven/config.json` under `channels.webui.voice`:
+In `~/.maven/config.json` under `channels.web.voice`:
 
 | Field | Purpose |
 |-------|---------|
@@ -27,11 +27,11 @@ Credentials resolve via env; see `pkg/voice.MergeKeys` and `internal/voice/facto
 - **ElevenLabs**: `ELEVENLABS_API_KEY` / `MAVEN_ELEVENLABS_API_KEY`, **`ELEVENLABS_VOICE_ID`** (required for ElevenLabs TTS)
 - **Cartesia**: `CARTESIA_API_KEY` / `MAVEN_CARTESIA_API_KEY`, **`CARTESIA_VOICE_ID`** (required); optional `CARTESIA_MODEL_ID`, `CARTESIA_API_VERSION`
 
-See `config.example.json` → `channels.webui.voice` and `.env.example` for placeholders.
+See `config.example.json` → `channels.web.voice` and `.env.example` for placeholders.
 
 ## Related files
 
 - `pkg/voice/voice.go` — `TTS` / `STT` interface doc (normative wire contract)
 - `pkg/voice/keys.go` — `MergeKeys`
 - `internal/voice/plugins.go` — default speech plugins for the gateway registry
-- `internal/channel/webui/static/index.html` — PCM enqueue / playback queue
+- `internal/channel/web/static/index.html` — PCM enqueue / playback queue
