@@ -426,10 +426,9 @@ Source lives in `docs/` (MkDocs + Material). To preview or publish:
 ```bash
 pip install -r requirements-docs.txt
 mkdocs serve                    # http://127.0.0.1:8000/
-mkdocs gh-deploy --force        # push to gh-pages (maintainers)
 ```
 
-See [docs/contributing.md](docs/contributing.md) for the full contributor workflow (nav in `mkdocs.yml`, what to commit, deploy permissions).
+Pushes to `main` deploy docs to **`gh-pages`** via CI. See [docs/contributing.md](docs/contributing.md) for the full contributor workflow.
 
 ## License
 

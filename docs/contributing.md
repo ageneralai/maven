@@ -1,11 +1,11 @@
 # Contributing to the docs
 
-User-facing docs live under `docs/` and publish to [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/) via GitHub Pages (`gh-pages` branch). Go code changes use the normal PR flow; doc-only changes follow the steps below.
+User-facing docs live under `docs/` and publish to [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/) from the **`gh-pages`** branch. Merges to `main` run `mkdocs gh-deploy` in CI (`.github/workflows/ci.yml`); PRs run `mkdocs build --strict` only.
 
 ## Prerequisites
 
 - Python 3.9+ with `pip`
-- Git clone of [ageneralai/maven](https://github.com/ageneralai/maven) with push access if you will deploy
+- Git clone of [ageneralai/maven](https://github.com/ageneralai/maven)
 - Repo root is the MkDocs project (contains `mkdocs.yml` and `docs/`)
 
 ## One-time setup
@@ -70,17 +70,15 @@ Supported well with theme fonts/colors: flowchart, sequence, state, class, ER. O
 
 ## Publish to GitHub Pages
 
-Requires permission to push to `ageneralai/maven` and [GitHub Pages](https://docs.github.com/en/pages) enabled for the repo (source: `gh-pages` branch).
+Docs deploy on every push to `main` after CI passes (`deploy-docs` job pushes built HTML to **`gh-pages`**). No manual step.
 
-From the repository root, on `main` with doc changes merged or committed:
+Repo setting: **Settings → Pages → Build and deployment → Source: Deploy from branch → `gh-pages` / `/ (root)`**.
+
+Local fallback:
 
 ```bash
 mkdocs gh-deploy --force
 ```
-
-This builds `site/`, commits the result to the `gh-pages` branch, and pushes. The site updates at [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/) after GitHub finishes processing (usually within a minute).
-
-`--force` on `gh-deploy` overwrites the remote `gh-pages` branch when needed; use it when redeploying after nav or theme changes.
 
 ## What not to commit
 
@@ -91,7 +89,7 @@ This builds `site/`, commits the result to the `gh-pages` branch, and pushes. Th
 
 | Change | Workflow |
 |--------|----------|
-| Markdown under `docs/` | Edit, update `nav` in `mkdocs.yml`, `mkdocs serve`, PR, then `mkdocs gh-deploy` (or ask a maintainer to deploy) |
+| Markdown under `docs/` | Edit, update `nav` in `mkdocs.yml`, `mkdocs serve`, PR; merge to `main` deploys |
 | Go / config / channels | `make test`, normal PR; update docs in the same PR when behavior changes |
 
 Questions about doc structure: open an issue or PR on [ageneralai/maven](https://github.com/ageneralai/maven).
