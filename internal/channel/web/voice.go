@@ -11,14 +11,10 @@ import (
 
 const voiceClearSentinel = byte(0)
 
-// voiceControlDetect: client signals mic energy above threshold — interrupt agent turn early.
-const voiceControlDetect = byte(1)
-
 // voiceClient binds a voice Session to one WebSocket (transport only).
 type voiceClient struct {
-	sess      *voice.Session
-	conn      *websocket.Conn
-	sessionID string
+	sess *voice.Session
+	conn *websocket.Conn
 }
 
 func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
@@ -52,7 +48,7 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	}
 	sess := voice.NewSession(r.Context(), stt, tts)
 	defer sess.Close()
-	vc := &voiceClient{sess: sess, conn: conn, sessionID: sessionID}
+	vc := &voiceClient{sess: sess, conn: conn}
 	w.voiceSessions.Store(sessionID, vc)
 	w.Log.Printf("[web] voice client connected: session=%s", sessionID)
 	defer func() {
@@ -72,13 +68,6 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if len(data) == 0 {
-				continue
-			}
-			if len(data) == 1 && data[0] == voiceControlDetect {
-				sess.Interrupt()
-				writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
-				cancel()
 				continue
 			}
 			select {

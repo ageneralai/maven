@@ -67,6 +67,7 @@ func (s *Session) RunSTT(audio <-chan []byte, onTranscript func(string)) error {
 }
 
 func drainTTSChunks(ctx context.Context, chunks <-chan []byte, writeAudio func([]byte) error) error {
+	var pending []byte
 	for {
 		select {
 		case <-ctx.Done():
@@ -74,6 +75,17 @@ func drainTTSChunks(ctx context.Context, chunks <-chan []byte, writeAudio func([
 		case chunk, ok := <-chunks:
 			if !ok {
 				return nil
+			}
+			if len(chunk) == 0 {
+				continue
+			}
+			if len(pending) > 0 {
+				chunk = append(pending, chunk...)
+				pending = nil
+			}
+			if len(chunk)%2 != 0 {
+				pending = append(pending, chunk[len(chunk)-1])
+				chunk = chunk[:len(chunk)-1]
 			}
 			if len(chunk) == 0 {
 				continue

@@ -545,7 +545,6 @@ header h1 {
     voice.on = false;
     micBtn.classList.remove('active');
     stopVoicePlayback();
-    var savedPlayCtx = voice.playCtx;
     if (voice.captureNode) {
       try { voice.captureNode.disconnect(); } catch (e) {}
       voice.captureNode = null;
@@ -563,7 +562,6 @@ header h1 {
       voice.ws = null;
     }
     voice = voiceDefaultState();
-    voice.playCtx = savedPlayCtx;
   }
 
   function startVoiceSession() {
@@ -614,13 +612,7 @@ header h1 {
             if (!voice.ws || voice.ws.readyState !== 1) {
               return;
             }
-            var d = ev.data;
-            if (d && typeof d === 'object' && !(d instanceof ArrayBuffer) && d.type === 'voice_detected') {
-              stopVoicePlayback();
-              voice.ws.send(new Uint8Array([1]).buffer);
-              return;
-            }
-            voice.ws.send(d);
+            voice.ws.send(ev.data);
           };
           source.connect(node);
           var mute = voice.captureCtx.createGain();

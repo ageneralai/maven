@@ -49,7 +49,10 @@ func TestSession_RunTTS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTTS: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("writes = %d, want 2", len(got))
+	if len(got) != 1 {
+		t.Fatalf("writes = %d, want 1", len(got))
+	}
+	if string(got[0]) != "ab" {
+		t.Fatalf("write = %q, want ab", string(got[0]))
 	}
 }
