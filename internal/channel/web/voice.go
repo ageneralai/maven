@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/ageneralai/maven/internal/voice"
@@ -17,8 +18,9 @@ const voiceDetectRMSThreshold = 0.01
 
 // voiceClient binds a voice Session to one WebSocket (transport only).
 type voiceClient struct {
-	sess *voice.Session
-	conn *websocket.Conn
+	sess    *voice.Session
+	conn    *websocket.Conn
+	writeMu sync.Mutex
 }
 
 func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
@@ -79,7 +81,7 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			if speaking && voiceDetectArmed {
 				voiceDetectArmed = false
 				sess.Interrupt()
-				writeVoiceCancel(conn)
+				vc.writeCancel()
 			} else if !speaking {
 				voiceDetectArmed = true
 			}
@@ -93,7 +95,7 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	go func() {
 		err := sess.RunSTT(audioCh, func(t string) {
 			sess.Interrupt()
-			writeVoiceCancel(conn)
+			vc.writeCancel()
 			events, err := w.runner.RunStream(r.Context(), t, sessionID)
 			if err != nil {
 				w.Log.Printf("[web] voice agent stream session=%s: %v", sessionID, err)
@@ -110,10 +112,12 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	<-r.Context().Done()
 }
 
-func writeVoiceCancel(conn *websocket.Conn) {
+func (v *voiceClient) writeCancel() {
 	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
+	v.writeMu.Lock()
+	defer v.writeMu.Unlock()
+	_ = v.conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
 }
 
 func pcmRMS(pcm []byte) float64 {

@@ -113,6 +113,8 @@ func (w *WebChannel) writeVoiceClient(ctx context.Context, chatID string, typ we
 		return nil
 	}
 	vc := v.(*voiceClient)
+	vc.writeMu.Lock()
+	defer vc.writeMu.Unlock()
 	return vc.conn.Write(ctx, typ, data)
 }
 
@@ -217,6 +219,8 @@ func (w *WebChannel) sendStreamVoice(ctx context.Context, chatID string, events 
 	writeAudio := func(b []byte) error {
 		writeCtx, cancel := context.WithTimeout(agentCtx, 5*time.Second)
 		defer cancel()
+		vc.writeMu.Lock()
+		defer vc.writeMu.Unlock()
 		return conn.Write(writeCtx, websocket.MessageBinary, b)
 	}
 	ttsErr := sess.RunTTS(agentCtx, textCh, writeAudio)
@@ -230,6 +234,8 @@ func (w *WebChannel) sendStreamVoice(ctx context.Context, chatID string, events 
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	vc.writeMu.Lock()
+	defer vc.writeMu.Unlock()
 	if werr := conn.Write(writeCtx, websocket.MessageText, done); werr != nil {
 		if drainErr == nil && ttsErr == nil {
 			return werr
