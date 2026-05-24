@@ -54,6 +54,9 @@
     "braveApiKey": "",
     "execTimeout": 60,
     "restrictToWorkspace": true,
+    "task": {
+      "enabled": false
+    },
     "acp": {
       "enabled": false,
       "agents": {

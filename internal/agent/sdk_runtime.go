@@ -9,6 +9,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/pkg/task"
 	tcron "github.com/ageneralai/maven/internal/tools/cron"
 )
 
@@ -47,7 +48,9 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	}
+	taskHolder := &task.RuntimeHolder{}
 	customTools := tcron.Tools(cronSvc)
+	customTools = append(customTools, task.Tools(cfg.Tools.Task, taskHolder)...)
 	customTools = append(customTools, pluginTools...)
 	rt, err := api.New(context.Background(), api.Options{
 		ProjectRoot:   cfg.Agent.Workspace,
@@ -67,5 +70,6 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 	if err != nil {
 		return nil, fmt.Errorf("create runtime: %w", err)
 	}
+	taskHolder.Set(rt)
 	return &runtimeAdapter{rt: rt}, nil
 }

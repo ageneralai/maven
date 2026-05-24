@@ -88,7 +88,8 @@ type ToolsConfig struct {
 	BraveAPIKey         string        `json:"braveApiKey,omitempty"`
 	ExecTimeout         int           `json:"execTimeout"`
 	RestrictToWorkspace bool          `json:"restrictToWorkspace"`
-	ACP                 ACPToolConfig `json:"acp,omitempty"`
+	ACP                 ACPToolConfig  `json:"acp,omitempty"`
+	Task                TaskToolConfig `json:"task,omitempty"`
 }
 
 // ACPToolConfig registers subprocess ACP agents invoked only via the DelegateTask tool (commands never come from model params).
@@ -101,6 +102,11 @@ type ACPAgent struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args,omitempty"`
 	Env     []string `json:"env,omitempty"`
+}
+
+// TaskToolConfig enables the in-process Task tool for SDK subagent delegation.
+type TaskToolConfig struct {
+	Enabled bool `json:"enabled"`
 }
 
 type GatewayConfig struct {
