@@ -162,8 +162,20 @@ type WebConfig struct {
 // SpeechConfig selects platform STT/TTS providers (credentials via env; see pkg/voice.MergeKeys).
 // sttProvider: deepgram (default). ttsProvider: openai (default) | deepgram | elevenlabs | cartesia.
 type SpeechConfig struct {
-	STTProvider string `json:"sttProvider,omitempty"`
-	TTSProvider string `json:"ttsProvider,omitempty"`
+	STTProvider string           `json:"sttProvider,omitempty"`
+	TTSProvider string           `json:"ttsProvider,omitempty"`
+	Cartesia    CartesiaConfig   `json:"cartesia,omitempty"`
+	ElevenLabs  ElevenLabsConfig `json:"elevenlabs,omitempty"`
+}
+
+type CartesiaConfig struct {
+	VoiceID    string `json:"voiceId,omitempty"`
+	ModelID    string `json:"modelId,omitempty"`
+	APIVersion string `json:"apiVersion,omitempty"`
+}
+
+type ElevenLabsConfig struct {
+	VoiceID string `json:"voiceId,omitempty"`
 }
 
 // WebVoiceConfig enables browser realtime voice on the Web UI (/ws/voice).

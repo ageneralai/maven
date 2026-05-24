@@ -2,7 +2,6 @@ package elevenlabs
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
@@ -23,7 +22,7 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "elevenlabs") {
 		return false
 	}
-	if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
+	if strings.TrimSpace(cfg.Speech.ElevenLabs.VoiceID) == "" {
 		return false
 	}
 	k := pkgvoice.MergeKeys(cfg)
@@ -38,7 +37,7 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "elevenlabs") {
 		return nil
 	}
-	voiceID := strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID"))
+	voiceID := strings.TrimSpace(cfg.Speech.ElevenLabs.VoiceID)
 	if voiceID == "" {
 		return nil
 	}

@@ -13,7 +13,15 @@
   },
   "speech": {
     "sttProvider": "deepgram",
-    "ttsProvider": "openai"
+    "ttsProvider": "openai",
+    "cartesia": {
+      "voiceId": "",
+      "modelId": "sonic-2",
+      "apiVersion": "2025-04-16"
+    },
+    "elevenlabs": {
+      "voiceId": ""
+    }
   },
   "channels": {
     "telegram": {
