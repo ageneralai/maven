@@ -33,7 +33,7 @@ type WebChannel struct {
 	clients       sync.Map
 	voiceSessions sync.Map
 	nextID        atomic.Int64
-	voiceCfg      config.VoiceConfig
+	voiceCfg      config.WebVoiceConfig
 	appCfg        *config.Config
 	plugins       *plugin.Registry
 	runner        StreamRunner

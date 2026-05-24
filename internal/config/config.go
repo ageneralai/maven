@@ -31,6 +31,7 @@ type Config struct {
 	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
 	TokenTracking TokenTrackingConfig `json:"tokenTracking"`
 	Gateway       GatewayConfig       `json:"gateway"`
+	Speech        SpeechConfig        `json:"speech,omitempty"`
 }
 
 type AgentConfig struct {
@@ -153,17 +154,21 @@ type WhatsAppConfig struct {
 }
 
 type WebConfig struct {
-	Enabled   bool        `json:"enabled"`
-	AllowFrom []string    `json:"allowFrom,omitempty"`
-	Voice     VoiceConfig `json:"voice"`
+	Enabled   bool           `json:"enabled"`
+	AllowFrom []string       `json:"allowFrom,omitempty"`
+	Voice     WebVoiceConfig `json:"voice"`
 }
 
-// VoiceConfig selects optional browser voice I/O for Web UI (credentials via env; see pkg/voice.MergeKeys).
-// ttsProvider: deepgram | openai | elevenlabs | cartesia
-type VoiceConfig struct {
-	Enabled     bool   `json:"enabled"`
-	STTProvider string `json:"sttProvider"`
-	TTSProvider string `json:"ttsProvider"`
+// SpeechConfig selects platform STT/TTS providers (credentials via env; see pkg/voice.MergeKeys).
+// sttProvider: deepgram (default). ttsProvider: openai (default) | deepgram | elevenlabs | cartesia.
+type SpeechConfig struct {
+	STTProvider string `json:"sttProvider,omitempty"`
+	TTSProvider string `json:"ttsProvider,omitempty"`
+}
+
+// WebVoiceConfig enables browser realtime voice on the Web UI (/ws/voice).
+type WebVoiceConfig struct {
+	Enabled bool `json:"enabled"`
 }
 
 type AutoCompactConfig struct {

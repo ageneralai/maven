@@ -11,6 +11,10 @@
     "apiKey": "sk-ant-...",
     "baseUrl": ""
   },
+  "speech": {
+    "sttProvider": "deepgram",
+    "ttsProvider": "openai"
+  },
   "channels": {
     "telegram": {
       "enabled": false,
@@ -44,9 +48,7 @@
       "enabled": false,
       "allowFrom": [],
       "voice": {
-        "enabled": false,
-        "sttProvider": "deepgram",
-        "ttsProvider": "openai"
+        "enabled": false
       }
     }
   },

@@ -12,7 +12,7 @@ import (
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
 
-// Plugin exposes Cartesia TTS when Web UI voice selects cartesia.
+// Plugin exposes Cartesia TTS when speech config selects cartesia.
 type Plugin struct{}
 
 func NewPlugin() plugin.Plugin { return Plugin{} }
@@ -20,7 +20,14 @@ func NewPlugin() plugin.Plugin { return Plugin{} }
 func (Plugin) Name() string { return "cartesia" }
 
 func (Plugin) Enabled(cfg *config.Config) bool {
-	return cfg != nil && cfg.Channels.Web.Voice.Enabled
+	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "cartesia") {
+		return false
+	}
+	if strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID")) == "" {
+		return false
+	}
+	k := pkgvoice.MergeKeys(cfg)
+	return strings.TrimSpace(k.Cartesia) != ""
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -28,10 +35,7 @@ func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
 func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
 
 func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
-	if cfg == nil || !cfg.Channels.Web.Voice.Enabled {
-		return nil
-	}
-	if pkgvoice.NormalizeTTS(cfg.Channels.Web.Voice.TTSProvider) != "cartesia" {
+	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "cartesia") {
 		return nil
 	}
 	voiceID := strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID"))

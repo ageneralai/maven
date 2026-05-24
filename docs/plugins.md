@@ -44,7 +44,7 @@ Runtime **`Apply`** pulls **`g.plugins.Tools(cfg)`** into the agent SDK runtime 
 
 1. Implement **`plugin.Plugin`** (often a zero-sized **`type Plugin struct{}`** plus **`NewPlugin() plugin.Plugin`**).
 2. Return **nil** for surfaces you do not implement (e.g. voice-only plugins return nil **`Tools`**, **`Channels`**, and the unused speech side).
-3. Use **`Enabled`** to avoid work when your integration is off (ACP gates on config; voice vendor plugins gate on **`channels.web.voice.enabled`**).
+3. Use **`Enabled`** to avoid work when your integration is off (ACP gates on config; speech vendor plugins gate on **`speech.sttProvider` / `speech.ttsProvider`** plus credentials).
 4. Register the constructor in **`internal/gateway/gateway.go`** (or a small helper next to it) so production and tests stay aligned.
 
 For speech providers, prefer **`pkg/<vendor>/plugin.go`** next to the HTTP/WebSocket implementation, and add **`NewPlugin()`** to **`internal/voice.VoicePlugins()`** so one list stays the single composition point for voice.

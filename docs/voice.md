@@ -10,28 +10,34 @@ If a new TTS provider returns **WAV** (or any headered format) without changing 
 
 ## Configuration
 
-In `~/.maven/config.json` under `channels.web.voice`:
+**Platform speech providers** (`~/.maven/config.json` → `speech`):
 
 | Field | Purpose |
 |-------|---------|
-| `enabled` | Turn voice UI on (mic button, `/ws/voice`). |
-| `sttProvider` | `deepgram` (only STT option today). |
-| `ttsProvider` | `deepgram` · `openai` · `elevenlabs` · `cartesia` (default in examples: `openai`). |
+| `sttProvider` | `deepgram` (default). Shared by any channel that needs STT (Web voice, future Telegram voice notes, etc.). |
+| `ttsProvider` | `openai` (default) · `deepgram` · `elevenlabs` · `cartesia`. |
+
+**Web UI voice transport** (`channels.web.voice`):
+
+| Field | Purpose |
+|-------|---------|
+| `enabled` | Turn browser voice UI on (mic button, `/ws/voice`). Uses `speech.*` providers. |
 
 Credentials resolve via env; see `pkg/voice.MergeKeys` and `internal/voice/factory.go`.
 
 **Common env vars**
 
 - **Deepgram**: `DEEPGRAM_API_KEY` or `MAVEN_DEEPGRAM_API_KEY`
-- **OpenAI** (TTS/STT when applicable): `OPENAI_API_KEY` / `MAVEN_OPENAI_API_KEY`, or the gateway provider key from config for OpenAI-type providers
+- **OpenAI** (TTS): `OPENAI_API_KEY` / `MAVEN_OPENAI_API_KEY`, or the gateway provider key from config for OpenAI-type providers
 - **ElevenLabs**: `ELEVENLABS_API_KEY` / `MAVEN_ELEVENLABS_API_KEY`, **`ELEVENLABS_VOICE_ID`** (required for ElevenLabs TTS)
 - **Cartesia**: `CARTESIA_API_KEY` / `MAVEN_CARTESIA_API_KEY`, **`CARTESIA_VOICE_ID`** (required); optional `CARTESIA_MODEL_ID`, `CARTESIA_API_VERSION`
 
-See `config.example.json` → `channels.web.voice` and `.env.example` for placeholders.
+See `config.example.json` → `speech` and `.env.example` for placeholders.
 
 ## Related files
 
 - `pkg/voice/voice.go` — `TTS` / `STT` interface doc (normative wire contract)
 - `pkg/voice/keys.go` — `MergeKeys`
+- `pkg/voice/providers.go` — provider name resolution from `speech` config
 - `internal/voice/plugins.go` — default speech plugins for the gateway registry
 - `internal/channel/web/static/index.html` — PCM enqueue / playback queue

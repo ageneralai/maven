@@ -12,7 +12,7 @@ import (
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
 
-// Plugin exposes ElevenLabs TTS when Web UI voice selects elevenlabs.
+// Plugin exposes ElevenLabs TTS when speech config selects elevenlabs.
 type Plugin struct{}
 
 func NewPlugin() plugin.Plugin { return Plugin{} }
@@ -20,7 +20,14 @@ func NewPlugin() plugin.Plugin { return Plugin{} }
 func (Plugin) Name() string { return "elevenlabs" }
 
 func (Plugin) Enabled(cfg *config.Config) bool {
-	return cfg != nil && cfg.Channels.Web.Voice.Enabled
+	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "elevenlabs") {
+		return false
+	}
+	if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
+		return false
+	}
+	k := pkgvoice.MergeKeys(cfg)
+	return strings.TrimSpace(k.ElevenLabs) != ""
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -28,10 +35,7 @@ func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
 func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
 
 func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
-	if cfg == nil || !cfg.Channels.Web.Voice.Enabled {
-		return nil
-	}
-	if pkgvoice.NormalizeTTS(cfg.Channels.Web.Voice.TTSProvider) != "elevenlabs" {
+	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "elevenlabs") {
 		return nil
 	}
 	voiceID := strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID"))

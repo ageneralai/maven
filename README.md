@@ -138,11 +138,13 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
       "enabled": true,
       "allowFrom": [],
       "voice": {
-        "enabled": false,
-        "sttProvider": "deepgram",
-        "ttsProvider": "openai"
+        "enabled": false
       }
     }
+  },
+  "speech": {
+    "sttProvider": "deepgram",
+    "ttsProvider": "openai"
   },
   "tools": {
     "restrictToWorkspace": true,
