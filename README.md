@@ -18,6 +18,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 - **Multi-Provider** - Support for Anthropic and OpenAI models
 - **Multimodal** - Image recognition and document processing
 - **Cron Jobs** - Scheduled tasks with JSON persistence
+- **Subagents** - Optional in-process **`Task`** tool for scoped SDK subagent delegation; see [docs/subagents.md](docs/subagents.md)
 - **ACP delegation** - Optional **`DelegateTask`** tool: Maven spawns configured ACP coding agents (stdio); see [docs/acp.md](docs/acp.md)
 - **Heartbeat** - Periodic tasks from HEARTBEAT.md
 - **Memory** - Long-term (MEMORY.md) + daily memories

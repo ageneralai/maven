@@ -27,6 +27,7 @@ nav:
     - Feishu: feishu-setup.md
     - WeCom: wecom-setup.md
   - Features:
+    - Subagents: subagents.md
     - ACP: acp.md
     - Voice: voice.md
     - Plugins: plugins.md

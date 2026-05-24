@@ -30,6 +30,7 @@ Creates default workspace files under your configured `agent.workspace` (skills 
 - **Feishu** — [feishu-setup.md](feishu-setup.md)
 - **WeCom** — [wecom-setup.md](wecom-setup.md)
 - **Architecture** — [architecture.md](architecture.md)
+- **Subagents** — [subagents.md](subagents.md)
 - **ACP delegation** — [acp.md](acp.md)
 - **Voice (Web UI)** — [voice.md](voice.md)
 - **Plugins** — [plugins.md](plugins.md)

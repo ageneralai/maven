@@ -15,6 +15,7 @@ Personal AI assistant: CLI agent, gateway (channels, cron, heartbeat), and Web U
 
 ## Features
 
+- [Subagents](subagents.md)
 - [ACP delegation](acp.md)
 - [Voice](voice.md)
 - [Plugins](plugins.md)
