@@ -12,6 +12,7 @@ Personal AI assistant: CLI agent, gateway (channels, cron, heartbeat), and Web U
 - [Telegram](telegram-setup.md)
 - [Feishu (Lark)](feishu-setup.md)
 - [WeCom](wecom-setup.md)
+- [Matrix](matrix-setup.md)
 
 ## Features
 

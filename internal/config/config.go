@@ -53,7 +53,8 @@ type ChannelsConfig struct {
 	Feishu   FeishuConfig   `json:"feishu"`
 	WeCom    WeComConfig    `json:"wecom"`
 	WhatsApp WhatsAppConfig `json:"whatsapp"`
-	Web    WebConfig    `json:"web"`
+	Matrix   MatrixConfig   `json:"matrix"`
+	Web      WebConfig      `json:"web"`
 }
 
 type TelegramConfig struct {
@@ -153,6 +154,16 @@ type WhatsAppConfig struct {
 	AllowFrom []string `json:"allowFrom,omitempty"`
 }
 
+type MatrixConfig struct {
+	Enabled      bool     `json:"enabled"`
+	Homeserver   string   `json:"homeserver"`
+	AccessToken  string   `json:"accessToken"`
+	UserID       string   `json:"userId"`
+	DeviceID     string   `json:"deviceId,omitempty"`
+	AllowFrom    []string `json:"allowFrom"`
+	AllowRooms   []string `json:"allowRooms"`
+}
+
 type WebConfig struct {
 	Enabled   bool           `json:"enabled"`
 	AllowFrom []string       `json:"allowFrom,omitempty"`
@@ -249,6 +260,17 @@ func (c *Config) Validate() error {
 		}
 		if strings.TrimSpace(c.Channels.WeCom.EncodingAESKey) == "" {
 			errs = append(errs, errors.New("channels.wecom.encodingAESKey is required when wecom is enabled"))
+		}
+	}
+	if c.Channels.Matrix.Enabled {
+		if strings.TrimSpace(c.Channels.Matrix.Homeserver) == "" {
+			errs = append(errs, errors.New("channels.matrix.homeserver is required when matrix is enabled"))
+		}
+		if strings.TrimSpace(c.Channels.Matrix.AccessToken) == "" {
+			errs = append(errs, errors.New("channels.matrix.accessToken is required when matrix is enabled"))
+		}
+		if strings.TrimSpace(c.Channels.Matrix.UserID) == "" {
+			errs = append(errs, errors.New("channels.matrix.userId is required when matrix is enabled"))
 		}
 	}
 	if strings.TrimSpace(c.Agent.Workspace) == "" {

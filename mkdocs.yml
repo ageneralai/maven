@@ -26,6 +26,7 @@ nav:
     - Telegram: telegram-setup.md
     - Feishu: feishu-setup.md
     - WeCom: wecom-setup.md
+    - Matrix: matrix-setup.md
   - Features:
     - Subagents: subagents.md
     - ACP: acp.md

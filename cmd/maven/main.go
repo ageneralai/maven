@@ -344,6 +344,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Telegram: enabled=%v\n", cfg.Channels.Telegram.Enabled)
 	fmt.Printf("Feishu: enabled=%v\n", cfg.Channels.Feishu.Enabled)
 	fmt.Printf("WeCom: enabled=%v\n", cfg.Channels.WeCom.Enabled)
+	fmt.Printf("Matrix: enabled=%v\n", cfg.Channels.Matrix.Enabled)
 	fmt.Printf("Skills: enabled=%v dir=%s\n", cfg.Skills.Enabled, resolveSkillsDir(cfg))
 
 	if _, err := os.Stat(cfg.Agent.Workspace); err != nil {

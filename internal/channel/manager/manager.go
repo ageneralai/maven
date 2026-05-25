@@ -8,6 +8,7 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/channel/feishu"
+	"github.com/ageneralai/maven/internal/channel/matrix"
 	"github.com/ageneralai/maven/internal/channel/telegram"
 	"github.com/ageneralai/maven/internal/channel/web"
 	"github.com/ageneralai/maven/internal/channel/wecom"
@@ -65,6 +66,13 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLog
 		ch, err := whatsapp.NewWhatsApp(chcfg.WhatsApp, lg, b)
 		if err != nil {
 			return nil, fmt.Errorf("create whatsapp channel: %w", err)
+		}
+		out[ch.Name()] = ch
+	}
+	if chcfg.Matrix.Enabled {
+		ch, err := matrix.NewMatrixChannel(chcfg.Matrix, ws, lg, b)
+		if err != nil {
+			return nil, fmt.Errorf("init matrix channel: %w", err)
 		}
 		out[ch.Name()] = ch
 	}

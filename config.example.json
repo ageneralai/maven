@@ -52,6 +52,15 @@
       "enabled": false,
       "allowFrom": []
     },
+    "matrix": {
+      "enabled": false,
+      "homeserver": "https://matrix.example.org",
+      "accessToken": "",
+      "userId": "@agent:example.org",
+      "deviceId": "MAVEN01",
+      "allowFrom": [],
+      "allowRooms": []
+    },
     "web": {
       "enabled": false,
       "allowFrom": [],
