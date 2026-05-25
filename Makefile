@@ -5,7 +5,12 @@ BUILD_DIR := .
 CONFIG    := $(HOME)/.maven/config.json
 FEISHU_PORT ?= 9876
 DIST_DIR  := dist
-RELEASE_LDFLAGS := -s -w
+VERSION_PKG := github.com/ageneralai/maven/internal/version
+VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+VERSION_LDFLAGS := -X $(VERSION_PKG).Version=$(VERSION) -X $(VERSION_PKG).Commit=$(COMMIT) -X $(VERSION_PKG).Date=$(DATE)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
 PLATFORMS ?= darwin/arm64 linux/amd64 linux/arm64
 
 ## Build

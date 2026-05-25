@@ -1,9 +1,16 @@
 FROM golang:1.25.5 AS builder
+ARG VERSION=dev
+ARG COMMIT=none
+ARG DATE=unknown
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /maven ./cmd/maven
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w \
+  -X github.com/ageneralai/maven/internal/version.Version=${VERSION} \
+  -X github.com/ageneralai/maven/internal/version.Commit=${COMMIT} \
+  -X github.com/ageneralai/maven/internal/version.Date=${DATE}" \
+  -o /maven ./cmd/maven
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && rm -rf /var/lib/apt/lists/*

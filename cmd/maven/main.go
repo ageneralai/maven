@@ -16,6 +16,7 @@ import (
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
+	"github.com/ageneralai/maven/internal/version"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/internal/skills"
@@ -162,6 +163,7 @@ func init() {
 	skillsInfoCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsCheckCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsCmd.AddCommand(skillsListCmd, skillsInfoCmd, skillsCheckCmd)
+	rootCmd.Version = version.Version
 	rootCmd.AddCommand(agentCmd, gatewayCmd, onboardCmd, statusCmd, skillsCmd)
 }
 
@@ -320,12 +322,13 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	printBuildStatus()
+	fmt.Println()
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Config: error (%v)\n", err)
 		return nil
 	}
-
 	fmt.Printf("Config: %s\n", config.ConfigPath())
 	fmt.Printf("Workspace: %s\n", cfg.Agent.Workspace)
 	fmt.Printf("Model: %s\n", cfg.Agent.Model)
@@ -356,6 +359,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func printBuildStatus() {
+	for _, line := range version.Load().Lines() {
+		fmt.Println(line)
+	}
 }
 
 func runSkillsList(cmd *cobra.Command, args []string) error {

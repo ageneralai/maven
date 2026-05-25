@@ -58,7 +58,7 @@ make gateway
 | Target | Description |
 |--------|-------------|
 | `make build` | Build binary |
-| `make build-release` | Build optimized binary with `-trimpath -ldflags="-s -w"` |
+| `make build-release` | Release binary; stamps version/commit/date (`git describe`, see `internal/version`) |
 | `make package` | Package optimized binary to `dist/maven-<os>-<arch>.gz` |
 | `make package-all` | Package optimized binaries for `darwin/arm64 linux/amd64 linux/arm64` |
 | `make run` | Run agent REPL |

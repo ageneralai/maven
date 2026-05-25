@@ -308,6 +308,12 @@ func TestRunStatus(t *testing.T) {
 		t.Errorf("runStatus error: %v", err)
 	}
 
+	if !strings.Contains(output, "Build:") {
+		t.Errorf("missing Build in output: %s", output)
+	}
+	if !strings.Contains(output, "maven  dev") {
+		t.Errorf("missing maven build version in output: %s", output)
+	}
 	// Should contain config info
 	if !strings.Contains(output, "Config:") {
 		t.Errorf("missing Config in output: %s", output)
