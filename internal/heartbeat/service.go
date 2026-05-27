@@ -34,6 +34,7 @@ type Service struct {
 	interval  time.Duration
 	log       *slog.Logger
 	rep       health.HealthReporter
+	loopWg    sync.WaitGroup
 	fireWg    sync.WaitGroup
 }
 
@@ -60,6 +61,8 @@ func New(workspace string, exec executor.TurnExecutor, interval time.Duration, l
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	s.loopWg.Add(1)
+	defer s.loopWg.Done()
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 	s.log.Info("heartbeat started", "interval", s.interval)
@@ -76,6 +79,7 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s *Service) Stop() {
+	s.loopWg.Wait()
 	s.fireWg.Wait()
 }
 

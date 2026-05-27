@@ -175,7 +175,7 @@ The Gateway (`internal/gateway`) owns process-level orchestration. It is the onl
 4. Build slash command registry (`internal/slash`) **before** any runtime swap
 5. Construct a new agent runtime (`internal/agent/sdk_runtime.go`)
 6. Configure channels via the channel manager
-7. Swap runtime and slash registry into the pipeline under `Reload` (runtime under `turnMu` write lock; slash registry via `atomic.Pointer`)
+7. Swap runtime and slash registry into the pipeline under `Reload` (both under `turnMu` write lock; slash registry via `atomic.Pointer` stored before unlock)
 8. Restart the heartbeat service
 
 This guarantees that runtime, channels, slash handlers, and tools remain consistent. Partial failures during `Apply` do not leave the system in a mixed state because the runtime and slash registry swap as a unit.
@@ -260,7 +260,7 @@ The runtime pointer is protected by `turnMu`:
 - **Read lock** held during turn execution
 - **Write lock** used only during `Apply` when swapping runtimes
 
-The slash command registry is stored in an `atomic.Pointer[slash.Registry]` and swapped during `Reload` alongside the runtime. Concurrent turns load the registry without additional locking.
+The slash command registry is stored in an `atomic.Pointer[slash.Registry]` during `Reload` before `turnMu` unlock, so turns that acquire the read lock after reload observe matching runtime and slash handlers.
 
 This prevents runtime replacement while a turn is in flight.
 
@@ -404,7 +404,7 @@ Heartbeat (`internal/heartbeat`) runs periodic unattended checks.
 **Behavior:**
 - Reads `HEARTBEAT.md` from the workspace
 - Skips if the file is empty or missing
-- Single-flight execution (no overlapping runs); `Stop()` waits for in-flight ticks before shutdown
+- Single-flight execution (no overlapping runs); `Stop()` waits for the ticker loop (`loopWg`) then in-flight ticks (`fireWg`) before shutdown proceeds
 - Uses a new session per run
 
 **Special Handling:**

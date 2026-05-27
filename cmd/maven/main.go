@@ -25,7 +25,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var mavenLog *slog.Logger
+type cmdContext struct {
+	log *slog.Logger
+}
 
 // AgentOptions for running agent with custom dependencies.
 type AgentOptions struct {
@@ -35,7 +37,7 @@ type AgentOptions struct {
 	Stderr         io.Writer
 }
 
-func defaultAgentRuntime(cfg *config.Config) (agent.Runtime, error) {
+func (app *cmdContext) defaultAgentRuntime(cfg *config.Config) (agent.Runtime, error) {
 	if cfg.Provider.APIKey == "" {
 		return nil, fmt.Errorf("api key not set: edit %s or run 'maven onboard'", config.ConfigPath())
 	}
@@ -44,8 +46,18 @@ func defaultAgentRuntime(cfg *config.Config) (agent.Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("system prompt: %w", err)
 	}
-	skillRegs := loadRuntimeSkills(cfg)
-	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, nil, mavenLog)
+	skillRegs := app.loadRuntimeSkills(cfg)
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, nil, app.log)
+}
+
+func (app *cmdContext) bindCommands() {
+	agentCmd.RunE = app.runAgent
+	gatewayCmd.RunE = app.runGateway
+	onboardCmd.RunE = app.runOnboard
+	statusCmd.RunE = app.runStatus
+	skillsListCmd.RunE = app.runSkillsList
+	skillsInfoCmd.RunE = app.runSkillsInfo
+	skillsCheckCmd.RunE = app.runSkillsCheck
 }
 
 var rootCmd = &cobra.Command{
@@ -56,25 +68,21 @@ var rootCmd = &cobra.Command{
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Run agent in single message or REPL mode",
-	RunE:  runAgent,
 }
 
 var gatewayCmd = &cobra.Command{
 	Use:   "gateway",
 	Short: "Start the full gateway (channels + cron + heartbeat)",
-	RunE:  runGateway,
 }
 
 var onboardCmd = &cobra.Command{
 	Use:   "onboard",
 	Short: "Initialize config and workspace",
-	RunE:  runOnboard,
 }
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show Maven status",
-	RunE:  runStatus,
 }
 
 var skillsCmd = &cobra.Command{
@@ -85,20 +93,17 @@ var skillsCmd = &cobra.Command{
 var skillsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List loaded skills",
-	RunE:  runSkillsList,
 }
 
 var skillsInfoCmd = &cobra.Command{
 	Use:   "info <name>",
 	Short: "Show skill details",
 	Args:  cobra.ExactArgs(1),
-	RunE:  runSkillsInfo,
 }
 
 var skillsCheckCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check skills directory and loading status",
-	RunE:  runSkillsCheck,
 }
 
 var messageFlag string
@@ -116,20 +121,20 @@ func init() {
 }
 
 func main() {
-	mavenLog = mavenlog.Std()
-	slog.SetDefault(mavenLog)
+	app := cmdContext{log: mavenlog.Std()}
+	slog.SetDefault(app.log)
+	app.bindCommands()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-// runAgent is the command handler that uses default options
-func runAgent(cmd *cobra.Command, args []string) error {
-	return runAgentWithOptions(AgentOptions{})
+func (app *cmdContext) runAgent(cmd *cobra.Command, args []string) error {
+	return app.runAgentWithOptions(AgentOptions{})
 }
 
-// runAgentWithOptions runs the agent with injectable dependencies for testing
-func runAgentWithOptions(opts AgentOptions) error {
+// runAgentWithOptions runs the agent with injectable dependencies for testing.
+func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -138,7 +143,7 @@ func runAgentWithOptions(opts AgentOptions) error {
 	// Use injected factory or default
 	factory := opts.RuntimeFactory
 	if factory == nil {
-		factory = defaultAgentRuntime
+		factory = app.defaultAgentRuntime
 	}
 
 	rt, err := factory(cfg)
@@ -209,7 +214,7 @@ func runAgentWithOptions(opts AgentOptions) error {
 	return nil
 }
 
-func runGateway(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runGateway(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -219,7 +224,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	gw, err := gateway.New(cfg, mavenlog.Std())
+	gw, err := gateway.New(cfg, app.log)
 	if err != nil {
 		return fmt.Errorf("create gateway: %w", err)
 	}
@@ -227,7 +232,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	return gw.Run(context.Background())
 }
 
-func runOnboard(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runOnboard(cmd *cobra.Command, args []string) error {
 	cfgDir := config.ConfigDir()
 	cfgPath := config.ConfigPath()
 
@@ -270,7 +275,7 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runStatus(cmd *cobra.Command, args []string) error {
 	printBuildStatus()
 	fmt.Println()
 	cfg, err := config.LoadConfig()
@@ -317,7 +322,7 @@ func printBuildStatus() {
 	}
 }
 
-func runSkillsList(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runSkillsList(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -344,7 +349,7 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	registrations, err := skills.LoadSkills(skillDir, mavenLog)
+	registrations, err := skills.LoadSkills(skillDir, app.log)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -403,7 +408,7 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runSkillsInfo(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runSkillsInfo(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -419,7 +424,7 @@ func runSkillsInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	skillDir := resolveSkillsDir(cfg)
-	registrations, err := skills.LoadSkills(skillDir, mavenLog)
+	registrations, err := skills.LoadSkills(skillDir, app.log)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -490,7 +495,7 @@ func runSkillsInfo(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runSkillsCheck(cmd *cobra.Command, args []string) error {
+func (app *cmdContext) runSkillsCheck(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -565,7 +570,7 @@ func runSkillsCheck(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingSkillFile)
 
-	registrations, err := skills.LoadSkills(skillDir, mavenLog)
+	registrations, err := skills.LoadSkills(skillDir, app.log)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -606,14 +611,13 @@ func resolveSkillsDir(cfg *config.Config) string {
 	return filepath.Join(cfg.Agent.Workspace, "skills")
 }
 
-func loadRuntimeSkills(cfg *config.Config) []api.SkillRegistration {
+func (app *cmdContext) loadRuntimeSkills(cfg *config.Config) []api.SkillRegistration {
 	if !cfg.Skills.Enabled {
 		return nil
 	}
-
-	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), mavenLog)
+	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), app.log)
 	if err != nil {
-		mavenLog.Warn("agent skills load warning", "err", err)
+		app.log.Warn("agent skills load warning", "err", err)
 		return nil
 	}
 	return skillRegs

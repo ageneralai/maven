@@ -22,9 +22,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	mavenLog = slog.New(slog.DiscardHandler)
-}
+var testApp = cmdContext{log: slog.New(slog.DiscardHandler)}
 
 func setupTestHome(t *testing.T) {
 	t.Helper()
@@ -210,7 +208,7 @@ func TestRunOnboard(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runOnboard(&cobra.Command{}, []string{})
+	err := testApp.runOnboard(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -220,7 +218,7 @@ func TestRunOnboard(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runOnboard error: %v", err)
+		t.Errorf("testApp.runOnboard error: %v", err)
 	}
 
 	// Check config was created
@@ -265,7 +263,7 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runOnboard(&cobra.Command{}, []string{})
+	err := testApp.runOnboard(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -275,7 +273,7 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runOnboard error: %v", err)
+		t.Errorf("testApp.runOnboard error: %v", err)
 	}
 
 	// Should say config already exists
@@ -295,7 +293,7 @@ func TestRunStatus(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -305,7 +303,7 @@ func TestRunStatus(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	if !strings.Contains(output, "Build:") {
@@ -346,7 +344,7 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -356,7 +354,7 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	// Should show masked API key
@@ -376,7 +374,7 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -386,7 +384,7 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	// Should show "set" for short key
@@ -415,7 +413,7 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -425,7 +423,7 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	// Should show memory bytes
@@ -454,7 +452,7 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -464,7 +462,7 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	// Should say workspace not found
@@ -476,8 +474,8 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 func TestRunSkillsList(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	cfg, err := config.LoadConfig()
@@ -487,10 +485,10 @@ func TestRunSkillsList(t *testing.T) {
 	writeSkillFile(t, cfg.Agent.Workspace, "writer", "writing helper")
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsList(&cobra.Command{}, []string{})
+		return testApp.runSkillsList(&cobra.Command{}, []string{})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsList error: %v", runErr)
+		t.Fatalf("testApp.runSkillsList error: %v", runErr)
 	}
 	if !strings.Contains(output, "Loaded skills: 1") {
 		t.Errorf("expected loaded skills count in output: %s", output)
@@ -503,8 +501,8 @@ func TestRunSkillsList(t *testing.T) {
 func TestRunSkillsList_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	cfg, err := config.LoadConfig()
@@ -514,10 +512,10 @@ func TestRunSkillsList_JSON(t *testing.T) {
 	writeSkillFile(t, cfg.Agent.Workspace, "writer", "writing helper")
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsList(buildJSONCommand(), []string{})
+		return testApp.runSkillsList(buildJSONCommand(), []string{})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsList json error: %v", runErr)
+		t.Fatalf("testApp.runSkillsList json error: %v", runErr)
 	}
 
 	var payload struct {
@@ -556,8 +554,8 @@ func TestRunSkillsList_JSON(t *testing.T) {
 func TestRunSkillsInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	cfg, err := config.LoadConfig()
@@ -567,10 +565,10 @@ func TestRunSkillsInfo(t *testing.T) {
 	skillPath := writeSkillFile(t, cfg.Agent.Workspace, "writer", "writing helper")
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsInfo(&cobra.Command{}, []string{"writer"})
+		return testApp.runSkillsInfo(&cobra.Command{}, []string{"writer"})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsInfo error: %v", runErr)
+		t.Fatalf("testApp.runSkillsInfo error: %v", runErr)
 	}
 	if !strings.Contains(output, "Name: writer") {
 		t.Errorf("expected name in output: %s", output)
@@ -586,8 +584,8 @@ func TestRunSkillsInfo(t *testing.T) {
 func TestRunSkillsInfo_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	cfg, err := config.LoadConfig()
@@ -597,10 +595,10 @@ func TestRunSkillsInfo_JSON(t *testing.T) {
 	skillPath := writeSkillFile(t, cfg.Agent.Workspace, "writer", "writing helper")
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsInfo(buildJSONCommand(), []string{"writer"})
+		return testApp.runSkillsInfo(buildJSONCommand(), []string{"writer"})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsInfo json error: %v", runErr)
+		t.Fatalf("testApp.runSkillsInfo json error: %v", runErr)
 	}
 
 	var payload struct {
@@ -641,15 +639,15 @@ func TestRunSkillsInfo_JSON(t *testing.T) {
 func TestRunSkillsCheck(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsCheck(&cobra.Command{}, []string{})
+		return testApp.runSkillsCheck(&cobra.Command{}, []string{})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsCheck error: %v", runErr)
+		t.Fatalf("testApp.runSkillsCheck error: %v", runErr)
 	}
 	if !strings.Contains(output, "Skill folders: 0") {
 		t.Errorf("expected folder count in output: %s", output)
@@ -665,15 +663,15 @@ func TestRunSkillsCheck(t *testing.T) {
 func TestRunSkillsCheck_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsCheck(buildJSONCommand(), []string{})
+		return testApp.runSkillsCheck(buildJSONCommand(), []string{})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsCheck json error: %v", runErr)
+		t.Fatalf("testApp.runSkillsCheck json error: %v", runErr)
 	}
 
 	var payload struct {
@@ -710,8 +708,8 @@ func TestRunSkillsCheck_JSON(t *testing.T) {
 func TestRunSkillsCheck_MissingSkillFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
-		t.Fatalf("runOnboard error: %v", err)
+	if err := testApp.runOnboard(&cobra.Command{}, []string{}); err != nil {
+		t.Fatalf("testApp.runOnboard error: %v", err)
 	}
 
 	cfg, err := config.LoadConfig()
@@ -724,10 +722,10 @@ func TestRunSkillsCheck_MissingSkillFile(t *testing.T) {
 	}
 
 	output, runErr := captureRunOutput(t, func() error {
-		return runSkillsCheck(&cobra.Command{}, []string{})
+		return testApp.runSkillsCheck(&cobra.Command{}, []string{})
 	})
 	if runErr != nil {
-		t.Fatalf("runSkillsCheck error: %v", runErr)
+		t.Fatalf("testApp.runSkillsCheck error: %v", runErr)
 	}
 	if !strings.Contains(output, "Missing SKILL.md: broken") {
 		t.Errorf("expected missing SKILL.md warning, got: %s", output)
@@ -747,7 +745,7 @@ func TestLoadRuntimeSkills_Disabled(t *testing.T) {
 		},
 	}
 
-	got := loadRuntimeSkills(cfg)
+	got := testApp.loadRuntimeSkills(cfg)
 	if len(got) != 0 {
 		t.Fatalf("expected no skills when disabled, got %d", len(got))
 	}
@@ -766,7 +764,7 @@ func TestLoadRuntimeSkills_LoadsAndWorks(t *testing.T) {
 		},
 	}
 
-	got := loadRuntimeSkills(cfg)
+	got := testApp.loadRuntimeSkills(cfg)
 	if len(got) != 1 {
 		t.Fatalf("expected one loaded skill, got %d", len(got))
 	}
@@ -805,7 +803,7 @@ func TestLoadRuntimeSkills_InvalidDirReturnsEmpty(t *testing.T) {
 		},
 	}
 
-	got := loadRuntimeSkills(cfg)
+	got := testApp.loadRuntimeSkills(cfg)
 	if len(got) != 0 {
 		t.Fatalf("expected no skills on invalid dir, got %d", len(got))
 	}
@@ -855,7 +853,7 @@ func TestRunAgent_NoAPIKey(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	err := runAgent(&cobra.Command{}, []string{})
+	err := testApp.runAgent(&cobra.Command{}, []string{})
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
 	}
@@ -872,7 +870,7 @@ func TestRunGateway_NoAPIKey(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	err := runGateway(&cobra.Command{}, []string{})
+	err := testApp.runGateway(&cobra.Command{}, []string{})
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
 	}
@@ -902,7 +900,7 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := runStatus(&cobra.Command{}, []string{})
+	err := testApp.runStatus(&cobra.Command{}, []string{})
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -912,7 +910,7 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	output := buf.String()
 
 	if err != nil {
-		t.Errorf("runStatus error: %v", err)
+		t.Errorf("testApp.runStatus error: %v", err)
 	}
 
 	// Should show "Memory: empty" for empty file
@@ -968,7 +966,7 @@ func TestRunAgentWithOptions_SingleMessage(t *testing.T) {
 	messageFlag = "test message"
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		Stdout:         &stdout,
 	})
@@ -1008,7 +1006,7 @@ func TestRunAgentWithOptions_REPLMode(t *testing.T) {
 	messageFlag = ""
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		Stdin:          stdin,
 		Stdout:         &stdout,
@@ -1048,7 +1046,7 @@ func TestRunAgentWithOptions_REPLMode_EmptyInput(t *testing.T) {
 	messageFlag = ""
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		Stdin:          stdin,
 		Stdout:         &stdout,
@@ -1076,7 +1074,7 @@ func TestRunAgentWithOptions_REPLMode_Error(t *testing.T) {
 	messageFlag = ""
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		Stdin:          stdin,
 		Stdout:         &stdout,
@@ -1107,7 +1105,7 @@ func TestRunAgentWithOptions_SingleMessage_Error(t *testing.T) {
 	messageFlag = "test"
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 
@@ -1135,7 +1133,7 @@ func TestRunAgentWithOptions_NilResult(t *testing.T) {
 	messageFlag = "test"
 	defer func() { messageFlag = oldFlag }()
 
-	err := runAgentWithOptions(AgentOptions{
+	err := testApp.runAgentWithOptions(AgentOptions{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		Stdout:         &stdout,
 	})
@@ -1152,7 +1150,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 		},
 	}
 
-	_, err := defaultAgentRuntime(cfg)
+	_, err := testApp.defaultAgentRuntime(cfg)
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
 	}

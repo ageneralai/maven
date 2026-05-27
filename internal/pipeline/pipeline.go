@@ -121,8 +121,8 @@ func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, works
 	if p.posts != nil {
 		p.posts.SetWorkspace(workspace)
 	}
-	p.turnMu.Unlock()
 	p.slashRegistry.Store(slashReg)
+	p.turnMu.Unlock()
 	if old != nil {
 		old.Close()
 	}
