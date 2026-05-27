@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
 
 // TTS streams PCM audio from OpenAI speech API (chunked response body, 24 kHz mono).
@@ -72,29 +74,5 @@ func (o *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("voice: openai tts http %d: %s", resp.StatusCode, strings.TrimSpace(string(slurp)))
 	}
-	out := make(chan []byte, 16)
-	go func() {
-		defer close(out)
-		defer func() { _ = resp.Body.Close() }()
-		buf := make([]byte, 8192)
-		for {
-			n, rerr := resp.Body.Read(buf)
-			if n > 0 {
-				cp := make([]byte, n)
-				copy(cp, buf[:n])
-				select {
-				case <-ctx.Done():
-					return
-				case out <- cp:
-				}
-			}
-			if rerr != nil {
-				if errors.Is(rerr, io.EOF) {
-					return
-				}
-				return
-			}
-		}
-	}()
-	return out, nil
+	return pkgvoice.StreamHTTPBody(ctx, resp.Body, 8192), nil
 }

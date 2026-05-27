@@ -11,6 +11,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoapi"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -125,7 +126,7 @@ func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 			if idx > 0 {
 				chunk = chunk[:idx]
 			} else {
-				chunk = chunk[:maxLen]
+				chunk = chunk[:stringutil.RuneAlignedCut(chunk, maxLen)]
 			}
 		}
 		content = content[len(chunk):]

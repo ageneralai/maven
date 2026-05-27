@@ -16,6 +16,7 @@ import (
 	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/channel/web/responses"
 	webvoice "github.com/ageneralai/maven/internal/channel/web/voice"
+	"github.com/ageneralai/maven/internal/channel/web/wsession"
 	"github.com/ageneralai/maven/internal/config"
 	"log/slog"
 
@@ -38,6 +39,7 @@ type WebChannel struct {
 	nextID    atomic.Int64
 	voiceCfg  config.WebVoiceConfig
 	voice     *webvoice.Transport
+	sessions  *wsession.ResponseSessions
 	responses *responses.Handler
 }
 
@@ -53,12 +55,13 @@ func NewWebChannel(cfg config.WebConfig, gwCfg config.GatewayConfig, appCfg *con
 		allow:    allowlist.NewMatcher(cfg.AllowFrom),
 		port:     port,
 		voiceCfg: cfg.Voice,
+		sessions: wsession.NewResponseSessions(),
 	}
 	if cfg.Voice.Enabled {
-		w.voice = webvoice.NewTransport(cfg.Voice, appCfg, plugins, lg, runner)
+		w.voice = webvoice.NewTransport(cfg.Voice, appCfg, plugins, lg, runner, w.sessions)
 	}
 	if runner != nil {
-		w.responses = &responses.Handler{Runner: runner}
+		w.responses = &responses.Handler{Runner: runner, Sessions: w.sessions}
 	}
 	return w, nil
 }

@@ -69,21 +69,21 @@ func TruncateRunesTail(s string, maxRunes int, marker string) string {
 	return marker + tail
 }
 
-// ChunkRunes splits s into chunks of at most maxRunes bytes, preferring breaks at the
+// ChunkBytes splits s into chunks of at most maxBytes bytes, preferring breaks at the
 // last newline within each chunk and otherwise cutting at a UTF-8 rune boundary.
-func ChunkRunes(s string, maxRunes int) []string {
-	if maxRunes <= 0 || len(s) <= maxRunes {
+func ChunkBytes(s string, maxBytes int) []string {
+	if maxBytes <= 0 || len(s) <= maxBytes {
 		return []string{s}
 	}
 	var chunks []string
-	for len(s) > maxRunes {
-		split := strings.LastIndex(s[:maxRunes], "\n")
+	for len(s) > maxBytes {
+		split := strings.LastIndex(s[:maxBytes], "\n")
 		if split > 0 {
 			chunks = append(chunks, s[:split])
 			s = s[split:]
 			continue
 		}
-		split = RuneAlignedCut(s, maxRunes)
+		split = RuneAlignedCut(s, maxBytes)
 		chunks = append(chunks, s[:split])
 		s = s[split:]
 	}

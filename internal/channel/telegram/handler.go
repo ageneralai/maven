@@ -81,13 +81,16 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 		allBlocks = append(allBlocks, b...)
 	}
 
-	content := allContent[0]
-	if len(allContent) > 1 {
-		seen := map[string]bool{content: true}
-		for _, c := range allContent[1:] {
-			if !seen[c] {
-				seen[c] = true
-				content += "\n" + c
+	content := ""
+	if len(allContent) > 0 {
+		content = allContent[0]
+		if len(allContent) > 1 {
+			seen := map[string]bool{content: true}
+			for _, c := range allContent[1:] {
+				if !seen[c] {
+					seen[c] = true
+					content += "\n" + c
+				}
 			}
 		}
 	}

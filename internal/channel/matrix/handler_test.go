@@ -183,7 +183,7 @@ func TestHandleMemberEvent_JoinsInvite(t *testing.T) {
 
 func TestChunkText(t *testing.T) {
 	long := strings.Repeat("a", 35000)
-	chunks := stringutil.ChunkRunes(long, matrixSendChunkSize)
+	chunks := stringutil.ChunkBytes(long, matrixSendChunkSize)
 	if len(chunks) != 2 {
 		t.Fatalf("chunks = %d, want 2", len(chunks))
 	}
@@ -194,7 +194,7 @@ func TestChunkText(t *testing.T) {
 
 func TestChunkText_NewlineRoundTrip(t *testing.T) {
 	original := strings.Repeat("a", matrixSendChunkSize-10) + "\n\n" + strings.Repeat("b", matrixSendChunkSize+50)
-	chunks := stringutil.ChunkRunes(original, matrixSendChunkSize)
+	chunks := stringutil.ChunkBytes(original, matrixSendChunkSize)
 	if strings.Join(chunks, "") != original {
 		t.Fatalf("chunks do not reconstruct original string byte-for-byte")
 	}
@@ -204,7 +204,7 @@ func TestChunkText_RuneSafe(t *testing.T) {
 	// Each 日 is 3 bytes. Build a string that crosses the chunk boundary mid-rune.
 	rune3 := "日"
 	base := strings.Repeat("a", matrixSendChunkSize-1) + rune3 + strings.Repeat("a", 100)
-	chunks := stringutil.ChunkRunes(base, matrixSendChunkSize)
+	chunks := stringutil.ChunkBytes(base, matrixSendChunkSize)
 	for i, c := range chunks {
 		if !utf8.ValidString(c) {
 			t.Fatalf("chunk %d is invalid UTF-8", i)

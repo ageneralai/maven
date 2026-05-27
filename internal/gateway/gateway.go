@@ -132,8 +132,8 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools, g.historyStore, g.logger)
 }
 
-func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
-	return g.pipe.Reload(func() error { return g.channelMgr.Apply(ctx, cfg) }, rt, cfg.Agent.Workspace)
+func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime, slashReg *slash.Registry) error {
+	return g.pipe.Reload(func() error { return g.channelMgr.Apply(ctx, cfg) }, rt, cfg.Agent.Workspace, slashReg)
 }
 
 // Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
@@ -150,20 +150,19 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("system prompt: %w", err)
 	}
-	rt, err := g.buildRuntime(cfg, sysPrompt, g.skillRegs)
-	if err != nil {
-		return fmt.Errorf("runtime factory: %w", err)
-	}
-	if err := g.reloadPipeline(ctx, cfg, rt); err != nil {
-		rt.Close()
-		return fmt.Errorf("channels apply: %w", err)
-	}
-	g.cfg = cfg
 	slashReg, err := slash.BuiltIns(g.cron)
 	if err != nil {
 		return fmt.Errorf("slash builtins: %w", err)
 	}
-	g.pipe.SetSlashRegistry(slashReg)
+	rt, err := g.buildRuntime(cfg, sysPrompt, g.skillRegs)
+	if err != nil {
+		return fmt.Errorf("runtime factory: %w", err)
+	}
+	if err := g.reloadPipeline(ctx, cfg, rt, slashReg); err != nil {
+		rt.Close()
+		return fmt.Errorf("channels apply: %w", err)
+	}
+	g.cfg = cfg
 	g.startHeartbeat(ctx)
 	return nil
 }
@@ -266,6 +265,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 // Shutdown cancels heartbeat and the pipeline/dispatch ctx, drains the inbound loop, stops cron/channels/closes runtime and bus (order-sensitive).
 func (g *Gateway) Shutdown() error {
 	g.interruptRunLoops()
+	if g.hb != nil {
+		g.hb.Stop()
+	}
 	g.pipeWg.Wait()
 	g.cron.Stop()
 	if g.plugins != nil {

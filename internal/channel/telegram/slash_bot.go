@@ -12,6 +12,7 @@ import (
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/session"
+	"github.com/ageneralai/maven/internal/sessionid"
 	"github.com/ageneralai/maven/internal/slashkind"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -173,7 +174,7 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 }
 
 func (t *TelegramChannel) executeLocalCommand(cmd Command, args string) string {
-	sessionID := fmt.Sprintf("%s:local:%d", telegramChannelName, time.Now().UnixNano())
+	sessionID := sessionid.New(sessionid.KindIsolated, telegramChannelName).String()
 	switch cmd.Name {
 	case "status":
 		return "✅ Bot is running"

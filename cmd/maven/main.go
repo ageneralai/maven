@@ -13,92 +13,39 @@ import (
 	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
+	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/version"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
+	"github.com/ageneralai/maven/pkg/prompt"
 	"github.com/spf13/cobra"
 )
 
-// Runtime interface for agent runtime (allows mocking in tests)
-type Runtime interface {
-	Run(ctx context.Context, req api.Request) (*api.Response, error)
-	Close()
-}
+var mavenLog *slog.Logger
 
-// runtimeWrapper wraps api.Runtime to implement Runtime interface
-type runtimeWrapper struct {
-	rt *api.Runtime
-}
-
-func (r *runtimeWrapper) Run(ctx context.Context, req api.Request) (*api.Response, error) {
-	return r.rt.Run(ctx, req)
-}
-
-func (r *runtimeWrapper) Close() {
-	r.rt.Close()
-}
-
-// RuntimeFactory creates a Runtime instance
-type RuntimeFactory func(cfg *config.Config) (Runtime, error)
-
-// DefaultRuntimeFactory creates the default agentsdk-go runtime
-func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
-	if cfg.Provider.APIKey == "" {
-		return nil, fmt.Errorf("api key not set: edit %s or run 'maven onboard'", config.ConfigPath())
-	}
-
-	mem := memory.NewMemoryStore(cfg.Agent.Workspace)
-	sysPrompt := buildSystemPrompt(cfg, mem)
-	skillRegs := loadRuntimeSkills(cfg)
-
-	var provider api.ModelFactory
-	switch cfg.Provider.Type {
-	case "openai":
-		provider = &model.OpenAIProvider{
-			APIKey:    cfg.Provider.APIKey,
-			BaseURL:   cfg.Provider.BaseURL,
-			ModelName: cfg.Agent.Model,
-			MaxTokens: cfg.Agent.MaxTokens,
-		}
-	default:
-		provider = &model.AnthropicProvider{
-			APIKey:    cfg.Provider.APIKey,
-			BaseURL:   cfg.Provider.BaseURL,
-			ModelName: cfg.Agent.Model,
-			MaxTokens: cfg.Agent.MaxTokens,
-		}
-	}
-
-	rt, err := api.New(context.Background(), api.Options{
-		ProjectRoot:   cfg.Agent.Workspace,
-		ModelFactory:  provider,
-		SystemPrompt:  sysPrompt,
-		MaxIterations: cfg.Agent.MaxToolIterations,
-		MCPServers:    cfg.MCP.Servers,
-		AutoCompact: api.CompactConfig{
-			Enabled:       cfg.AutoCompact.Enabled,
-			Threshold:     cfg.AutoCompact.Threshold,
-			PreserveCount: cfg.AutoCompact.PreserveCount,
-		},
-		Skills: skillRegs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create runtime: %w", err)
-	}
-	return &runtimeWrapper{rt: rt}, nil
-}
-
-// AgentOptions for running agent with custom dependencies
+// AgentOptions for running agent with custom dependencies.
 type AgentOptions struct {
-	RuntimeFactory RuntimeFactory
+	RuntimeFactory func(cfg *config.Config) (agent.Runtime, error)
 	Stdin          io.Reader
 	Stdout         io.Writer
 	Stderr         io.Writer
+}
+
+func defaultAgentRuntime(cfg *config.Config) (agent.Runtime, error) {
+	if cfg.Provider.APIKey == "" {
+		return nil, fmt.Errorf("api key not set: edit %s or run 'maven onboard'", config.ConfigPath())
+	}
+	mem := memory.NewMemoryStore(cfg.Agent.Workspace)
+	sysPrompt, err := prompt.Build(cfg.Agent.Workspace, mem.GetMemoryContext())
+	if err != nil {
+		return nil, fmt.Errorf("system prompt: %w", err)
+	}
+	skillRegs := loadRuntimeSkills(cfg)
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, nil, mavenLog)
 }
 
 var rootCmd = &cobra.Command{
@@ -169,7 +116,8 @@ func init() {
 }
 
 func main() {
-	slog.SetDefault(mavenlog.Std())
+	mavenLog = mavenlog.Std()
+	slog.SetDefault(mavenLog)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -190,7 +138,7 @@ func runAgentWithOptions(opts AgentOptions) error {
 	// Use injected factory or default
 	factory := opts.RuntimeFactory
 	if factory == nil {
-		factory = DefaultRuntimeFactory
+		factory = defaultAgentRuntime
 	}
 
 	rt, err := factory(cfg)
@@ -396,7 +344,7 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	registrations, err := skills.LoadSkills(skillDir, slog.Default())
+	registrations, err := skills.LoadSkills(skillDir, mavenLog)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -471,7 +419,7 @@ func runSkillsInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	skillDir := resolveSkillsDir(cfg)
-	registrations, err := skills.LoadSkills(skillDir, slog.Default())
+	registrations, err := skills.LoadSkills(skillDir, mavenLog)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -617,7 +565,7 @@ func runSkillsCheck(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingSkillFile)
 
-	registrations, err := skills.LoadSkills(skillDir, slog.Default())
+	registrations, err := skills.LoadSkills(skillDir, mavenLog)
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -663,9 +611,9 @@ func loadRuntimeSkills(cfg *config.Config) []api.SkillRegistration {
 		return nil
 	}
 
-	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), slog.Default())
+	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), mavenLog)
 	if err != nil {
-		slog.Warn("agent skills load warning", "err", err)
+		mavenLog.Warn("agent skills load warning", "err", err)
 		return nil
 	}
 	return skillRegs
@@ -754,26 +702,6 @@ func printJSON(v any) error {
 	}
 	fmt.Println(string(data))
 	return nil
-}
-
-func buildSystemPrompt(cfg *config.Config, mem *memory.MemoryStore) string {
-	var sb strings.Builder
-
-	if data, err := os.ReadFile(filepath.Join(cfg.Agent.Workspace, "AGENTS.md")); err == nil {
-		sb.Write(data)
-		sb.WriteString("\n\n")
-	}
-
-	if data, err := os.ReadFile(filepath.Join(cfg.Agent.Workspace, "SOUL.md")); err == nil {
-		sb.Write(data)
-		sb.WriteString("\n\n")
-	}
-
-	if memCtx := mem.GetMemoryContext(); memCtx != "" {
-		sb.WriteString(memCtx)
-	}
-
-	return sb.String()
 }
 
 func writeIfNotExists(path, content string) {

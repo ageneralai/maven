@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
@@ -10,6 +11,7 @@ import (
 	"github.com/ageneralai/maven/internal/agent/postaction"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/session"
+	"github.com/ageneralai/maven/internal/slash"
 	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/pkg/events"
 	"github.com/ageneralai/maven/pkg/events/eventsfake"
@@ -102,4 +104,43 @@ func TestTurnContext_fromInboundMessage_noMetadataWhenMessageIDZero(t *testing.T
 	if !ok || tc.Metadata != nil {
 		t.Fatalf("ok=%v meta=%+v", ok, tc.Metadata)
 	}
+}
+
+func TestSlashRegistry_ConcurrentSetAndHandle(t *testing.T) {
+	b := bus.New(10, slog.New(slog.DiscardHandler))
+	router, _ := session.New("")
+	p := New(slog.New(slog.DiscardHandler), b, stubRuntime{}, &session.SessionResolver{Router: router}, postaction.New(router, ""), nil, nil)
+	regA, err := slash.BuiltIns(nil)
+	if err != nil {
+		t.Fatalf("BuiltIns A: %v", err)
+	}
+	regB, err := slash.BuiltIns(nil)
+	if err != nil {
+		t.Fatalf("BuiltIns B: %v", err)
+	}
+	p.SetSlashRegistry(regA)
+	msg := bus.InboundMessage{Channel: "telegram", ChatID: "1", Content: "/cron list"}
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				p.handle(context.Background(), msg)
+			}
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		if i%2 == 0 {
+			p.SetSlashRegistry(regA)
+		} else {
+			p.SetSlashRegistry(regB)
+		}
+	}
+	close(stop)
+	wg.Wait()
 }

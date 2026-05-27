@@ -14,6 +14,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/channel/web/wsession"
+	"github.com/ageneralai/maven/internal/channel/web/wsmsg"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/voice"
 	"github.com/ageneralai/maven/pkg/executor"
@@ -28,21 +29,23 @@ const voiceClearSentinel = byte(0)
 const voiceDetectRMSThreshold = 0.01
 
 type Transport struct {
-	log      *slog.Logger
-	voiceCfg config.WebVoiceConfig
-	appCfg   *config.Config
-	plugins  *plugin.Registry
-	runner   executor.StreamRunner
-	sessions sync.Map
+	log              *slog.Logger
+	voiceCfg         config.WebVoiceConfig
+	appCfg           *config.Config
+	plugins          *plugin.Registry
+	runner           executor.StreamRunner
+	responseSessions *wsession.ResponseSessions
+	voiceClients     sync.Map
 }
 
-func NewTransport(voiceCfg config.WebVoiceConfig, appCfg *config.Config, plugins *plugin.Registry, lg *slog.Logger, runner executor.StreamRunner) *Transport {
+func NewTransport(voiceCfg config.WebVoiceConfig, appCfg *config.Config, plugins *plugin.Registry, lg *slog.Logger, runner executor.StreamRunner, responseSessions *wsession.ResponseSessions) *Transport {
 	return &Transport{
-		log:      lg,
-		voiceCfg: voiceCfg,
-		appCfg:   appCfg,
-		plugins:  plugins,
-		runner:   runner,
+		log:              lg,
+		voiceCfg:         voiceCfg,
+		appCfg:           appCfg,
+		plugins:          plugins,
+		runner:           runner,
+		responseSessions: responseSessions,
 	}
 }
 
@@ -57,7 +60,7 @@ func (t *Transport) Register(mux *http.ServeMux) {
 }
 
 func (t *Transport) Stop() {
-	t.sessions.Range(func(key, value any) bool {
+	t.voiceClients.Range(func(key, value any) bool {
 		vc, ok := value.(*client)
 		if ok {
 			vc.sess.Close()
@@ -68,7 +71,7 @@ func (t *Transport) Stop() {
 }
 
 func (t *Transport) HasSession(chatID string) bool {
-	_, ok := t.sessions.Load(chatID)
+	_, ok := t.voiceClients.Load(chatID)
 	return ok
 }
 
@@ -83,7 +86,7 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		http.NotFound(wr, r)
 		return
 	}
-	sessionID, err := wsession.ResolveMavenSessionID(r, "")
+	sessionID, err := wsession.ResolveMavenSessionID(t.responseSessions, r, "")
 	if err != nil {
 		http.Error(wr, `{"error":{"message":"`+err.Error()+`","type":"invalid_request_error"}}`, http.StatusBadRequest)
 		return
@@ -110,10 +113,10 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	sess := voice.NewSession(r.Context(), stt, tts)
 	defer sess.Close()
 	vc := &client{sess: sess, conn: conn}
-	t.sessions.Store(sessionID, vc)
+	t.voiceClients.Store(sessionID, vc)
 	t.log.Info("web voice client connected", "session", sessionID)
 	defer func() {
-		t.sessions.Delete(sessionID)
+		t.voiceClients.Delete(sessionID)
 		_ = conn.CloseNow()
 		t.log.Info("web voice client disconnected", "session", sessionID)
 	}()
@@ -190,7 +193,7 @@ func pcmRMS(pcm []byte) float64 {
 }
 
 func (t *Transport) Send(ctx context.Context, chatID string, content string) error {
-	data, err := json.Marshal(wsMessage{Type: "message", Content: content})
+	data, err := json.Marshal(wsmsg.Message{Type: "message", Content: content})
 	if err != nil {
 		return err
 	}
@@ -199,14 +202,8 @@ func (t *Transport) Send(ctx context.Context, chatID string, content string) err
 	return t.writeClient(writeCtx, chatID, websocket.MessageText, data)
 }
 
-type wsMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Delta   string `json:"delta,omitempty"`
-}
-
 func (t *Transport) writeClient(ctx context.Context, chatID string, typ websocket.MessageType, data []byte) error {
-	v, ok := t.sessions.Load(chatID)
+	v, ok := t.voiceClients.Load(chatID)
 	if !ok {
 		return nil
 	}
@@ -228,7 +225,7 @@ func streamEventError(ev api.StreamEvent) error {
 }
 
 func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
-	v, ok := t.sessions.Load(chatID)
+	v, ok := t.voiceClients.Load(chatID)
 	if !ok {
 		return nil
 	}
@@ -299,7 +296,7 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 		sess.Interrupt()
 	}
 	wg.Wait()
-	done, err := json.Marshal(wsMessage{Type: "stream_done"})
+	done, err := json.Marshal(wsmsg.Message{Type: "stream_done"})
 	if err != nil {
 		return err
 	}

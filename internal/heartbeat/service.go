@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"log/slog"
@@ -33,6 +34,7 @@ type Service struct {
 	interval  time.Duration
 	log       *slog.Logger
 	rep       health.HealthReporter
+	fireWg    sync.WaitGroup
 }
 
 func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log *slog.Logger, opts ...Option) (*Service, error) {
@@ -73,13 +75,19 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 }
 
+func (s *Service) Stop() {
+	s.fireWg.Wait()
+}
+
 func (s *Service) tick(ctx context.Context) {
 	if !s.lane.TryAcquire() {
 		s.log.Debug("heartbeat skipped: previous tick still running")
 		return
 	}
+	s.fireWg.Add(1)
 	go func() {
 		defer s.lane.Release()
+		defer s.fireWg.Done()
 		s.execute(ctx)
 	}()
 }

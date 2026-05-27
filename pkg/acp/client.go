@@ -145,31 +145,31 @@ func (c *delegateClient) ReadTextFile(ctx context.Context, params acpsdk.ReadTex
 func (c *delegateClient) CreateTerminal(ctx context.Context, params acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
 	_ = ctx
 	_ = params
-	return acpsdk.CreateTerminalResponse{TerminalId: "term-delegate"}, nil
+	return acpsdk.CreateTerminalResponse{}, fmt.Errorf("terminal not supported in gateway delegate mode")
 }
 
 func (c *delegateClient) TerminalOutput(ctx context.Context, params acpsdk.TerminalOutputRequest) (acpsdk.TerminalOutputResponse, error) {
 	_ = ctx
 	_ = params
-	return acpsdk.TerminalOutputResponse{Output: "", Truncated: false}, nil
+	return acpsdk.TerminalOutputResponse{}, fmt.Errorf("terminal not supported in gateway delegate mode")
 }
 
 func (c *delegateClient) ReleaseTerminal(ctx context.Context, params acpsdk.ReleaseTerminalRequest) (acpsdk.ReleaseTerminalResponse, error) {
 	_ = ctx
 	_ = params
-	return acpsdk.ReleaseTerminalResponse{}, nil
+	return acpsdk.ReleaseTerminalResponse{}, fmt.Errorf("terminal not supported in gateway delegate mode")
 }
 
 func (c *delegateClient) WaitForTerminalExit(ctx context.Context, params acpsdk.WaitForTerminalExitRequest) (acpsdk.WaitForTerminalExitResponse, error) {
 	_ = ctx
 	_ = params
-	return acpsdk.WaitForTerminalExitResponse{}, nil
+	return acpsdk.WaitForTerminalExitResponse{}, fmt.Errorf("terminal not supported in gateway delegate mode")
 }
 
 func (c *delegateClient) KillTerminal(ctx context.Context, params acpsdk.KillTerminalRequest) (acpsdk.KillTerminalResponse, error) {
 	_ = ctx
 	_ = params
-	return acpsdk.KillTerminalResponse{}, nil
+	return acpsdk.KillTerminalResponse{}, fmt.Errorf("terminal not supported in gateway delegate mode")
 }
 
 // runACPSession spawns a single agent subprocess for one Prompt turn; ctx cancellation kills the process.

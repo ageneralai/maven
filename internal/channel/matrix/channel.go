@@ -136,7 +136,7 @@ func (m *MatrixChannel) Send(ctx context.Context, msg bus.OutboundMessage) error
 	if content == "" {
 		return nil
 	}
-	for _, chunk := range stringutil.ChunkRunes(content, matrixSendChunkSize) {
+	for _, chunk := range stringutil.ChunkBytes(content, matrixSendChunkSize) {
 		if _, err := m.client.SendText(ctx, roomID, chunk); err != nil {
 			return fmt.Errorf("matrix send to %s: %w", roomID, err)
 		}

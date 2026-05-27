@@ -10,7 +10,7 @@ import (
 
 const HeaderMavenSessionID = "Maven-Session-Id"
 
-func ResolveMavenSessionID(r *http.Request, previousResponseID string) (string, error) {
+func ResolveMavenSessionID(sessions *ResponseSessions, r *http.Request, previousResponseID string) (string, error) {
 	headerSession := strings.TrimSpace(r.Header.Get(HeaderMavenSessionID))
 	if headerSession == "" {
 		headerSession = strings.TrimSpace(r.URL.Query().Get("session"))
@@ -20,7 +20,7 @@ func ResolveMavenSessionID(r *http.Request, previousResponseID string) (string, 
 		if !IsMavenResponseID(prev) {
 			return "", fmt.Errorf("invalid previous_response_id")
 		}
-		mapped, ok := lookupMavenResponseSession(prev)
+		mapped, ok := sessions.lookupMavenResponseSession(prev)
 		if !ok {
 			return "", fmt.Errorf("unknown previous_response_id")
 		}

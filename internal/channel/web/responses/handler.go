@@ -12,7 +12,8 @@ import (
 )
 
 type Handler struct {
-	Runner executor.StreamRunner
+	Runner   executor.StreamRunner
+	Sessions *wsession.ResponseSessions
 }
 
 func (h *Handler) ServeHTTP(wr http.ResponseWriter, r *http.Request) {
@@ -30,7 +31,7 @@ func (h *Handler) ServeHTTP(wr http.ResponseWriter, r *http.Request) {
 		writeJSONError(wr, "input is required", "invalid_request_error", http.StatusBadRequest)
 		return
 	}
-	sessionID, err := wsession.ResolveMavenSessionID(r, req.PreviousResponseID)
+	sessionID, err := wsession.ResolveMavenSessionID(h.Sessions, r, req.PreviousResponseID)
 	if err != nil {
 		writeJSONError(wr, err.Error(), "invalid_request_error", http.StatusBadRequest)
 		return
@@ -87,11 +88,11 @@ func (h *Handler) ServeHTTP(wr http.ResponseWriter, r *http.Request) {
 	writeEvent("response.output_item.done", ItemIndexEvent{
 		Type: "response.output_item.done", Index: 0,
 	})
+	h.Sessions.StoreMavenResponseSession(responseID, sessionID)
 	writeEvent("response.completed", CompletedEvent{
 		Type:     "response.completed",
 		Response: ResponseRef{ID: responseID, Status: "completed"},
 	})
-	wsession.StoreMavenResponseSession(responseID, sessionID)
 	_ = writeDone(wr, fl)
 }
 

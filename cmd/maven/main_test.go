@@ -11,12 +11,20 @@ import (
 	"strings"
 	"testing"
 
+	"log/slog"
+
+	"github.com/ageneralai/maven/internal/agent"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/memory"
+	"github.com/ageneralai/maven/pkg/prompt"
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
 )
+
+func init() {
+	mavenLog = slog.New(slog.DiscardHandler)
+}
 
 func setupTestHome(t *testing.T) {
 	t.Helper()
@@ -133,15 +141,12 @@ func TestBuildSystemPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg := &config.Config{
-		Agent: config.AgentConfig{
-			Workspace: tmpDir,
-		},
-	}
-
 	mem := memory.NewMemoryStore(tmpDir)
 
-	prompt := buildSystemPrompt(cfg, mem)
+	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	if err != nil {
+		t.Fatalf("prompt.Build: %v", err)
+	}
 
 	if !strings.Contains(prompt, "# Agent") {
 		t.Error("missing AGENTS.md content")
@@ -154,18 +159,15 @@ func TestBuildSystemPrompt(t *testing.T) {
 func TestBuildSystemPrompt_WithMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	cfg := &config.Config{
-		Agent: config.AgentConfig{
-			Workspace: tmpDir,
-		},
-	}
-
 	mem := memory.NewMemoryStore(tmpDir)
 	if err := mem.WriteLongTerm("Important info"); err != nil {
 		t.Fatal(err)
 	}
 
-	prompt := buildSystemPrompt(cfg, mem)
+	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	if err != nil {
+		t.Fatalf("prompt.Build: %v", err)
+	}
 
 	if !strings.Contains(prompt, "Important info") {
 		t.Error("missing memory content")
@@ -175,15 +177,12 @@ func TestBuildSystemPrompt_WithMemory(t *testing.T) {
 func TestBuildSystemPrompt_NoFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	cfg := &config.Config{
-		Agent: config.AgentConfig{
-			Workspace: tmpDir,
-		},
-	}
-
 	mem := memory.NewMemoryStore(tmpDir)
 
-	prompt := buildSystemPrompt(cfg, mem)
+	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	if err != nil {
+		t.Fatalf("prompt.Build: %v", err)
+	}
 
 	if prompt != "" {
 		t.Errorf("expected empty prompt, got %q", prompt)
@@ -922,7 +921,7 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	}
 }
 
-// mockRuntime implements Runtime interface for testing
+// mockRuntime implements agent.Runtime for testing.
 type mockRuntime struct {
 	response *api.Response
 	err      error
@@ -933,13 +932,18 @@ func (m *mockRuntime) Run(ctx context.Context, req api.Request) (*api.Response, 
 	return m.response, m.err
 }
 
+func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan api.StreamEvent, error) {
+	ch := make(chan api.StreamEvent)
+	close(ch)
+	return ch, nil
+}
+
 func (m *mockRuntime) Close() {
 	m.closed = true
 }
 
-// mockRuntimeFactory returns a factory that creates mock runtimes
-func mockRuntimeFactory(rt Runtime) RuntimeFactory {
-	return func(cfg *config.Config) (Runtime, error) {
+func mockRuntimeFactory(rt agent.Runtime) func(cfg *config.Config) (agent.Runtime, error) {
+	return func(cfg *config.Config) (agent.Runtime, error) {
 		return rt, nil
 	}
 }
@@ -1148,7 +1152,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 		},
 	}
 
-	_, err := DefaultRuntimeFactory(cfg)
+	_, err := defaultAgentRuntime(cfg)
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
 	}

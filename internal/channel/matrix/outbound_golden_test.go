@@ -12,7 +12,7 @@ import (
 func TestGolden_matrixSendChunks(t *testing.T) {
 	t.Parallel()
 	content := strings.Repeat("x", matrixSendChunkSize+100)
-	chunks := stringutil.ChunkRunes(content, matrixSendChunkSize)
+	chunks := stringutil.ChunkBytes(content, matrixSendChunkSize)
 	data, err := json.MarshalIndent(chunks, "", "  ")
 	if err != nil {
 		t.Fatal(err)

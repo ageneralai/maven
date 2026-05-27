@@ -3,13 +3,13 @@ package wsession
 import "testing"
 
 func TestMavenResponseSessionMap(t *testing.T) {
-	ResetMavenResponseSessionsForTest()
-	StoreMavenResponseSession("resp_aaa", "web-sess1")
-	got, ok := lookupMavenResponseSession("resp_aaa")
+	sessions := NewResponseSessions()
+	sessions.StoreMavenResponseSession("resp_aaa", "web-sess1")
+	got, ok := sessions.lookupMavenResponseSession("resp_aaa")
 	if !ok || got != "web-sess1" {
 		t.Fatalf("lookup: got %q ok=%v", got, ok)
 	}
-	if _, ok := lookupMavenResponseSession("resp_missing"); ok {
+	if _, ok := sessions.lookupMavenResponseSession("resp_missing"); ok {
 		t.Fatal("expected missing id")
 	}
 }

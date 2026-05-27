@@ -170,15 +170,15 @@ The Gateway (`internal/gateway`) owns process-level orchestration. It is the onl
 `Apply` is the **only** supported configuration mutation path. It performs an atomic reconfiguration:
 
 1. Load and validate configuration (`internal/config`)
-2. Build system prompt from workspace files (`AGENTS.md`, `SOUL.md`) and memory
+2. Build system prompt from workspace files via `pkg/prompt.Build` (`AGENTS.md`, `SOUL.md`) and memory
 3. Load skills (`internal/skills`)
-4. Construct a new agent runtime (`internal/agent/sdk_runtime.go`)
-5. Configure channels via the channel manager
-6. Swap the runtime pointer into the pipeline under `turnMu` (write lock)
-7. Refresh slash command handlers
+4. Build slash command registry (`internal/slash`) **before** any runtime swap
+5. Construct a new agent runtime (`internal/agent/sdk_runtime.go`)
+6. Configure channels via the channel manager
+7. Swap runtime and slash registry into the pipeline under `Reload` (runtime under `turnMu` write lock; slash registry via `atomic.Pointer`)
 8. Restart the heartbeat service
 
-This guarantees that runtime, channels, and tools remain consistent. Partial failures during `Apply` do not leave the system in a mixed state because the runtime swap is atomic.
+This guarantees that runtime, channels, slash handlers, and tools remain consistent. Partial failures during `Apply` do not leave the system in a mixed state because the runtime and slash registry swap as a unit.
 
 ### 4.3 Shutdown
 
@@ -186,10 +186,11 @@ Shutdown is ordered and deterministic to prevent use-after-close and message los
 
 1. Stop inbound processing (pipeline stops consuming)
 2. Cancel active operations (context cancellation propagates to runtime)
-3. Stop cron and heartbeat
-4. Stop channels
-5. Close runtime
-6. Close message bus
+3. Wait for in-flight heartbeat ticks (`heartbeat.Service.Stop`)
+4. Stop cron and heartbeat tickers
+5. Stop channels
+6. Close runtime
+7. Close message bus
 
 ### 4.4 Hot Reload
 
@@ -258,6 +259,8 @@ The pipeline (`internal/pipeline`) is the execution coordinator. It is the only 
 The runtime pointer is protected by `turnMu`:
 - **Read lock** held during turn execution
 - **Write lock** used only during `Apply` when swapping runtimes
+
+The slash command registry is stored in an `atomic.Pointer[slash.Registry]` and swapped during `Reload` alongside the runtime. Concurrent turns load the registry without additional locking.
 
 This prevents runtime replacement while a turn is in flight.
 
@@ -401,7 +404,7 @@ Heartbeat (`internal/heartbeat`) runs periodic unattended checks.
 **Behavior:**
 - Reads `HEARTBEAT.md` from the workspace
 - Skips if the file is empty or missing
-- Single-flight execution (no overlapping runs)
+- Single-flight execution (no overlapping runs); `Stop()` waits for in-flight ticks before shutdown
 - Uses a new session per run
 
 **Special Handling:**
@@ -432,7 +435,7 @@ Maven includes a lightweight, structured observability layer.
 
 ### 13.1 Logging
 
-Centralized via `pkg/log` (currently a `PrintLogger` stepping stone toward structured logging). Used across all subsystems.
+Centralized via `pkg/log` (`Std()` returns a cached process logger with text or JSON handler). Used across all subsystems.
 
 ### 13.2 Events (`pkg/events`)
 
@@ -576,6 +579,8 @@ internal/
     wecom/
     whatsapp/
     web/
+      wsmsg/              Shared WebSocket JSON message types
+      wsession/           Maven response/session ID mapping (instance-owned, no globals)
   config/               Configuration loading, validation, and file watching
   cron/                 Scheduler, persistent job store, SessionKey, Deliver
 
@@ -594,7 +599,8 @@ pkg/
   log/                  Centralized logging
   memory/               MEMORY.md and daily journal management
   prompt/               System prompt builder
-  stringutil/           String helpers
+  stringutil/           String helpers (ChunkBytes, RuneAlignedCut, truncate)
+  voice/                TTS/STT interfaces and HTTP body streaming helper
 docs/                   Setup guides and sample workspace
 ```
 

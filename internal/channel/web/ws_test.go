@@ -10,6 +10,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel/web/wsmsg"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/coder/websocket"
 	"log/slog"
@@ -90,7 +91,7 @@ func TestWebChannel_WebSocket(t *testing.T) {
 	}
 	defer func() { _ = conn.CloseNow() }()
 
-	msg := wsMessage{Type: "message", Content: "hello from test"}
+	msg := wsmsg.Message{Type: "message", Content: "hello from test"}
 	data, _ := json.Marshal(msg)
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		t.Fatalf("ws write: %v", err)
@@ -120,7 +121,7 @@ func TestWebChannel_WebSocket(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ws read: %v", err)
 		}
-		var resp wsMessage
+		var resp wsmsg.Message
 		if err := json.Unmarshal(respData, &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
@@ -185,7 +186,7 @@ func TestWebChannel_SendBroadcast(t *testing.T) {
 		if err != nil {
 			t.Fatalf("client %d read: %v", i+1, err)
 		}
-		var msg wsMessage
+		var msg wsmsg.Message
 		if err := json.Unmarshal(data, &msg); err != nil {
 			t.Fatalf("client %d unmarshal: %v", i+1, err)
 		}
@@ -221,7 +222,7 @@ func TestWebChannel_SendStream(t *testing.T) {
 	}
 	defer func() { _ = conn.CloseNow() }()
 
-	msg := wsMessage{Type: "message", Content: "ping"}
+	msg := wsmsg.Message{Type: "message", Content: "ping"}
 	data, _ := json.Marshal(msg)
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		t.Fatalf("ws write: %v", err)
@@ -255,7 +256,7 @@ func TestWebChannel_SendStream(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ws read type %q: %v", want, err)
 		}
-		var got wsMessage
+		var got wsmsg.Message
 		if err := json.Unmarshal(payload, &got); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}

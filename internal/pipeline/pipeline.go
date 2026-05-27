@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
@@ -45,7 +46,7 @@ type Pipeline struct {
 	log          *slog.Logger
 	bus          *bus.MessageBus
 	channels     *manager.ChannelManager
-	slashRegistry *slash.Registry
+	slashRegistry atomic.Pointer[slash.Registry]
 	sessions     session.Resolver
 	posts        postaction.Handler
 	liveness     health.HealthReporter
@@ -60,7 +61,7 @@ func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session
 
 // SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
 func (p *Pipeline) SetSlashRegistry(r *slash.Registry) {
-	p.slashRegistry = r
+	p.slashRegistry.Store(r)
 }
 
 // CurrentRuntime returns rt without holding the turn lock. Use only when no concurrent
@@ -107,9 +108,10 @@ func (p *Pipeline) RunStream(ctx context.Context, prompt, sessionID string) (<-c
 var _ executor.TurnExecutor = (*Pipeline)(nil)
 
 // Reload runs applyChannels first (no lock; channels do not touch rt). Then it takes
-// the write lock, swaps rt and workspace under exclusion, unlocks, and closes the old
-// runtime. Gateway closes newRt only when Reload returns an error from applyChannels.
-func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, workspace string) error {
+// the write lock, swaps rt and workspace under exclusion, stores slashReg, unlocks,
+// and closes the old runtime. Gateway closes newRt only when Reload returns an error
+// from applyChannels.
+func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, workspace string, slashReg *slash.Registry) error {
 	if err := applyChannels(); err != nil {
 		return err
 	}
@@ -120,6 +122,7 @@ func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, works
 		p.posts.SetWorkspace(workspace)
 	}
 	p.turnMu.Unlock()
+	p.slashRegistry.Store(slashReg)
 	if old != nil {
 		old.Close()
 	}
@@ -233,7 +236,8 @@ func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bo
 
 func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, sessionKey, slashName string) (slash.Outcome, error) {
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
-	return slash.PreTurn(msgCtx, p.slashRegistry, slash.Input{
+	reg := p.slashRegistry.Load()
+	return slash.PreTurn(msgCtx, reg, slash.Input{
 		Text:              msg.Content,
 		ExpectedSlashName: slashName,
 	})

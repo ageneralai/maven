@@ -84,11 +84,11 @@ func TestTruncateRunesTail(t *testing.T) {
 	}
 }
 
-func TestChunkRunes(t *testing.T) {
+func TestChunkBytes(t *testing.T) {
 	t.Parallel()
 	const chunkSize = 32000
 	long := strings.Repeat("a", 35000)
-	chunks := ChunkRunes(long, chunkSize)
+	chunks := ChunkBytes(long, chunkSize)
 	if len(chunks) != 2 {
 		t.Fatalf("chunks = %d, want 2", len(chunks))
 	}
@@ -97,22 +97,22 @@ func TestChunkRunes(t *testing.T) {
 	}
 }
 
-func TestChunkRunes_NewlineRoundTrip(t *testing.T) {
+func TestChunkBytes_NewlineRoundTrip(t *testing.T) {
 	t.Parallel()
 	const chunkSize = 32000
 	original := strings.Repeat("a", chunkSize-10) + "\n\n" + strings.Repeat("b", chunkSize+50)
-	chunks := ChunkRunes(original, chunkSize)
+	chunks := ChunkBytes(original, chunkSize)
 	if strings.Join(chunks, "") != original {
 		t.Fatalf("chunks do not reconstruct original string byte-for-byte")
 	}
 }
 
-func TestChunkRunes_RuneSafe(t *testing.T) {
+func TestChunkBytes_RuneSafe(t *testing.T) {
 	t.Parallel()
 	const chunkSize = 32000
 	rune3 := "日"
 	base := strings.Repeat("a", chunkSize-1) + rune3 + strings.Repeat("a", 100)
-	chunks := ChunkRunes(base, chunkSize)
+	chunks := ChunkBytes(base, chunkSize)
 	for i, c := range chunks {
 		if !utf8.ValidString(c) {
 			t.Fatalf("chunk %d is invalid UTF-8", i)

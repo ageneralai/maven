@@ -11,14 +11,9 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel/web/wsmsg"
 	"github.com/coder/websocket"
 )
-
-type wsMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Delta   string `json:"delta,omitempty"`
-}
 
 type wsClient struct {
 	conn *websocket.Conn
@@ -47,7 +42,7 @@ func (w *WebChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		var msg wsMessage
+		var msg wsmsg.Message
 		if err := json.Unmarshal(data, &msg); err != nil {
 			continue
 		}
@@ -91,7 +86,7 @@ func (w *WebChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if w.voice != nil && w.voice.HasSession(msg.ChatID) {
 		return w.voice.Send(ctx, msg.ChatID, msg.Content)
 	}
-	data, err := json.Marshal(wsMessage{Type: "message", Content: msg.Content})
+	data, err := json.Marshal(wsmsg.Message{Type: "message", Content: msg.Content})
 	if err != nil {
 		return err
 	}
@@ -111,7 +106,7 @@ func (w *WebChannel) SendStream(ctx context.Context, chatID string, metadata map
 			return ctx.Err()
 		case ev, ok := <-events:
 			if !ok {
-				done, err := json.Marshal(wsMessage{Type: "stream_done"})
+				done, err := json.Marshal(wsmsg.Message{Type: "stream_done"})
 				if err != nil {
 					return err
 				}
@@ -121,7 +116,7 @@ func (w *WebChannel) SendStream(ctx context.Context, chatID string, metadata map
 				return streamEventError(ev)
 			}
 			if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
-				payload, err := json.Marshal(wsMessage{Type: "stream", Delta: ev.Delta.Text})
+				payload, err := json.Marshal(wsmsg.Message{Type: "stream", Delta: ev.Delta.Text})
 				if err != nil {
 					return err
 				}

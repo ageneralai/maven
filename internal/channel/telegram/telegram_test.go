@@ -630,6 +630,81 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 	}
 }
 
+func TestTelegramChannel_FlushMediaGroup_ImageOnly(t *testing.T) {
+	ch, _, b := newTestChannel(t, config.TelegramConfig{})
+	photoData := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
+	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(photoData)
+	}))
+	defer downloadServer.Close()
+	serverURL, err := url.Parse(downloadServer.URL)
+	if err != nil {
+		t.Fatalf("parse server url: %v", err)
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	ch.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		clonedReq := req.Clone(req.Context())
+		clonedReq.URL.Scheme = serverURL.Scheme
+		clonedReq.URL.Host = serverURL.Host
+		return transport.RoundTrip(clonedReq)
+	})}
+	for i := 0; i < 2; i++ {
+		ch.handleMessage(&telego.Message{
+			From:         &telego.User{ID: 123},
+			Chat:         telego.Chat{ID: 456, Type: "private"},
+			Date:         1234567890,
+			MediaGroupID: "mg-images-only",
+			Photo:        []telego.PhotoSize{{FileID: fmt.Sprintf("photo-%d", i)}},
+		})
+	}
+	select {
+	case inbound := <-b.InboundChan():
+		if inbound.Content != "" {
+			t.Fatalf("expected empty content for image-only group, got %q", inbound.Content)
+		}
+		if len(inbound.ContentBlocks) != 2 {
+			t.Fatalf("expected 2 image blocks, got %d", len(inbound.ContentBlocks))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected inbound message from image-only media group")
+	}
+}
+
+func TestTelegramChannel_Send_UTF8ChunkBoundaries(t *testing.T) {
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{})
+	const maxLen = 4000
+	text := strings.Repeat("é", maxLen+1)
+	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: text})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	var bodies []string
+	for _, c := range caller.calls {
+		if !strings.HasSuffix(c.URL, "/sendMessage") || c.Data == nil {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(c.Data.BodyRaw, &payload); err != nil {
+			continue
+		}
+		if body, ok := payload["text"].(string); ok {
+			bodies = append(bodies, body)
+		}
+	}
+	if len(bodies) < 2 {
+		t.Fatalf("expected chunked sends, got %d", len(bodies))
+	}
+	for i, body := range bodies {
+		if !utf8.ValidString(body) {
+			t.Fatalf("chunk %d is not valid UTF-8", i)
+		}
+	}
+	if strings.Join(bodies, "") != ToTelegramHTML(text) {
+		t.Fatal("chunk join round-trip failed")
+	}
+}
+
 // === WeChat Image Test (unchanged, no tgbotapi dependency) ===
 func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 	ch, _, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
