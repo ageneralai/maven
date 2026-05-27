@@ -7,6 +7,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/httpc"
 	"github.com/ageneralai/maven/pkg/plugin"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
@@ -26,7 +27,11 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 		return false
 	}
 	k := pkgvoice.MergeKeys(cfg)
-	return strings.TrimSpace(k.ElevenLabs) != ""
+	if strings.TrimSpace(k.ElevenLabs) == "" {
+		return false
+	}
+	_, err := httpc.ClientFromProxy(cfg.Speech.ElevenLabs.Proxy)
+	return err == nil
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -45,7 +50,11 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if strings.TrimSpace(k.ElevenLabs) == "" {
 		return nil
 	}
-	return &TTS{APIKey: k.ElevenLabs, VoiceID: voiceID}
+	httpClient, err := httpc.ClientFromProxy(cfg.Speech.ElevenLabs.Proxy)
+	if err != nil {
+		return nil
+	}
+	return &TTS{APIKey: k.ElevenLabs, VoiceID: voiceID, HTTPClient: httpClient}
 }
 
 func (Plugin) STTProvider(*config.Config) pkgvoice.STTProvider { return nil }

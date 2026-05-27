@@ -13,10 +13,11 @@ import (
 
 // TTS streams raw PCM (pcm_s16le) from Cartesia TTS bytes API.
 type TTS struct {
-	APIKey  string
-	ModelID string
-	VoiceID string
-	Version string
+	APIKey     string
+	ModelID    string
+	VoiceID    string
+	Version    string
+	HTTPClient *http.Client
 }
 
 type ttsRequest struct {
@@ -71,7 +72,11 @@ func (c *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Cartesia-Version", ver)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	hc := c.HTTPClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
 	}

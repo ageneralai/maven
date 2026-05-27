@@ -18,6 +18,7 @@ type STT struct {
 	APIKey      string
 	Model       string
 	Endpointing string
+	HTTPClient  *http.Client
 }
 
 func (d *STT) Transcribe(ctx context.Context, audio <-chan []byte) (<-chan string, error) {
@@ -42,8 +43,13 @@ func (d *STT) Transcribe(ctx context.Context, audio <-chan []byte) (<-chan strin
 	q.Set("endpointing", ep)
 	u := "wss://api.deepgram.com/v1/listen?" + q.Encode()
 	out := make(chan string, 8)
+	hc := d.HTTPClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
 	conn, _, err := websocket.Dial(ctx, u, &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": []string{"Token " + d.APIKey}},
+		HTTPClient: hc,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("voice: deepgram dial: %w", err)

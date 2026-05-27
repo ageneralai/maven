@@ -17,6 +17,7 @@ import (
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/httpc"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -36,11 +37,12 @@ type FeishuClient interface {
 
 // defaultFeishuClient implements FeishuClient using Feishu Open API
 type defaultFeishuClient struct {
-	appID     string
-	appSecret string
-	mu        sync.RWMutex
-	token     string
-	tokenExp  time.Time
+	appID      string
+	appSecret  string
+	httpClient *http.Client
+	mu         sync.RWMutex
+	token      string
+	tokenExp   time.Time
 }
 
 func (c *defaultFeishuClient) GetTenantAccessToken(ctx context.Context) (string, error) {
@@ -69,7 +71,7 @@ func (c *defaultFeishuClient) GetTenantAccessToken(ctx context.Context) (string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("get tenant token: %w", err)
 	}
@@ -124,7 +126,7 @@ func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content s
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send feishu message: %w", err)
 	}
@@ -146,14 +148,19 @@ func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content s
 // FeishuClientFactory creates FeishuClient instances
 type FeishuClientFactory func(appID, appSecret string) FeishuClient
 
+func newDefaultFeishuClient(appID, appSecret string, httpClient *http.Client) FeishuClient {
+	return &defaultFeishuClient{appID: appID, appSecret: appSecret, httpClient: httpClient}
+}
+
 var defaultFeishuClientFactory FeishuClientFactory = func(appID, appSecret string) FeishuClient {
-	return &defaultFeishuClient{appID: appID, appSecret: appSecret}
+	return newDefaultFeishuClient(appID, appSecret, http.DefaultClient)
 }
 
 type FeishuChannel struct {
 	chann.BaseChannel
 	cfg             config.FeishuConfig
 	client          FeishuClient
+	httpClient      *http.Client
 	server          *http.Server
 	cancel          context.CancelFunc
 	clientFactory   FeishuClientFactory
@@ -161,19 +168,36 @@ type FeishuChannel struct {
 }
 
 func NewFeishuChannel(cfg config.FeishuConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*FeishuChannel, error) {
-	return NewFeishuChannelWithFactory(cfg, lg, b, defaultFeishuClientFactory)
+	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("feishu proxy: %w", err)
+	}
+	factory := func(appID, appSecret string) FeishuClient {
+		return newDefaultFeishuClient(appID, appSecret, httpClient)
+	}
+	ch, err := NewFeishuChannelWithFactory(cfg, lg, b, factory)
+	if err != nil {
+		return nil, err
+	}
+	ch.httpClient = httpClient
+	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
+		return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, httpClient)
+	}
+	return ch, nil
 }
 
 func NewFeishuChannelWithFactory(cfg config.FeishuConfig, lg mavenlog.PrintLogger, b *bus.MessageBus, factory FeishuClientFactory) (*FeishuChannel, error) {
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		return nil, fmt.Errorf("feishu app_id and app_secret are required")
 	}
-
 	ch := &FeishuChannel{
-		BaseChannel:     chann.NewBaseChannel(feishuChannelName, b, cfg.AllowFrom, lg),
-		cfg:             cfg,
-		clientFactory:   factory,
-		imageDownloader: downloadFeishuImageAsBase64,
+		BaseChannel:   chann.NewBaseChannel(feishuChannelName, b, cfg.AllowFrom, lg),
+		cfg:           cfg,
+		httpClient:    http.DefaultClient,
+		clientFactory: factory,
+	}
+	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
+		return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, ch.httpClient)
 	}
 	return ch, nil
 }
@@ -391,7 +415,13 @@ func (f *FeishuChannel) buildFeishuImageContentBlock(ctx context.Context, imageK
 
 	downloader := f.imageDownloader
 	if downloader == nil {
-		downloader = downloadFeishuImageAsBase64
+		hc := f.httpClient
+		if hc == nil {
+			hc = http.DefaultClient
+		}
+		downloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
+			return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, hc)
+		}
 	}
 
 	base64Data, mediaType, err := downloader(ctx, tenantAccessToken, imageKey)
@@ -413,14 +443,14 @@ func buildFeishuImageDownloadURL(imageKey string) string {
 	return fmt.Sprintf("https://open.feishu.cn/open-apis/im/v1/images/%s?image_type=message", url.PathEscape(strings.TrimSpace(imageKey)))
 }
 
-func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
+func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKey string, httpClient *http.Client) (string, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildFeishuImageDownloadURL(imageKey), nil)
 	if err != nil {
 		return "", "", fmt.Errorf("create image request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+tenantAccessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}

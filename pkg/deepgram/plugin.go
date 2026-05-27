@@ -7,6 +7,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/httpc"
 	"github.com/ageneralai/maven/pkg/plugin"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
@@ -26,7 +27,11 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 	if strings.TrimSpace(k.Deepgram) == "" {
 		return false
 	}
-	return pkgvoice.SelectedForSTT(cfg, "deepgram") || pkgvoice.SelectedForTTS(cfg, "deepgram")
+	if !pkgvoice.SelectedForSTT(cfg, "deepgram") && !pkgvoice.SelectedForTTS(cfg, "deepgram") {
+		return false
+	}
+	_, err := httpc.ClientFromProxy(cfg.Speech.Deepgram.Proxy)
+	return err == nil
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -41,7 +46,11 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if strings.TrimSpace(k.Deepgram) == "" {
 		return nil
 	}
-	return &TTS{APIKey: k.Deepgram}
+	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Deepgram.Proxy)
+	if err != nil {
+		return nil
+	}
+	return &TTS{APIKey: k.Deepgram, HTTPClient: httpClient}
 }
 
 func (Plugin) STTProvider(cfg *config.Config) pkgvoice.STTProvider {
@@ -52,7 +61,11 @@ func (Plugin) STTProvider(cfg *config.Config) pkgvoice.STTProvider {
 	if strings.TrimSpace(k.Deepgram) == "" {
 		return nil
 	}
-	return &STT{APIKey: k.Deepgram}
+	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Deepgram.Proxy)
+	if err != nil {
+		return nil
+	}
+	return &STT{APIKey: k.Deepgram, HTTPClient: httpClient}
 }
 
 func (Plugin) Start(context.Context) error { return nil }

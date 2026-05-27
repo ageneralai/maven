@@ -18,6 +18,7 @@ import (
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/httpc"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -71,10 +72,8 @@ func (e *weComHTTPStatusError) Error() string {
 	return fmt.Sprintf("wecom response_url status %d: %s", e.Code, e.Body)
 }
 
-func newDefaultWeComClient(cfg config.WeComConfig) WeComClient {
-	return &defaultWeComClient{
-		httpClient: http.DefaultClient,
-	}
+func newDefaultWeComClient(cfg config.WeComConfig, httpClient *http.Client) WeComClient {
+	return &defaultWeComClient{httpClient: httpClient}
 }
 
 func (c *defaultWeComClient) Close() {}
@@ -328,6 +327,7 @@ func (c *weComReplyCache) gcLocked(now time.Time) {
 type WeComChannel struct {
 	chann.BaseChannel
 	cfg              config.WeComConfig
+	httpClient       *http.Client
 	server           *http.Server
 	cancel           context.CancelFunc
 	client           WeComClient
@@ -339,11 +339,23 @@ type WeComChannel struct {
 }
 
 var defaultWeComClientFactory WeComClientFactory = func(cfg config.WeComConfig) WeComClient {
-	return newDefaultWeComClient(cfg)
+	return newDefaultWeComClient(cfg, http.DefaultClient)
 }
 
 func NewWeComChannel(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WeComChannel, error) {
-	return NewWeComChannelWithFactory(cfg, lg, b, defaultWeComClientFactory)
+	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("wecom proxy: %w", err)
+	}
+	factory := func(cfg config.WeComConfig) WeComClient {
+		return newDefaultWeComClient(cfg, httpClient)
+	}
+	ch, err := NewWeComChannelWithFactory(cfg, lg, b, factory)
+	if err != nil {
+		return nil, err
+	}
+	ch.httpClient = httpClient
+	return ch, nil
 }
 
 func NewWeComChannelWithFactory(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
@@ -363,6 +375,7 @@ func NewWeComChannelWithFactory(cfg config.WeComConfig, lg mavenlog.PrintLogger,
 	ch := &WeComChannel{
 		BaseChannel:      chann.NewBaseChannel(wecomChannelName, b, cfg.AllowFrom, lg),
 		cfg:              cfg,
+		httpClient:       http.DefaultClient,
 		clientFactory:    factory,
 		allowlistEnabled: len(cfg.AllowFrom) > 0,
 		msgCache:         newWeComMsgCache(wecomDefaultMsgCacheTTL),
@@ -743,7 +756,11 @@ func (w *WeComChannel) buildWeComImageContentBlock(ctx context.Context, message 
 		return nil, fmt.Errorf("wecom image payload missing url")
 	}
 
-	base64Data, mediaType, err := downloadWeComImageAsBase64(ctx, imageURL)
+	hc := w.httpClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	base64Data, mediaType, err := downloadWeComImageAsBase64(ctx, imageURL, hc)
 	if err != nil {
 		return &model.ContentBlock{
 			Type: model.ContentBlockImage,
@@ -758,13 +775,13 @@ func (w *WeComChannel) buildWeComImageContentBlock(ctx context.Context, message 
 	}, nil
 }
 
-func downloadWeComImageAsBase64(ctx context.Context, imageURL string) (string, string, error) {
+func downloadWeComImageAsBase64(ctx context.Context, imageURL string, httpClient *http.Client) (string, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("create image request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}

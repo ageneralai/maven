@@ -17,10 +17,18 @@
     "cartesia": {
       "voiceId": "",
       "modelId": "sonic-2",
-      "apiVersion": "2025-04-16"
+      "apiVersion": "2025-04-16",
+      "proxy": ""
     },
     "elevenlabs": {
-      "voiceId": ""
+      "voiceId": "",
+      "proxy": ""
+    },
+    "deepgram": {
+      "proxy": ""
+    },
+    "openai": {
+      "proxy": ""
     }
   },
   "channels": {
@@ -28,6 +36,7 @@
       "enabled": false,
       "token": "",
       "allowFrom": [],
+      "proxy": "",
       "rootDir": ""
     },
     "feishu": {
@@ -37,7 +46,8 @@
       "verificationToken": "",
       "encryptKey": "",
       "port": 9876,
-      "allowFrom": []
+      "allowFrom": [],
+      "proxy": ""
     },
     "wecom": {
       "enabled": false,
@@ -45,7 +55,8 @@
       "encodingAESKey": "",
       "receiveId": "",
       "port": 9886,
-      "allowFrom": []
+      "allowFrom": [],
+      "proxy": ""
     },
     "whatsapp": {
       "enabled": false,

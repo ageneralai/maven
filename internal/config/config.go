@@ -61,6 +61,7 @@ type TelegramConfig struct {
 	Enabled   bool     `json:"enabled"`
 	Token     string   `json:"token"`
 	AllowFrom []string `json:"allowFrom"`
+	Proxy     string   `json:"proxy,omitempty"`
 	RootDir   string   `json:"rootDir,omitempty"`   // default: <agent.workspace>/.telegram
 	Feedback  string   `json:"feedback,omitempty"`  // "debug", "normal" (default), "minimal", "silent"
 	Streaming bool     `json:"streaming,omitempty"` // enable streaming output via message editing
@@ -74,6 +75,7 @@ type FeishuConfig struct {
 	EncryptKey        string   `json:"encryptKey,omitempty"`
 	Port              int      `json:"port,omitempty"`
 	AllowFrom         []string `json:"allowFrom"`
+	Proxy             string   `json:"proxy,omitempty"`
 }
 
 type WeComConfig struct {
@@ -83,6 +85,7 @@ type WeComConfig struct {
 	ReceiveID      string   `json:"receiveId,omitempty"`
 	Port           int      `json:"port,omitempty"`
 	AllowFrom      []string `json:"allowFrom"`
+	Proxy          string   `json:"proxy,omitempty"`
 }
 
 type ToolsConfig struct {
@@ -176,16 +179,28 @@ type SpeechConfig struct {
 	TTSProvider string           `json:"ttsProvider,omitempty"`
 	Cartesia    CartesiaConfig   `json:"cartesia,omitempty"`
 	ElevenLabs  ElevenLabsConfig `json:"elevenlabs,omitempty"`
+	Deepgram    DeepgramConfig   `json:"deepgram,omitempty"`
+	OpenAI      OpenAISpeechConfig `json:"openai,omitempty"`
 }
 
 type CartesiaConfig struct {
 	VoiceID    string `json:"voiceId,omitempty"`
 	ModelID    string `json:"modelId,omitempty"`
 	APIVersion string `json:"apiVersion,omitempty"`
+	Proxy      string `json:"proxy,omitempty"`
 }
 
 type ElevenLabsConfig struct {
 	VoiceID string `json:"voiceId,omitempty"`
+	Proxy   string `json:"proxy,omitempty"`
+}
+
+type DeepgramConfig struct {
+	Proxy string `json:"proxy,omitempty"`
+}
+
+type OpenAISpeechConfig struct {
+	Proxy string `json:"proxy,omitempty"`
 }
 
 // WebVoiceConfig enables browser realtime voice on the Web UI (/ws/voice).

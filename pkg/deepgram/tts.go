@@ -14,8 +14,9 @@ import (
 
 // TTS streams linear16 PCM from Deepgram speak HTTP API (mono, 24 kHz).
 type TTS struct {
-	APIKey string
-	Model  string
+	APIKey     string
+	Model      string
+	HTTPClient *http.Client
 }
 
 func (d *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
@@ -48,7 +49,11 @@ func (d *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 	}
 	req.Header.Set("Authorization", "Token "+d.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	hc := d.HTTPClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
 	}

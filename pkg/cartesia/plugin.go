@@ -7,6 +7,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/httpc"
 	"github.com/ageneralai/maven/pkg/plugin"
 	pkgvoice "github.com/ageneralai/maven/pkg/voice"
 )
@@ -26,7 +27,11 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 		return false
 	}
 	k := pkgvoice.MergeKeys(cfg)
-	return strings.TrimSpace(k.Cartesia) != ""
+	if strings.TrimSpace(k.Cartesia) == "" {
+		return false
+	}
+	_, err := httpc.ClientFromProxy(cfg.Speech.Cartesia.Proxy)
+	return err == nil
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
@@ -45,11 +50,16 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if strings.TrimSpace(k.Cartesia) == "" {
 		return nil
 	}
+	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Cartesia.Proxy)
+	if err != nil {
+		return nil
+	}
 	return &TTS{
-		APIKey:  k.Cartesia,
-		VoiceID: voiceID,
-		ModelID: cfg.Speech.Cartesia.ModelID,
-		Version: cfg.Speech.Cartesia.APIVersion,
+		APIKey:     k.Cartesia,
+		VoiceID:    voiceID,
+		ModelID:    cfg.Speech.Cartesia.ModelID,
+		Version:    cfg.Speech.Cartesia.APIVersion,
+		HTTPClient: httpClient,
 	}
 }
 

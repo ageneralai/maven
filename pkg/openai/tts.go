@@ -13,9 +13,10 @@ import (
 
 // TTS streams PCM audio from OpenAI speech API (chunked response body, 24 kHz mono).
 type TTS struct {
-	APIKey string
-	Model  string
-	Voice  string
+	APIKey     string
+	Model      string
+	Voice      string
+	HTTPClient *http.Client
 }
 
 type speechReq struct {
@@ -58,7 +59,11 @@ func (o *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 	}
 	req.Header.Set("Authorization", "Bearer "+o.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	hc := o.HTTPClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
 	}

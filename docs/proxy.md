@@ -1,10 +1,10 @@
 # Proxy
 
-Maven routes all outbound HTTP through the Go standard library's default transport. There is no proxy field in `config.json` — configure egress at the process level instead.
+Maven routes outbound HTTP through Go's `http.DefaultClient` by default, which automatically reads `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` from the environment. For cases where individual channels or speech providers need a separate proxy (e.g. geo-blocked services behind different upstreams), each supports an optional `proxy` field in `config.json`.
 
 ## How it works
 
-Every outbound call — LLM APIs, channels (Telegram, Feishu, WeCom), voice TTS, tool HTTP — uses `http.DefaultClient`, whose transport reads proxy settings from the environment:
+Every outbound call — LLM APIs, channels (Telegram, Feishu, WeCom), voice TTS — uses `http.DefaultClient` unless a per-component proxy is set. The default client's transport reads proxy settings from the environment:
 
 | Variable | Purpose |
 |----------|---------|
@@ -77,4 +77,27 @@ services:
 - Set `SSL_CERT_FILE` to the proxy's CA bundle, or install the CA system-wide
 
 **Bot connects but LLM calls fail (or vice versa)**
-- Maven uses one transport for all egress — if proxy works for one, it works for all. Check that the proxy allows the specific upstream host.
+- If using only `HTTPS_PROXY`, all egress shares one transport — check the proxy allows the upstream host.
+- If using per-component proxy fields, the global env proxy does not apply to that component.
+
+## Per-component proxy overrides
+
+When a single upstream proxy cannot reach all targets (e.g. Telegram is geo-blocked but Anthropic is not), set a `proxy` field directly on the channel or speech provider:
+
+```json
+{
+  "channels": {
+    "telegram": { "proxy": "socks5://127.0.0.1:1080" },
+    "feishu":   { "proxy": "http://127.0.0.1:7890" },
+    "wecom":    { "proxy": "http://127.0.0.1:7890" }
+  },
+  "speech": {
+    "deepgram":   { "proxy": "http://127.0.0.1:7890" },
+    "openai":     { "proxy": "http://127.0.0.1:7890" },
+    "elevenlabs": { "proxy": "http://127.0.0.1:7890" },
+    "cartesia":   { "proxy": "http://127.0.0.1:7890" }
+  }
+}
+```
+
+A non-empty `proxy` field takes precedence over `HTTPS_PROXY` for that component only. Supported schemes: `http://`, `https://`, `socks5://`.

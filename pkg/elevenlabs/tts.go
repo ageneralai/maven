@@ -14,8 +14,9 @@ import (
 
 // TTS streams PCM (pcm_24000) from ElevenLabs streaming endpoint.
 type TTS struct {
-	APIKey  string
-	VoiceID string
+	APIKey     string
+	VoiceID    string
+	HTTPClient *http.Client
 }
 
 type ttsReq struct {
@@ -51,7 +52,11 @@ func (e *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 	}
 	req.Header.Set("xi-api-key", e.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	hc := e.HTTPClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
 	}
