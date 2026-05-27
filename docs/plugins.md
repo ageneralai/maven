@@ -1,59 +1,96 @@
-# Gateway plugins
+# Plugins
 
-Maven’s gateway loads optional integrations through **`pkg/plugin`**: a single **`Registry`** built at gateway startup, shared with the runtime (tools) and with channels that need speech providers (Web UI voice).
+Maven is a plugin host. All integrations are plugins. The kernel (`internal/kernel/`) never imports a plugin. `internal/gateway/wire.go` is the only file that assembles them.
 
-## Contract (`pkg/plugin`)
+## Axis interfaces
 
-**`Plugin`** implementations supply zero or more capabilities:
+Every plugin implements the base `Plugin` interface (`internal/kernel/plugin/plugin.go`):
 
-| Method | Role |
-|--------|------|
-| **`Name()`** | Stable id for logs and start/stop errors. |
-| **`Enabled(cfg)`** | If false, this plugin is skipped for aggregation on this config. |
-| **`Tools(cfg)`** | Custom agent tools; merged when enabled. |
-| **`Channels(cfg)`** | Extra **`channel.Channel`** instances; merged when enabled (non-nil slices only). |
-| **`TTSProvider(cfg)`** / **`STTProvider(cfg)`** | Speech implementations (**`pkg/voice`** interfaces); see resolution below. |
-| **`Start` / `Stop`** | Lifecycle hooks; run for **every** plugin in registration order (not gated by **`Enabled`**). |
+```go
+type Plugin interface {
+    Name() string
+    Start(ctx context.Context) error
+    Stop() error
+}
+```
 
-**LLM / `ModelFactory`** is **not** part of **`Plugin`**; model wiring stays native in **`NewSDKRuntime`** and config.
+A plugin contributes to one or more **axes** by implementing additional interfaces:
+
+| Interface | Method | Contributes |
+|-----------|--------|-------------|
+| `ChannelPlugin` | `Channels(cfg) []channel.Channel` | Chat transports |
+| `ToolPlugin` | `Tools(cfg) []tool.Tool` | Agent tools (registered with the runtime) |
+| `SkillPlugin` | `Skills(cfg) []api.SkillRegistration` | Prompt-time context injection |
+| `TTSPlugin` | `TTSProvider(cfg) voice.TTS` | Text-to-speech provider |
+| `STTPlugin` | `STTProvider(cfg) voice.STT` | Speech-to-text provider |
+| `SlashPlugin` | `SlashCommands(cfg) []SlashCommand` | Pre-model `/commands` |
+| `TriggerPlugin` | `Triggers(cfg) []Trigger` | Background execution (cron, heartbeat) |
+
+A plugin implements only the axes it provides — no nil stubs required for the rest.
 
 ## Registry aggregation
 
-Registration order is fixed at **`plugin.NewRegistry(...)`** time.
+`plugin.NewRegistry(plugins...)` fixes registration order. At `Apply` time the gateway calls each axis method on all plugins that implement it:
 
-- **`Tools(cfg)`** — For each plugin with **`Enabled(cfg)`**, append **`Tools(cfg)...`** (same pattern as a flat tool list).
-- **`Channels(cfg)`** — For each enabled plugin, if **`Channels(cfg)`** is non-nil, append its elements. Nil slices are skipped.
-- **`TTSProvider(cfg)`** / **`STTProvider(cfg)`** — For each enabled plugin, the first **non-nil** provider wins; remaining plugins are ignored for that resolution.
+- `Channels`, `Tools`, `Skills` — results are concatenated in registration order.
+- `TTSProvider`, `STTProvider` — first non-nil result wins.
+- `SlashCommands` — results are concatenated; duplicates return an error.
+- `Triggers` — each trigger's `Start(ctx, TurnExecutor, OutboundPublisher)` is called; all execution flows through the same pipeline the chat path uses.
 
-**Nil registry or nil `cfg`** — **`Tools`**, **`Channels`**, **`TTSProvider`**, **`STTProvider`** return nil.
+`Start` and `Stop` are called on every plugin in registration order regardless of which axes it implements.
 
-**`Start` / `Stop`** — Fail-fast: first error stops the sequence and is returned (gateway does not come up partially).
+## Registered plugins
 
-## Composition today
+All plugins are listed in `internal/gateway/wire.go`:
 
-**`internal/gateway/gateway.go`** builds:
-
-1. **`acp.NewPlugin()`** — ACP **`DelegateTask`** when **`tools.acp`** yields tools (`pkg/acp`, including **`NewPlugin`**).
-2. **`internal/voice.VoicePlugins()`** — Cartesia, Deepgram, ElevenLabs, OpenAI speech plugins (`pkg/cartesia`, `pkg/deepgram`, `pkg/elevenlabs`, `pkg/openai`).
-
-The same **`Registry`** is passed to **`internal/channel/manager.NewChannelManager`** so Web UI voice can call **`internal/voice.NewSTT` / `NewTTS`** with that registry ( **`nil`** falls back to **`internal/voice.DefaultVoiceRegistry()`** in tests).
-
-Runtime **`Apply`** pulls **`g.plugins.Tools(cfg)`** into the agent SDK runtime factory alongside cron and skills.
+| Package | Axes |
+|---------|------|
+| `internal/plugins/channel/telegram` | Channel |
+| `internal/plugins/channel/feishu` | Channel |
+| `internal/plugins/channel/wecom` | Channel |
+| `internal/plugins/channel/whatsapp` | Channel |
+| `internal/plugins/channel/matrix` | Channel |
+| `internal/plugins/channel/web` | Channel |
+| `internal/plugins/trigger/cron` | Trigger + Tool + Slash |
+| `internal/plugins/trigger/heartbeat` | Trigger |
+| `internal/plugins/skill/file` | Skill |
+| `internal/plugins/voice/deepgram` | STT + TTS |
+| `internal/plugins/voice/openai` | TTS |
+| `internal/plugins/voice/elevenlabs` | TTS |
+| `internal/plugins/voice/cartesia` | TTS |
+| `internal/plugins/tool/acp` | Tool |
 
 ## Adding a plugin
 
-1. Implement **`plugin.Plugin`** (often a zero-sized **`type Plugin struct{}`** plus **`NewPlugin() plugin.Plugin`**).
-2. Return **nil** for surfaces you do not implement (e.g. voice-only plugins return nil **`Tools`**, **`Channels`**, and the unused speech side).
-3. Use **`Enabled`** to avoid work when your integration is off (ACP gates on config; speech vendor plugins gate on **`speech.sttProvider` / `speech.ttsProvider`** plus credentials).
-4. Register the constructor in **`internal/gateway/gateway.go`** (or a small helper next to it) so production and tests stay aligned.
+1. Create `internal/plugins/<axis>/<name>/`.
+2. Define a type implementing `plugin.Plugin` plus the axis interfaces you need.
+3. Export `NewPlugin(...)` returning the concrete type (or a `plugin.AxisPlugin` interface).
+4. Add one line to `internal/gateway/wire.go` inside `plugin.NewRegistry(...)`.
 
-For speech providers, prefer **`pkg/<vendor>/plugin.go`** next to the HTTP/WebSocket implementation, and add **`NewPlugin()`** to **`internal/voice.VoicePlugins()`** so one list stays the single composition point for voice.
+Zero changes to any kernel package.
 
-## Related paths
+**Example: add a Discord channel plugin**
 
-- **`pkg/plugin/plugin.go`** — **`Plugin`** interface
-- **`pkg/plugin/registry.go`** — **`Registry`** aggregation and lifecycle
-- **`pkg/plugin/registry_test.go`** — aggregation tests
-- **`internal/gateway/gateway.go`** — default registry construction
-- **`internal/voice/factory.go`** — **`NewSTT` / `NewTTS`** + fallback errors when plugins return nil
-- **`pkg/voice/keys.go`** — **`MergeKeys`** for provider credentials (shared with plugins)
+```go
+// internal/plugins/channel/discord/plugin.go
+package discord
+
+type Plugin struct{ ... }
+
+func NewPlugin(b *bus.MessageBus, lg *slog.Logger) plugin.ChannelPlugin { ... }
+func (p *Plugin) Name() string                                          { return "discord" }
+func (p *Plugin) Start(context.Context) error                           { return nil }
+func (p *Plugin) Stop() error                                           { return nil }
+func (p *Plugin) Channels(cfg *config.Config) []channel.Channel         { ... }
+```
+
+Then in `wire.go`:
+```go
+discord.NewPlugin(core.bus, core.logger),
+```
+
+That is the entire change required.
+
+## Kernel wall
+
+`internal/kernel/` must never import `internal/plugins/`. Enforced by `depguard` (`kernel_no_plugins` rule in `.golangci.yml`). Only `internal/gateway/wire.go` crosses the wall.

@@ -195,7 +195,7 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
 - **`gateway.host`** / **`gateway.port`**: HTTP bind for Web UI and channel webhooks (defaults align with `config.example.json`).
 - **`gateway.hotReload`**: when `true`, edits to `~/.maven/config.json` (after a short debounce) trigger a reload; the log line `[gateway] reloaded; …` confirms success. **`agent.workspace` cannot change** on reload (restart required).
 - **`gateway.reloadDebounceMs`**: debounce in milliseconds before reload runs after the file changes; `0` uses an internal default (800ms).
-- **`gateway.cron.maxConcurrentRuns`**: max concurrent **cron** agent turns in the gateway process (default **1** if omitted). Heartbeat uses its own **one-slot** try-once queue. Changing **`maxConcurrentRuns`** requires a **gateway restart** (not hot reload). See `internal/gateway/doc.go`.
+- **`gateway.cron.maxConcurrentRuns`**: max concurrent **cron** agent turns in the gateway process (default **1** if omitted). Heartbeat uses its own **one-slot** try-once queue. Changing **`maxConcurrentRuns`** requires a **gateway restart** (not hot reload). See `internal/gateway/gateway.go`.
 
 See `config.example.json` for the full schema.
 
