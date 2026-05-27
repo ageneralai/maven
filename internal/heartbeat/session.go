@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const heartbeatSessionKeyPrefix = "maven:heartbeat-"
+const heartbeatSessionKeyPrefix = "heartbeat-"
 
 // SessionKey returns a unique session id for one heartbeat run (no stacked prior heartbeat context).
 func SessionKey() string {

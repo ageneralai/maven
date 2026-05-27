@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	mavsession "github.com/ageneralai/maven/internal/session"
 )
 
 const (
@@ -29,7 +31,7 @@ func isMavenResponseID(id string) bool {
 
 func storeMavenResponseSession(responseID, sessionID string) {
 	responseID = strings.TrimSpace(responseID)
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID = mavsession.ChatSessionID(mavsession.WebChannelName, sessionID)
 	if responseID == "" || sessionID == "" {
 		return
 	}

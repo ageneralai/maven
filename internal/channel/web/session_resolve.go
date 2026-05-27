@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	mavsession "github.com/ageneralai/maven/internal/session"
 )
 
 func resolveMavenSessionID(r *http.Request, previousResponseID string) (string, error) {
@@ -20,13 +22,13 @@ func resolveMavenSessionID(r *http.Request, previousResponseID string) (string, 
 		if !ok {
 			return "", fmt.Errorf("unknown previous_response_id")
 		}
-		if headerSession != "" && headerSession != mapped {
+		if headerSession != "" && mavsession.ChatSessionID(mavsession.WebChannelName, headerSession) != mapped {
 			return "", fmt.Errorf("session mismatch")
 		}
 		return mapped, nil
 	}
 	if headerSession != "" {
-		return headerSession, nil
+		return mavsession.ChatSessionID(mavsession.WebChannelName, headerSession), nil
 	}
 	return "", fmt.Errorf("Maven-Session-Id required")
 }

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 )
 
 type Router struct {
@@ -25,7 +24,6 @@ func New(path string) (*Router, error) {
 	if r.path == "" {
 		return r, nil
 	}
-
 	data, err := os.ReadFile(r.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -49,9 +47,8 @@ func (r *Router) Resolve(key, fallback string) string {
 		if fallback != "" {
 			return fallback
 		}
-		return key
+		return SessionIDFromRouteKey(key)
 	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if sessionID := strings.TrimSpace(r.sessions[key]); sessionID != "" {
@@ -60,11 +57,11 @@ func (r *Router) Resolve(key, fallback string) string {
 	if fallback != "" {
 		return fallback
 	}
-	return key
+	return SessionIDFromRouteKey(key)
 }
 
 func (r *Router) Current(key string) string {
-	return r.Resolve(key, "")
+	return r.Resolve(key, SessionIDFromRouteKey(key))
 }
 
 func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err error) {
@@ -72,19 +69,18 @@ func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err erro
 	if key == "" {
 		return "", "", errors.New("session key is empty")
 	}
+	defaultID := SessionIDFromRouteKey(key)
 	if r == nil {
-		newSessionID = nextSessionID(key)
-		return key, newSessionID, nil
+		newSessionID = RotatedSessionID(defaultID)
+		return defaultID, newSessionID, nil
 	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	oldSessionID = strings.TrimSpace(r.sessions[key])
 	if oldSessionID == "" {
-		oldSessionID = key
+		oldSessionID = defaultID
 	}
-	newSessionID = nextSessionID(key)
+	newSessionID = RotatedSessionID(oldSessionID)
 	r.sessions[key] = newSessionID
 	if err := r.persistLocked(); err != nil {
 		return "", "", err
@@ -98,10 +94,9 @@ func (r *Router) Set(key, sessionID string) error {
 	if key == "" || r == nil {
 		return nil
 	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if sessionID == "" || sessionID == key {
+	if sessionID == "" || sessionID == SessionIDFromRouteKey(key) {
 		delete(r.sessions, key)
 	} else {
 		r.sessions[key] = sessionID
@@ -114,7 +109,6 @@ func (r *Router) Reset(key string) error {
 	if key == "" || r == nil {
 		return nil
 	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.sessions, key)
@@ -136,8 +130,4 @@ func (r *Router) persistLocked() error {
 		return fmt.Errorf("write session router: %w", err)
 	}
 	return nil
-}
-
-func nextSessionID(base string) string {
-	return fmt.Sprintf("%s#%d", base, time.Now().UnixNano())
 }

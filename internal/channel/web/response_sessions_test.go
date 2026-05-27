@@ -4,9 +4,9 @@ import "testing"
 
 func TestMavenResponseSessionMap(t *testing.T) {
 	resetMavenResponseSessionsForTest()
-	storeMavenResponseSession("resp_aaa", "sess1")
+	storeMavenResponseSession("resp_aaa", "web-sess1")
 	got, ok := lookupMavenResponseSession("resp_aaa")
-	if !ok || got != "sess1" {
+	if !ok || got != "web-sess1" {
 		t.Fatalf("lookup: got %q ok=%v", got, ok)
 	}
 	if _, ok := lookupMavenResponseSession("resp_missing"); ok {

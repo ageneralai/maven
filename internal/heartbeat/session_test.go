@@ -23,7 +23,7 @@ func TestHeartbeatSessionKey_FormAndUniqueness(t *testing.T) {
 	if !MatchesSession(a) {
 		t.Fatal("MatchesSession should accept SessionKey output")
 	}
-	if MatchesSession("system") || MatchesSession("maven:cron-job-"+suffix) {
+	if MatchesSession("system") || MatchesSession("cron-job-"+suffix) {
 		t.Fatal("MatchesSession should reject non-heartbeat keys")
 	}
 }

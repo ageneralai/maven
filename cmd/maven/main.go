@@ -246,7 +246,7 @@ func runAgentWithOptions(opts AgentOptions) error {
 
 		resp, err := rt.Run(ctx, api.Request{
 			Prompt:    input,
-			SessionID: "cli-repl",
+			SessionID: "cli",
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "Error: %v\n", err)

@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const cronSessionKeyPrefix = "maven:cron-"
+const cronSessionKeyPrefix = "cron-"
 
 // SessionKey returns a unique agentsdk session id for one cron job run (fresh context each tick).
 func SessionKey(jobID string) string {

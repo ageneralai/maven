@@ -354,8 +354,8 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 		if req.Prompt != "" {
 			t.Errorf("runtime prompt = %q, want empty (merged into ContentBlocks)", req.Prompt)
 		}
-		if req.SessionID != "telegram:456" {
-			t.Errorf("runtime sessionID = %q, want telegram:456", req.SessionID)
+		if req.SessionID != "telegram-456" {
+			t.Errorf("runtime sessionID = %q, want telegram-456", req.SessionID)
 		}
 		// Expect 2 blocks: prepended text + original image
 		if len(req.ContentBlocks) != 2 {
@@ -1088,9 +1088,13 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	}
 
 	baseSession := "telegram:chat1"
-	currentSession := router.Resolve(baseSession, baseSession)
-	if currentSession == baseSession {
+	defaultSession := session.SessionIDFromRouteKey(baseSession)
+	currentSession := router.Resolve(baseSession, defaultSession)
+	if currentSession == defaultSession {
 		t.Fatal("expected compact to rotate session")
+	}
+	if !strings.HasPrefix(currentSession, defaultSession+"-r") {
+		t.Fatalf("expected rotated session prefix %q-r, got %q", defaultSession, currentSession)
 	}
 
 	seedPath := filepath.Join(tmpDir, ".maven", "history", currentSession+".json")
@@ -1152,9 +1156,13 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	}
 
 	baseSession := "telegram:chat1"
-	currentSession := router.Resolve(baseSession, baseSession)
-	if currentSession == baseSession {
+	defaultSession := session.SessionIDFromRouteKey(baseSession)
+	currentSession := router.Resolve(baseSession, defaultSession)
+	if currentSession == defaultSession {
 		t.Fatal("expected /new to rotate session")
+	}
+	if !strings.HasPrefix(currentSession, defaultSession+"-r") {
+		t.Fatalf("expected rotated session prefix %q-r, got %q", defaultSession, currentSession)
 	}
 }
 

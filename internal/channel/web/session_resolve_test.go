@@ -7,16 +7,16 @@ import (
 
 func TestResolveMavenSessionID(t *testing.T) {
 	resetMavenResponseSessionsForTest()
-	storeMavenResponseSession("resp_aaa", "sess1")
+	storeMavenResponseSession("resp_aaa", "web-sess1")
 	req := httptest.NewRequest("POST", "/v1/responses", nil)
 	req.Header.Set(HeaderMavenSessionID, "sess1")
 	got, err := resolveMavenSessionID(req, "")
-	if err != nil || got != "sess1" {
+	if err != nil || got != "web-sess1" {
 		t.Fatalf("header session: got %q err=%v", got, err)
 	}
 	req2 := httptest.NewRequest("POST", "/v1/responses", nil)
 	got, err = resolveMavenSessionID(req2, "resp_aaa")
-	if err != nil || got != "sess1" {
+	if err != nil || got != "web-sess1" {
 		t.Fatalf("previous_response_id: got %q err=%v", got, err)
 	}
 	req3 := httptest.NewRequest("POST", "/v1/responses", nil)
@@ -31,7 +31,7 @@ func TestResolveMavenSessionID(t *testing.T) {
 	}
 	req5 := httptest.NewRequest("GET", "/ws/voice?session=sess-query", nil)
 	got, err = resolveMavenSessionID(req5, "")
-	if err != nil || got != "sess-query" {
+	if err != nil || got != "web-sess-query" {
 		t.Fatalf("query session: got %q err=%v", got, err)
 	}
 }

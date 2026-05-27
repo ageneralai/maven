@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const taskSessionKeyPrefix = "task-"
+
 func parentSessionID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -31,14 +33,10 @@ func parentSessionID(ctx context.Context) string {
 	return ""
 }
 
-func childSessionID(parent string) string {
-	parent = strings.TrimSpace(parent)
-	if parent == "" {
-		parent = "maven"
-	}
-	return parent + ":task:" + uuid.NewString()
+func childSessionID(_ string) string {
+	return taskSessionKeyPrefix + uuid.NewString()
 }
 
 func isNestedTaskSession(sessionID string) bool {
-	return strings.Contains(sessionID, ":task:")
+	return strings.HasPrefix(strings.TrimSpace(sessionID), taskSessionKeyPrefix)
 }

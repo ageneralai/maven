@@ -1,9 +1,6 @@
 package session
 
 import (
-	"strconv"
-	"time"
-
 	"github.com/ageneralai/maven/internal/bus"
 )
 
@@ -18,14 +15,15 @@ type SessionResolver struct {
 }
 
 func (r *SessionResolver) ResolveSDKSessionID(msg bus.InboundMessage) string {
-	base := msg.StableRouteKey()
+	routeKey := msg.StableRouteKey()
+	base := ChatSessionID(msg.Channel, msg.ChatID)
 	if msg.Hints.SessionMode == bus.SessionModeIsolated {
-		return base + "#isolated#" + strconv.FormatInt(time.Now().UnixNano(), 10)
+		return IsolatedSessionID(base)
 	}
 	if r == nil || r.Router == nil {
 		return base
 	}
-	return r.Router.Resolve(base, base)
+	return r.Router.Resolve(routeKey, base)
 }
 
 var _ Resolver = (*SessionResolver)(nil)
