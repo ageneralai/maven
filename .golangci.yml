@@ -13,6 +13,7 @@ linters:
     - errorlint
     - tagliatelle
     - forbidigo
+    - depguard
   settings:
     tagliatelle:
       case:
@@ -29,6 +30,14 @@ linters:
     gosec:
       excludes:
         - G104
+    depguard:
+      rules:
+        kernel_no_plugins:
+          files:
+            - "**/kernel/**"
+          deny:
+            - pkg: "github.com/ageneralai/maven/plugins/"
+              desc: "kernel must not import plugins"
   exclusions:
     rules:
       - path: cmd/
@@ -40,27 +49,23 @@ linters:
         linters:
           - gosec
           - unparam
-      - path: internal/channel/
+      - path: plugins/channels/
         linters:
           - tagliatelle
           - gosec
-      - path: internal/config/
+      - path: kernel/config/
         linters:
           - tagliatelle
-      - path: pkg/
-        linters:
-          - tagliatelle
-          - gosec
       - path: internal/testutil/
         linters:
           - gosec
-      - path: internal/slash/
+      - path: kernel/slash/
         linters:
           - gocritic
-      - path: internal/channel/whatsapp/
+      - path: plugins/channels/whatsapp/
         linters:
           - gocritic
-      - path: internal/channel/telegram/stream_state\.go
+      - path: plugins/channels/telegram/stream_state\.go
         linters:
           - unparam
 run:

@@ -14,14 +14,14 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
-	"github.com/ageneralai/maven/internal/agent"
-	"github.com/ageneralai/maven/internal/config"
-	"github.com/ageneralai/maven/internal/gateway"
-	"github.com/ageneralai/maven/internal/skills"
+	"github.com/ageneralai/maven/kernel/agent"
+	"github.com/ageneralai/maven/kernel/config"
+	"github.com/ageneralai/maven/gateway"
+	skills "github.com/ageneralai/maven/plugins/skills/file"
 	"github.com/ageneralai/maven/internal/version"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
-	"github.com/ageneralai/maven/pkg/memory"
-	"github.com/ageneralai/maven/pkg/prompt"
+	mavenlog "github.com/ageneralai/maven/kernel/log"
+	"github.com/ageneralai/maven/kernel/memory"
+	"github.com/ageneralai/maven/kernel/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +47,7 @@ func (app *cmdContext) defaultAgentRuntime(cfg *config.Config) (agent.Runtime, e
 		return nil, fmt.Errorf("system prompt: %w", err)
 	}
 	skillRegs := app.loadRuntimeSkills(cfg)
-	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, nil, app.log)
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, app.log)
 }
 
 func (app *cmdContext) bindCommands() {

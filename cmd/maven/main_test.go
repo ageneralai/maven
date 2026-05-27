@@ -13,10 +13,10 @@ import (
 
 	"log/slog"
 
-	"github.com/ageneralai/maven/internal/agent"
-	"github.com/ageneralai/maven/internal/config"
-	"github.com/ageneralai/maven/pkg/memory"
-	"github.com/ageneralai/maven/pkg/prompt"
+	"github.com/ageneralai/maven/kernel/agent"
+	"github.com/ageneralai/maven/kernel/config"
+	"github.com/ageneralai/maven/kernel/memory"
+	"github.com/ageneralai/maven/kernel/prompt"
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
