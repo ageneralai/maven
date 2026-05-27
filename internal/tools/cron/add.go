@@ -81,7 +81,7 @@ func Add(s *svcron.Service, p AddParams, now time.Time) (*svcron.CronJob, error)
 	return s.AddJob(pp.Name, sch, payload)
 }
 
-func AddFromToolMap(s *svcron.Service, ctx context.Context, m map[string]interface{}, now time.Time) (*svcron.CronJob, error) {
+func AddFromToolMap(s *svcron.Service, ctx context.Context, m map[string]any, now time.Time) (*svcron.CronJob, error) {
 	in, err := ParseCronToolInput(m)
 	if err != nil {
 		return nil, err

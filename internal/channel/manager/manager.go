@@ -110,7 +110,7 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 		n := name
 		c := ch
 		m.bus.SetOutboundSubscriber(n, func(msg bus.OutboundMessage) {
-			if err := c.Send(context.Background(), msg); err != nil {
+			if err := c.Send(ctx, msg); err != nil {
 				m.log.Error("channel send failed", "channel", n, "err", err)
 			}
 		})

@@ -28,6 +28,7 @@ type TelegramChannel struct {
 	proxy      string
 	httpClient *http.Client
 	cancel     context.CancelFunc
+	runCtx     context.Context
 	feedback   string // "debug", "normal", "minimal", "silent"
 	streaming  bool
 	workspace  string // workspace root for file saving
@@ -57,6 +58,7 @@ func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Lo
 		streaming:   cfg.Streaming,
 		rootDir:     strings.TrimSpace(cfg.RootDir),
 		workspace:   strings.TrimSpace(workspace),
+		runCtx:      context.Background(),
 		caps: chann.CapabilitySet{
 			Reactions:  true,
 			FileUpload: true,
@@ -116,6 +118,7 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 	}
 
 	ctx, t.cancel = context.WithCancel(ctx)
+	t.runCtx = ctx
 
 	updates, err := t.bot.UpdatesViaLongPolling(ctx, &telego.GetUpdatesParams{Timeout: 30})
 	if err != nil {

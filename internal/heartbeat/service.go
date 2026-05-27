@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,9 +35,9 @@ type Service struct {
 	rep       health.HealthReporter
 }
 
-func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log *slog.Logger, opts ...Option) *Service {
+func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log *slog.Logger, opts ...Option) (*Service, error) {
 	if exec == nil {
-		panic("heartbeat: TurnExecutor is required")
+		return nil, fmt.Errorf("heartbeat: TurnExecutor is required")
 	}
 	if interval <= 0 {
 		interval = 30 * time.Minute
@@ -52,7 +53,7 @@ func New(workspace string, exec executor.TurnExecutor, interval time.Duration, l
 	for _, o := range opts {
 		o(s)
 	}
-	return s
+	return s, nil
 }
 
 func (s *Service) buildPrompt() string {

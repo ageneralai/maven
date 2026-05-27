@@ -40,7 +40,7 @@ func (t *scheduleTool) Description() string {
 
 func (t *scheduleTool) Schema() *tool.JSONSchema { return cronScheduleToolSchema }
 
-func (t *scheduleTool) Execute(ctx context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
+func (t *scheduleTool) Execute(ctx context.Context, params map[string]any) (*tool.ToolResult, error) {
 	job, err := AddFromToolMap(t.svc, ctx, params, time.Now())
 	if err != nil {
 		t.log.Error("cron-schedule failed", "err", err, "params", params)
@@ -59,7 +59,7 @@ func (t *listTool) Description() string {
 
 func (t *listTool) Schema() *tool.JSONSchema { return cronListToolSchema }
 
-func (t *listTool) Execute(_ context.Context, _ map[string]interface{}) (*tool.ToolResult, error) {
+func (t *listTool) Execute(_ context.Context, _ map[string]any) (*tool.ToolResult, error) {
 	out := FormatList(t.svc.ListJobs())
 	return &tool.ToolResult{Success: true, Output: out}, nil
 }
@@ -74,7 +74,7 @@ func (t *removeTool) Description() string {
 
 func (t *removeTool) Schema() *tool.JSONSchema { return cronRemoveToolSchema }
 
-func (t *removeTool) Execute(_ context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
+func (t *removeTool) Execute(_ context.Context, params map[string]any) (*tool.ToolResult, error) {
 	id := stringFromMap(params, "id")
 	if id == "" {
 		return nil, fmt.Errorf("id is required")

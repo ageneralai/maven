@@ -26,7 +26,7 @@ type CronToolInput struct {
 	To                    string
 }
 
-func ParseCronToolInput(m map[string]interface{}) (CronToolInput, error) {
+func ParseCronToolInput(m map[string]any) (CronToolInput, error) {
 	var in CronToolInput
 	in.Name = stringFromMap(m, "name")
 	in.Message = stringFromMap(m, "message")
@@ -125,7 +125,7 @@ func (in CronToolInput) ToAddParams(ctx context.Context) AddParams {
 	return p
 }
 
-func stringFromMap(m map[string]interface{}, key string) string {
+func stringFromMap(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok || v == nil {
 		return ""
@@ -138,7 +138,7 @@ func stringFromMap(m map[string]interface{}, key string) string {
 	}
 }
 
-func truthyMap(vi interface{}) bool {
+func truthyMap(vi any) bool {
 	if vi == nil {
 		return false
 	}
@@ -150,7 +150,7 @@ func truthyMap(vi interface{}) bool {
 	return s == "true" || s == "1" || s == "yes"
 }
 
-func numberToInt64(v interface{}) (int64, error) {
+func numberToInt64(v any) (int64, error) {
 	switch t := v.(type) {
 	case int64:
 		return t, nil

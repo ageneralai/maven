@@ -331,6 +331,7 @@ type WeComChannel struct {
 	httpClient       *http.Client
 	server           *http.Server
 	cancel           context.CancelFunc
+	runCtx           context.Context
 	client           WeComClient
 	clientFactory    WeComClientFactory
 	allowlistEnabled bool
@@ -382,6 +383,7 @@ func NewWeComChannelWithFactory(cfg config.WeComConfig, lg *slog.Logger, b *bus.
 		msgCache:         newWeComMsgCache(wecomDefaultMsgCacheTTL),
 		replyCache:       newWeComReplyCache(wecomDefaultReplyCacheTTL),
 		receiveID:        receiveID,
+		runCtx:           context.Background(),
 	}
 
 	return ch, nil
@@ -389,6 +391,7 @@ func NewWeComChannelWithFactory(cfg config.WeComConfig, lg *slog.Logger, b *bus.
 
 func (w *WeComChannel) Start(ctx context.Context) error {
 	ctx, w.cancel = context.WithCancel(ctx)
+	w.runCtx = ctx
 	w.client = w.clientFactory(w.cfg)
 
 	port := w.cfg.Port
@@ -693,7 +696,7 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 		return
 	}
 
-	_ = w.Bus.PublishInbound(context.Background(), bus.InboundMessage{
+	_ = w.Bus.PublishInbound(w.runCtx, bus.InboundMessage{
 		Channel:       wecomChannelName,
 		SenderID:      senderID,
 		ChatID:        chatID,
@@ -735,7 +738,7 @@ func (w *WeComChannel) extractWeComContentBlocks(message weComInboundMessage) []
 		return nil
 	}
 
-	block, err := w.buildWeComImageContentBlock(context.Background(), message)
+	block, err := w.buildWeComImageContentBlock(w.runCtx, message)
 	if err != nil {
 		w.Log.Warn("wecom process image warning", "err", err)
 	}

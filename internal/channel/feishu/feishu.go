@@ -108,7 +108,7 @@ func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content s
 		return fmt.Errorf("marshal text content: %w", err)
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"receive_id": chatID,
 		"msg_type":   "text",
 		"content":    string(textJSON),

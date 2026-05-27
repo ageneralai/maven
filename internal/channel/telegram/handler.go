@@ -94,8 +94,7 @@ func (t *TelegramChannel) flushMediaGroup(gid string) {
 	}
 
 	chatID := strconv.FormatInt(primary.Chat.ID, 10)
-	tIn := context.Background()
-	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(t.runCtx, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(primary.From.ID, 10),
 		ChatID:        chatID,
@@ -122,8 +121,7 @@ func (t *TelegramChannel) dispatchMessage(msg *telego.Message) {
 		return
 	}
 	chatID := strconv.FormatInt(msg.Chat.ID, 10)
-	tIn := context.Background()
-	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(t.runCtx, bus.InboundMessage{
 		Channel:       telegramChannelName,
 		SenderID:      strconv.FormatInt(msg.From.ID, 10),
 		ChatID:        chatID,
@@ -350,7 +348,7 @@ func (t *TelegramChannel) downloadFileData(fileID string) ([]byte, error) {
 	if t.bot == nil {
 		return nil, fmt.Errorf("telegram bot not initialized")
 	}
-	file, err := t.bot.GetFile(context.Background(), &telego.GetFileParams{FileID: fileID})
+	file, err := t.bot.GetFile(t.runCtx, &telego.GetFileParams{FileID: fileID})
 	if err != nil {
 		return nil, fmt.Errorf("get telegram file: %w", err)
 	}
@@ -402,7 +400,11 @@ func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string
 	if t.bot == nil || messageID <= 0 {
 		return
 	}
-	err := t.bot.SetMessageReaction(context.Background(), &telego.SetMessageReactionParams{
+	ctx := t.runCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	err := t.bot.SetMessageReaction(ctx, &telego.SetMessageReactionParams{
 		ChatID:    tu.ID(chatID),
 		MessageID: messageID,
 		Reaction:  []telego.ReactionType{tu.ReactionEmoji(emoji)},
@@ -416,7 +418,11 @@ func (t *TelegramChannel) sendTyping(chatID int64) {
 	if t.bot == nil {
 		return
 	}
-	err := t.bot.SendChatAction(context.Background(), tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
+	ctx := t.runCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	err := t.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
 	if err != nil {
 		t.Log.Warn("telegram sendTyping failed", "err", err)
 	}

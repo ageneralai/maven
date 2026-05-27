@@ -41,6 +41,7 @@ type WhatsAppChannel struct {
 	client         *whatsmeow.Client
 	storeContainer *sqlstore.Container
 	cancel         context.CancelFunc
+	runCtx         context.Context
 	handlerID      uint32
 }
 
@@ -73,6 +74,7 @@ func NewWhatsApp(cfg config.WhatsAppConfig, lg *slog.Logger, msgBus *bus.Message
 		cfg:            cfg,
 		client:         client,
 		storeContainer: container,
+		runCtx:         context.Background(),
 	}
 	ch.handlerID = ch.client.AddEventHandler(ch.handleEvent)
 
@@ -89,6 +91,7 @@ func (w *WhatsAppChannel) Start(ctx context.Context) error {
 	}
 
 	ctx, w.cancel = context.WithCancel(ctx)
+	w.runCtx = ctx
 
 	if w.client.Store.ID == nil {
 		qrChan, err := w.client.GetQRChannel(ctx)
@@ -202,7 +205,7 @@ func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow
 	}
 }
 
-func (w *WhatsAppChannel) handleEvent(evt interface{}) {
+func (w *WhatsAppChannel) handleEvent(evt any) {
 	switch e := evt.(type) {
 	case *events.Message:
 		w.handleMessage(e)
@@ -226,8 +229,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 		return
 	}
 
-	wIn := context.Background()
-	_ = w.Bus.PublishInbound(wIn, bus.InboundMessage{
+	_ = w.Bus.PublishInbound(w.runCtx, bus.InboundMessage{
 		Channel:       whatsappChannelName,
 		SenderID:      sender,
 		ChatID:        evt.Info.Chat.String(),
@@ -256,7 +258,7 @@ func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.C
 			content = strings.TrimSpace(image.GetCaption())
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), whatsappInboundImageTimeout)
+		ctx, cancel := context.WithTimeout(w.runCtx, whatsappInboundImageTimeout)
 		data, err := w.client.Download(ctx, image)
 		cancel()
 		if err != nil {

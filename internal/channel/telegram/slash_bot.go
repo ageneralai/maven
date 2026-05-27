@@ -94,7 +94,11 @@ func (t *TelegramChannel) sendBotReply(chatID int64, text string) {
 	if t.bot == nil {
 		return
 	}
-	if _, err := t.bot.SendMessage(context.Background(), tu.Message(tu.ID(chatID), text)); err != nil {
+	ctx := t.runCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, err := t.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), text)); err != nil {
 		t.Log.Error("telegram sendMessage failed", "err", err)
 	}
 }
@@ -141,8 +145,7 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 		if cmd.Session == SessionModeIsolated {
 			hints.SessionMode = bus.SessionModeIsolated
 		}
-		tIn := context.Background()
-		_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
+		_ = t.Bus.PublishInbound(t.runCtx, bus.InboundMessage{
 			Channel:   telegramChannelName,
 			SenderID:  strconv.FormatInt(msg.From.ID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
@@ -158,8 +161,7 @@ func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName
 		return false
 	}
 
-	tIn := context.Background()
-	_ = t.Bus.PublishInbound(tIn, bus.InboundMessage{
+	_ = t.Bus.PublishInbound(t.runCtx, bus.InboundMessage{
 		Channel:   telegramChannelName,
 		SenderID:  strconv.FormatInt(msg.From.ID, 10),
 		ChatID:    strconv.FormatInt(msg.Chat.ID, 10),

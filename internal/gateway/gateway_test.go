@@ -28,6 +28,7 @@ import (
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/pkg/prompt"
+	"log/slog"
 )
 
 var testLG = mavenlog.Std()
@@ -173,13 +174,20 @@ func TestGateway_Shutdown(t *testing.T) {
 
 	msgBus := bus.NewMessageBus(10, testLG)
 	chMgr := manager.NewChannelManager(msgBus, testLG, nil, nil)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
+	cronSvc, err := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
+	if err != nil {
+		t.Fatalf("cron.NewService: %v", err)
+	}
 	mockRt := &mockRuntime{}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
 		t.Fatalf("session.New: %v", rerr)
 	}
 	pipe := testPipeline(msgBus, mockRt, router, tmpDir)
+	hb, err := heartbeat.New(tmpDir, executor.Nop{}, 0, testLG)
+	if err != nil {
+		t.Fatalf("heartbeat.New: %v", err)
+	}
 
 	g := &Gateway{
 		cfg:        cfg,
@@ -187,12 +195,12 @@ func TestGateway_Shutdown(t *testing.T) {
 		pipe:       pipe,
 		channelMgr: chMgr,
 		cron:       cronSvc,
-		hb:         heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
+		hb:         hb,
 		mem:        memory.NewMemoryStore(tmpDir),
 		logger:     testLG,
 	}
 
-	err := g.Shutdown()
+	err = g.Shutdown()
 	if err != nil {
 		t.Errorf("Shutdown error: %v", err)
 	}
@@ -556,12 +564,19 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 
 	msgBus := bus.NewMessageBus(10, testLG)
 	chMgr := manager.NewChannelManager(msgBus, testLG, nil, nil)
-	cronSvc := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
+	cronSvc, err := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
+	if err != nil {
+		t.Fatalf("cron.NewService: %v", err)
+	}
 	router, rerr := session.New(filepath.Join(tmpDir, ".maven", "session-router.json"))
 	if rerr != nil {
 		t.Fatalf("session.New: %v", rerr)
 	}
 	pipe := testPipeline(msgBus, nil, router, tmpDir)
+	hb, err := heartbeat.New(tmpDir, executor.Nop{}, 0, testLG)
+	if err != nil {
+		t.Fatalf("heartbeat.New: %v", err)
+	}
 
 	g := &Gateway{
 		cfg:        cfg,
@@ -569,12 +584,12 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 		pipe:       pipe,
 		channelMgr: chMgr,
 		cron:       cronSvc,
-		hb:         heartbeat.New(tmpDir, executor.Nop{}, 0, testLG),
+		hb:         hb,
 		mem:        memory.NewMemoryStore(tmpDir),
 		logger:     testLG,
 	}
 
-	err := g.Shutdown()
+	err = g.Shutdown()
 	if err != nil {
 		t.Errorf("Shutdown error: %v", err)
 	}
@@ -582,14 +597,14 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 
 // mockRuntimeFactory returns a factory that creates mock runtimes
 func mockRuntimeFactory(rt agent.Runtime) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore, _ *slog.Logger) (agent.Runtime, error) {
 		return rt, nil
 	}
 }
 
 // errorRuntimeFactory returns a factory that always fails
 func errorRuntimeFactory(err error) RuntimeFactory {
-	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore) (agent.Runtime, error) {
+	return func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, _ api.SessionStore, _ *slog.Logger) (agent.Runtime, error) {
 		return nil, err
 	}
 }
@@ -856,7 +871,7 @@ func TestDefaultRuntimeFactory_NoAPIKey(t *testing.T) {
 
 	// DefaultRuntimeFactory will try to create real runtime
 	// which may fail in different ways depending on SDK behavior
-	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil, nil, nil)
+	_, err := DefaultRuntimeFactory(cfg, "test prompt", nil, nil, nil, nil, testLG)
 	// Just ensure it doesn't panic - error is expected
 	_ = err
 }

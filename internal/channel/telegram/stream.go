@@ -61,7 +61,7 @@ func truncateForTelegramDraftText(s string) string {
 	return s
 }
 
-func (t *TelegramChannel) sendPlaceholder(chatID int64, text, parseMode string, silent bool) (int, error) {
+func (t *TelegramChannel) sendPlaceholder(ctx context.Context, chatID int64, text, parseMode string, silent bool) (int, error) {
 	if t.bot == nil {
 		return 0, fmt.Errorf("telegram bot not initialized")
 	}
@@ -72,24 +72,24 @@ func (t *TelegramChannel) sendPlaceholder(chatID int64, text, parseMode string, 
 	if silent {
 		msg = msg.WithDisableNotification()
 	}
-	sent, err := t.bot.SendMessage(context.Background(), msg)
+	sent, err := t.bot.SendMessage(ctx, msg)
 	if err != nil {
 		return 0, err
 	}
 	return sent.MessageID, nil
 }
 
-func (t *TelegramChannel) deleteMessage(chatID int64, messageID int) error {
+func (t *TelegramChannel) deleteMessage(ctx context.Context, chatID int64, messageID int) error {
 	if t.bot == nil {
 		return fmt.Errorf("telegram bot not initialized")
 	}
-	return t.bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+	return t.bot.DeleteMessage(ctx, &telego.DeleteMessageParams{
 		ChatID:    tu.ID(chatID),
 		MessageID: messageID,
 	})
 }
 
-func (t *TelegramChannel) editMessage(chatID int64, messageID int, text string, parseMode string) error {
+func (t *TelegramChannel) editMessage(ctx context.Context, chatID int64, messageID int, text string, parseMode string) error {
 	if t.bot == nil {
 		return fmt.Errorf("telegram bot not initialized")
 	}
@@ -97,7 +97,7 @@ func (t *TelegramChannel) editMessage(chatID int64, messageID int, text string, 
 	if parseMode != "" {
 		edit = edit.WithParseMode(parseMode)
 	}
-	_, err := t.bot.EditMessageText(context.Background(), edit)
+	_, err := t.bot.EditMessageText(ctx, edit)
 	if err != nil {
 		if strings.Contains(err.Error(), "message is not modified") {
 			return nil
@@ -118,7 +118,7 @@ func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	if placeholderID, ok := msg.Metadata["placeholder_id"]; ok {
 		if pid, ok := placeholderID.(int); ok && pid != 0 {
 			content := ToTelegramHTML(msg.Content)
-			if err := t.editMessage(chatID, pid, content, telego.ModeHTML); err != nil {
+			if err := t.editMessage(ctx, chatID, pid, content, telego.ModeHTML); err != nil {
 				t.Log.Error("telegram edit placeholder failed", "err", err)
 			} else {
 				return nil

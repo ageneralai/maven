@@ -27,16 +27,15 @@ type Service struct {
 	log       *slog.Logger
 	mu        sync.RWMutex
 	jobs      []CronJob
-	runCtx    context.Context
-	runCancel context.CancelFunc
+	fireWg    sync.WaitGroup
 	stopChan  chan struct{}
 	stopOnce  sync.Once
 	wakeChan  chan struct{}
 }
 
-func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg *slog.Logger, deliver *Deliver) *Service {
+func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg *slog.Logger, deliver *Deliver) (*Service, error) {
 	if exec == nil {
-		panic("cron: TurnExecutor is required")
+		return nil, fmt.Errorf("cron: TurnExecutor is required")
 	}
 	if maxConcurrent < 1 {
 		maxConcurrent = 1
@@ -49,7 +48,7 @@ func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int,
 		log:       lg,
 		stopChan:  make(chan struct{}),
 		wakeChan:  make(chan struct{}, 1),
-	}
+	}, nil
 }
 
 func (s *Service) notify() {
@@ -169,7 +168,7 @@ func resetTimer(t *time.Timer, d time.Duration) {
 	t.Reset(d)
 }
 
-func (s *Service) runLoop() {
+func (s *Service) runLoop(ctx context.Context) {
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
 	for {
@@ -180,11 +179,13 @@ func (s *Service) runLoop() {
 		select {
 		case <-s.stopChan:
 			return
+		case <-ctx.Done():
+			return
 		case <-s.wakeChan:
 			drainTimer(timer)
 			continue
 		case <-timer.C:
-			s.checkAndFire()
+			s.checkAndFire(ctx)
 		}
 	}
 }
@@ -200,7 +201,7 @@ func (s *Service) clearNextRun(j *CronJob) {
 	j.State.NextRunAtMs = 0
 }
 
-func (s *Service) checkAndFire() {
+func (s *Service) checkAndFire(ctx context.Context) {
 	s.mu.Lock()
 	now := time.Now().UnixMilli()
 	var due []CronJob
@@ -221,11 +222,15 @@ func (s *Service) checkAndFire() {
 	s.mu.Unlock()
 	for _, job := range due {
 		job := job
-		go s.fire(job)
+		s.fireWg.Add(1)
+		go func() {
+			defer s.fireWg.Done()
+			s.fire(ctx, job)
+		}()
 	}
 }
 
-func (s *Service) fire(job CronJob) {
+func (s *Service) fire(ctx context.Context, job CronJob) {
 	if err := job.Payload.Validate(); err != nil {
 		s.mu.Lock()
 		s.applyJobValidationFailure(job.ID, err)
@@ -235,19 +240,18 @@ func (s *Service) fire(job CronJob) {
 		s.mu.Unlock()
 		return
 	}
-	runCtx := s.runCtx
-	if err := s.sem.Acquire(runCtx, 1); err != nil {
+	if err := s.sem.Acquire(ctx, 1); err != nil {
 		return
 	}
 	defer s.sem.Release(1)
 	sessionID := SessionKey(job.ID)
-	out, err := s.exec.RunTurn(runCtx, job.Payload.Message, sessionID)
+	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()
 	idx := s.findJobIndex(job.ID)
 	if idx < 0 {
-		if err := s.saveAtomicLocked(); err != nil {
-			s.log.Error("cron save after job removed", "err", err)
+		if serr := s.saveAtomicLocked(); serr != nil {
+			s.log.Error("cron save after job removed", "err", serr)
 		}
 		s.mu.Unlock()
 		return
@@ -272,12 +276,12 @@ func (s *Service) fire(job CronJob) {
 	} else if j.Schedule.Kind != "at" {
 		j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
 	}
-	if err := s.saveAtomicLocked(); err != nil {
-		s.log.Error("cron save after run", "job", j.Name, "err", err)
+	if serr := s.saveAtomicLocked(); serr != nil {
+		s.log.Error("cron save after run", "job", j.Name, "err", serr)
 	}
 	s.mu.Unlock()
 	if err == nil && s.deliver != nil {
-		s.deliver.AfterSuccessfulRun(runCtx, job, out)
+		s.deliver.AfterSuccessfulRun(ctx, job, out)
 	}
 }
 
@@ -293,7 +297,6 @@ func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {
 }
 
 func (s *Service) Start(ctx context.Context) error {
-	s.runCtx, s.runCancel = context.WithCancel(ctx)
 	if err := s.load(); err != nil {
 		s.log.Warn("cron failed to load jobs", "err", err)
 	}
@@ -306,21 +309,15 @@ func (s *Service) Start(ctx context.Context) error {
 	n := len(s.jobs)
 	s.mu.Unlock()
 	s.log.Info("cron started", "jobs", n)
-	go s.runLoop()
-	go func() {
-		<-ctx.Done()
-		s.Stop()
-	}()
+	go s.runLoop(ctx)
 	return nil
 }
 
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
 		close(s.stopChan)
-		if s.runCancel != nil {
-			s.runCancel()
-		}
 	})
+	s.fireWg.Wait()
 	s.log.Info("cron stopped")
 }
 

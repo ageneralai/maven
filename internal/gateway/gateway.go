@@ -118,7 +118,11 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	pipeRunner := &pipelineStreamRunner{pipeFn: func() *pipeline.Pipeline { return pipe }}
 	g.channelMgr = manager.NewChannelManager(g.bus, g.logger, g.plugins, pipeRunner)
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
-	g.cron = cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
+	cronSvc, err := cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
+	if err != nil {
+		return nil, fmt.Errorf("cron service: %w", err)
+	}
+	g.cron = cronSvc
 	g.signalChan = opts.SignalChan
 	liveness := health.OrHealthReporter(opts.HealthReporter)
 	g.liveness = liveness
@@ -128,7 +132,11 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	pipe.Channels = g.channelMgr
 	pipe.SlashRegistry = slash.BuiltIns(g.cron)
 	g.pipe = pipe
-	g.hb = heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger, heartbeat.WithHealthReporter(liveness))
+	hb, err := heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger, heartbeat.WithHealthReporter(liveness))
+	if err != nil {
+		return nil, fmt.Errorf("heartbeat: %w", err)
+	}
+	g.hb = hb
 	return g, nil
 }
 

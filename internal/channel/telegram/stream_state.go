@@ -98,7 +98,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 		return false
 	}
 	if sm.id == 0 {
-		pid, err := s.t.sendPlaceholder(s.numChatID, text, parseMode, silent)
+		pid, err := s.t.sendPlaceholder(s.ctx, s.numChatID, text, parseMode, silent)
 		if err != nil {
 			s.setCooldown(now, err)
 			s.t.Log.Error("telegram stream placeholder failed", "err", err)
@@ -107,7 +107,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 		}
 		sm.id = pid
 	} else {
-		if err := s.t.editMessage(s.numChatID, sm.id, text, parseMode); err != nil {
+		if err := s.t.editMessage(s.ctx, s.numChatID, sm.id, text, parseMode); err != nil {
 			s.setCooldown(now, err)
 			s.t.Log.Error("telegram stream edit failed", "err", err)
 			sm.dirty = true
@@ -309,12 +309,12 @@ func (s *streamState) finalizeSend(ctx context.Context) error {
 		}
 	}
 	if s.statusMsg.id != 0 {
-		if err := s.t.deleteMessage(s.numChatID, s.statusMsg.id); err != nil {
+		if err := s.t.deleteMessage(s.ctx, s.numChatID, s.statusMsg.id); err != nil {
 			s.t.Log.Error("telegram delete status message failed", "err", err)
 		}
 	}
 	if s.contentMsg.id != 0 {
-		if err := s.t.deleteMessage(s.numChatID, s.contentMsg.id); err != nil {
+		if err := s.t.deleteMessage(s.ctx, s.numChatID, s.contentMsg.id); err != nil {
 			s.t.Log.Error("telegram delete content message failed", "err", err)
 		}
 	}

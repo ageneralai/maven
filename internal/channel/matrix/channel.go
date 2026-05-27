@@ -71,14 +71,16 @@ func NewMatrixChannel(cfg config.MatrixConfig, workspace string, lg *slog.Logger
 		client:      client,
 		allowRooms:  buildAllowRooms(cfg.AllowRooms),
 	}
-	ch.registerSyncHandlers(client)
+	if err := ch.registerSyncHandlers(client); err != nil {
+		return nil, err
+	}
 	return ch, nil
 }
 
-func (m *MatrixChannel) registerSyncHandlers(client *mautrix.Client) {
+func (m *MatrixChannel) registerSyncHandlers(client *mautrix.Client) error {
 	syncer, ok := client.Syncer.(*mautrix.DefaultSyncer)
 	if !ok {
-		panic("matrix: expected DefaultSyncer")
+		return fmt.Errorf("matrix: expected DefaultSyncer, got %T", client.Syncer)
 	}
 	syncer.OnEventType(event.EventMessage, func(ctx context.Context, evt *event.Event) {
 		m.handleMessageEvent(ctx, evt)
@@ -86,6 +88,7 @@ func (m *MatrixChannel) registerSyncHandlers(client *mautrix.Client) {
 	syncer.OnEventType(event.StateMember, func(ctx context.Context, evt *event.Event) {
 		m.handleMemberEvent(ctx, evt)
 	})
+	return nil
 }
 
 func (m *MatrixChannel) Capabilities() chann.CapabilitySet {

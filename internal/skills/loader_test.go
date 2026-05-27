@@ -3,7 +3,7 @@ package skills
 import (
 	"bytes"
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,19 +200,9 @@ func TestLoadSkills_InvalidYAML(t *testing.T) {
 	writeTestSkillFile(t, root, "ok", "---\nname: ok\ndescription: valid\nkeywords: [ok]\n---\n# OK\n")
 
 	var logBuf bytes.Buffer
-	originalWriter := log.Writer()
-	originalFlags := log.Flags()
-	originalPrefix := log.Prefix()
-	log.SetOutput(&logBuf)
-	log.SetFlags(0)
-	log.SetPrefix("")
-	t.Cleanup(func() {
-		log.SetOutput(originalWriter)
-		log.SetFlags(originalFlags)
-		log.SetPrefix(originalPrefix)
-	})
+	lg := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	loaded, err := LoadSkills(root, testLG)
+	loaded, err := LoadSkills(root, lg)
 	if err != nil {
 		t.Fatalf("load skills: %v", err)
 	}
@@ -224,7 +214,7 @@ func TestLoadSkills_InvalidYAML(t *testing.T) {
 	}
 
 	output := logBuf.String()
-	if !strings.Contains(output, "skip invalid YAML skill") {
+	if !strings.Contains(output, "skills skipping invalid YAML skill") {
 		t.Fatalf("expected warning log, got: %q", output)
 	}
 	if !strings.Contains(output, invalidSkillPath) {

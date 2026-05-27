@@ -17,8 +17,11 @@ var toolTestLog = mavenlog.Std()
 
 func TestAddFromToolMap_incomingChat(t *testing.T) {
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "4242")
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := AddFromToolMap(svc, ctx, map[string]any{
 		"name":                     "n",
 		"message":                  "m",
 		"in":                       "2m",
@@ -34,8 +37,11 @@ func TestAddFromToolMap_incomingChat(t *testing.T) {
 
 func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := AddFromToolMap(svc, ctx, map[string]any{
 		"name": "n", "message": "m", "in": "2m",
 	}, time.Unix(1000, 0))
 	if err != nil {
@@ -48,8 +54,11 @@ func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 
 func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	job, err := AddFromToolMap(svc, ctx, map[string]interface{}{
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := AddFromToolMap(svc, ctx, map[string]any{
 		"name": "n", "message": "m", "in": "2m",
 		"deliver": false,
 	}, time.Unix(1000, 0))
@@ -62,26 +71,32 @@ func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
 }
 
 func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	_, err := AddFromToolMap(svc, context.Background(), map[string]interface{}{
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, addErr := AddFromToolMap(svc, context.Background(), map[string]any{
 		"name":                     "n",
 		"message":                  "m",
 		"in":                       "1s",
 		"deliver_to_incoming_chat": true,
 	}, time.Now())
-	if err == nil {
+	if addErr == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestScheduleToolExecute(t *testing.T) {
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	tools := Tools(svc)
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := Tools(svc, toolTestLog)
 	if len(tools) != 3 {
 		t.Fatalf("tools=%d", len(tools))
 	}
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "1")
-	res, err := tools[0].Execute(ctx, map[string]interface{}{
+	res, err := tools[0].Execute(ctx, map[string]any{
 		"name":                     "a",
 		"message":                  "b",
 		"in":                       "500ms",
@@ -96,9 +111,12 @@ func TestScheduleToolExecute(t *testing.T) {
 }
 
 func TestAdd_duplicateScheduleKinds(t *testing.T) {
-	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
-	_, err := Add(svc, AddParams{Name: "x", Message: "y", Expr: "0 0 * * * *", In: "1m"}, time.Now())
-	if err == nil {
+	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, addErr := Add(svc, AddParams{Name: "x", Message: "y", Expr: "0 0 * * * *", In: "1m"}, time.Now())
+	if addErr == nil {
 		t.Fatal("expected error")
 	}
 }

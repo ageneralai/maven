@@ -87,7 +87,7 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 
 	dispatched := func(allowFrom []string, sender types.JID) bool {
 		b := bus.NewMessageBus(1, waTestLog)
-		ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog)}
+		ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog), runCtx: context.Background()}
 		ch.handleMessage(makeEvent(sender))
 
 		select {
