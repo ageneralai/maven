@@ -1,6 +1,6 @@
 # OneCLI Agent Vault
 
-[OneCLI](https://github.com/onecli-sh/onecli) is an open-source agent vault that sits between AI agents and external APIs. It stores credentials in an encrypted vault and injects them through an HTTPS proxy so Maven never holds raw API keys in config or environment.
+[OneCLI](https://github.com/onecli/onecli) is an open-source agent vault that sits between AI agents and external APIs. It stores credentials in an encrypted vault and injects them through an HTTPS proxy so Maven never holds raw API keys in config or environment.
 
 ## Architecture
 
