@@ -6,7 +6,7 @@ Maven is a single-process Go application: CLI agent and persistent gateway for p
 
 1. **Single execution surface** — Chat, cron, and heartbeat all flow through the same pipeline and agent runtime.
 2. **Single mutation path** — `Gateway.Apply` is the only way to change active system state.
-3. **Kernel wall** — Core logic never imports plugins; composition happens in `gateway/wire.go`.
+3. **Kernel wall** — Core logic never imports plugins; composition happens in `internal/gateway/wire.go`.
 
 ## Topology
 
@@ -41,31 +41,31 @@ flowchart LR
 
 ## Kernel packages
 
-All packages under `kernel/` are plugin-agnostic core logic:
+All packages under `internal/kernel/` are plugin-agnostic core logic:
 
 | Package | Role |
 |---------|------|
-| `kernel/bus` | Inbound/outbound message routing |
-| `kernel/pipeline` | Turn coordinator; implements `TurnExecutor` |
-| `kernel/agent` | SDK runtime wrapper |
-| `kernel/session`, `kernel/sessionid` | Session routing and persistence |
-| `kernel/scheduling` | Turn admission control |
-| `kernel/health` | Liveness signals |
-| `kernel/events` | Internal event bus |
-| `kernel/turnctx` | Per-turn context |
-| `kernel/executor` | `TurnExecutor` / `StreamRunner` contracts |
-| `kernel/stringutil`, `kernel/log` | Shared utilities |
-| `kernel/memory`, `kernel/prompt` | Workspace memory and system prompt |
-| `kernel/slash`, `kernel/slashkind` | Slash command registry and dispatch |
-| `kernel/config` | Config load, watch, hot reload |
-| `kernel/voice` | TTS/STT provider interfaces |
-| `kernel/channels` | Channel interface and manager |
-| `kernel/task` | Background task tooling |
-| `kernel/plugin` | Plugin axis interfaces and registry |
+| `internal/kernel/bus` | Inbound/outbound message routing |
+| `internal/kernel/pipeline` | Turn coordinator; implements `TurnExecutor` |
+| `internal/kernel/agent` | SDK runtime wrapper |
+| `internal/kernel/session`, `internal/kernel/sessionid` | Session routing and persistence |
+| `internal/kernel/scheduling` | Turn admission control |
+| `internal/kernel/health` | Liveness signals |
+| `internal/kernel/events` | Internal event bus |
+| `internal/kernel/turnctx` | Per-turn context |
+| `internal/kernel/executor` | `TurnExecutor` / `StreamRunner` contracts |
+| `internal/kernel/stringutil`, `internal/kernel/log` | Shared utilities |
+| `internal/kernel/memory`, `internal/kernel/prompt` | Workspace memory and system prompt |
+| `internal/kernel/slash`, `internal/kernel/slashkind` | Slash command registry and dispatch |
+| `internal/kernel/config` | Config load, watch, hot reload |
+| `internal/kernel/voice` | TTS/STT provider interfaces |
+| `internal/kernel/channel` | Channel interface and manager |
+| `internal/kernel/task` | Background task tooling |
+| `internal/kernel/plugin` | Plugin axis interfaces and registry |
 
 ## Plugin axes
 
-Defined in `kernel/plugin/plugin.go`. Each axis is an optional interface on `Plugin`:
+Defined in `internal/kernel/plugin/plugin.go`. Each axis is an optional interface on `Plugin`:
 
 | Interface | Contributes |
 |-----------|-------------|
@@ -76,18 +76,18 @@ Defined in `kernel/plugin/plugin.go`. Each axis is an optional interface on `Plu
 | `SlashPlugin` | Pre-model `/commands` |
 | `TriggerPlugin` | Background triggers (cron, heartbeat) |
 
-The registry (`kernel/plugin/registry.go`) collects contributions by axis at runtime.
+The registry (`internal/kernel/plugin/registry.go`) collects contributions by axis at runtime.
 
 ## Plugin implementations
 
 | Path | Axis |
 |------|------|
-| `plugins/channels/telegram`, `feishu`, `wecom`, `whatsapp`, `matrix`, `web` | Channel |
-| `plugins/triggers/cron` | Trigger + Slash + Tool |
-| `plugins/triggers/heartbeat` | Trigger |
-| `plugins/skills/file` | Skill |
-| `plugins/voice/cartesia`, `deepgram`, `elevenlabs`, `openai` | TTS/STT |
-| `plugins/tools/acp` | Tool |
+| `internal/plugins/channel/telegram`, `feishu`, `wecom`, `whatsapp`, `matrix`, `web` | Channel |
+| `internal/plugins/trigger/cron` | Trigger + Slash + Tool |
+| `internal/plugins/trigger/heartbeat` | Trigger |
+| `internal/plugins/skill/file` | Skill |
+| `internal/plugins/voice/cartesia`, `deepgram`, `elevenlabs`, `openai` | TTS/STT |
+| `internal/plugins/tool/acp` | Tool |
 
 ## Gateway as plugin host
 
@@ -95,11 +95,11 @@ The gateway wires kernel subsystems and hosts all plugins:
 
 | File | Responsibility |
 |------|----------------|
-| `gateway/gateway.go` | `Gateway` struct, `Options`, `New` / `NewWithOptions` |
-| `gateway/apply.go` | Single mutation path: `Apply`, runtime rebuild, channel reload |
-| `gateway/lifecycle.go` | `Run`, `Shutdown`, signal handling, hot reload |
-| `gateway/wire.go` | Composition root: plugin manifest + `Wire()` entry point |
-| `gateway/triggers.go` | Trigger start/stop helpers |
+| `internal/gateway/gateway.go` | `Gateway` struct, `Options`, `New` / `NewWithOptions` |
+| `internal/gateway/apply.go` | Single mutation path: `Apply`, runtime rebuild, channel reload |
+| `internal/gateway/lifecycle.go` | `Run`, `Shutdown`, signal handling, hot reload |
+| `internal/gateway/wire.go` | Composition root: plugin manifest + `Wire()` entry point |
+| `internal/gateway/triggers.go` | Trigger start/stop helpers |
 
 ### Apply loop
 
@@ -123,16 +123,16 @@ The gateway wires kernel subsystems and hosts all plugins:
 - Wires cross-plugin dependencies (e.g. web channel ↔ registry, cron ↔ pipeline)
 - Exposes `Wire(cfg, logger)` as the production entry point
 
-No other file should import `plugins/…` for side-effect registration.
+No other file should import `internal/plugins/…` for side-effect registration.
 
 ## Kernel wall
 
-`kernel/` must never import `github.com/ageneralai/maven/plugins/…`. Enforced by:
+`internal/kernel/` must never import `github.com/ageneralai/maven/internal/plugins/…`. Enforced by:
 
 - Architectural rule: plugins depend on kernel, not vice versa
 - `depguard` linter rule `kernel_no_plugins` in `.golangci.yml`
 
-Only `gateway/wire.go` (and tests) cross the wall.
+Only `internal/gateway/wire.go` (and tests) cross the wall.
 
 ## Execution flow
 

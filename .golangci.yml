@@ -34,9 +34,9 @@ linters:
       rules:
         kernel_no_plugins:
           files:
-            - "**/kernel/**"
+            - "**/internal/kernel/**"
           deny:
-            - pkg: "github.com/ageneralai/maven/plugins/"
+            - pkg: "github.com/ageneralai/maven/internal/plugins/"
               desc: "kernel must not import plugins"
   exclusions:
     rules:
@@ -49,39 +49,39 @@ linters:
         linters:
           - gosec
           - unparam
-      - path: plugins/channels/
+      - path: internal/plugins/channel/
         linters:
           - tagliatelle
           - gosec
-      - path: plugins/voice/
+      - path: internal/plugins/voice/
         linters:
           - tagliatelle
           - gosec
-      - path: plugins/tools/acp/
+      - path: internal/plugins/tool/acp/
         linters:
           - gosec
-      - path: kernel/config/
+      - path: internal/kernel/config/
         linters:
           - tagliatelle
-      - path: kernel/memory/
+      - path: internal/kernel/memory/
         linters:
           - gosec
-      - path: kernel/prompt/
+      - path: internal/kernel/prompt/
         linters:
           - gosec
-      - path: kernel/channels/webhook/
+      - path: internal/kernel/channel/webhook/
         linters:
           - gosec
       - path: internal/testutil/
         linters:
           - gosec
-      - path: kernel/slash/
+      - path: internal/kernel/slash/
         linters:
           - gocritic
-      - path: plugins/channels/whatsapp/
+      - path: internal/plugins/channel/whatsapp/
         linters:
           - gocritic
-      - path: plugins/channels/telegram/stream_state\.go
+      - path: internal/plugins/channel/telegram/stream_state\.go
         linters:
           - unparam
 run:

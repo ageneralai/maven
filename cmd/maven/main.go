@@ -14,14 +14,14 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
-	"github.com/ageneralai/maven/kernel/agent"
-	"github.com/ageneralai/maven/kernel/config"
-	"github.com/ageneralai/maven/gateway"
-	skills "github.com/ageneralai/maven/plugins/skills/file"
+	"github.com/ageneralai/maven/internal/kernel/agent"
+	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/gateway"
+	skills "github.com/ageneralai/maven/internal/plugins/skill/file"
 	"github.com/ageneralai/maven/internal/version"
-	mavenlog "github.com/ageneralai/maven/kernel/log"
-	"github.com/ageneralai/maven/kernel/memory"
-	"github.com/ageneralai/maven/kernel/prompt"
+	mavenlog "github.com/ageneralai/maven/internal/kernel/log"
+	"github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/prompt"
 	"github.com/spf13/cobra"
 )
 
