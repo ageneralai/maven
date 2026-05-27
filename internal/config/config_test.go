@@ -365,3 +365,45 @@ func TestConfig_Validate_AutoCompactThreshold(t *testing.T) {
 		t.Fatal("expected error for autoCompact.threshold > 1")
 	}
 }
+
+func TestProviderConfig_Validate(t *testing.T) {
+	if err := (ProviderConfig{}).Validate(); err == nil {
+		t.Fatal("expected missing api key error")
+	}
+}
+
+func TestAgentConfig_Validate(t *testing.T) {
+	cfg := AgentConfig{Workspace: "/tmp", MaxTokens: 100, MaxToolIterations: 1, Temperature: 0.5}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid agent config: %v", err)
+	}
+	cfg.MaxTokens = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected maxTokens error")
+	}
+}
+
+func TestGatewayConfig_Validate(t *testing.T) {
+	cfg := GatewayConfig{Host: "127.0.0.1", Port: 8080}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid gateway config: %v", err)
+	}
+	cfg.Port = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected port error")
+	}
+}
+
+func TestChannelsConfig_Validate(t *testing.T) {
+	cfg := ChannelsConfig{Telegram: TelegramConfig{Enabled: true}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected telegram token error")
+	}
+}
+
+func TestAutoCompactConfig_Validate(t *testing.T) {
+	cfg := AutoCompactConfig{Enabled: true, Threshold: 0.5, PreserveCount: 1}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid auto compact: %v", err)
+	}
+}

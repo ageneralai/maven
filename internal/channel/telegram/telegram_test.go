@@ -27,14 +27,14 @@ import (
 
 // === Telegram Channel Constructor Tests ===
 func TestNewTelegramChannel_NoToken(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	_, err := NewTelegramChannel(config.TelegramConfig{}, "", channelTestLog, b)
 	if err == nil {
 		t.Error("expected error for empty token")
 	}
 }
 func TestNewTelegramChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -90,7 +90,7 @@ func TestToTelegramHTML_CodeBlocks(t *testing.T) {
 
 // === Telegram Channel Tests ===
 func TestTelegramChannel_Stop_NotStarted(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	err := ch.Stop()
 	if err != nil {
@@ -98,7 +98,7 @@ func TestTelegramChannel_Stop_NotStarted(t *testing.T) {
 	}
 }
 func TestTelegramChannel_Send_NilBot(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "test"})
 	if err == nil {
@@ -182,7 +182,7 @@ func TestTelegramChannel_Send_BothFail(t *testing.T) {
 
 // === HandleMessage Tests ===
 func TestTelegramChannel_HandleMessage_Allowed(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123, Username: "testuser"},
@@ -208,7 +208,7 @@ func TestTelegramChannel_HandleMessage_Allowed(t *testing.T) {
 }
 
 func TestTelegramChannel_HandleMessage_Rejected(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{
 		Token:     fakeToken,
 		AllowFrom: []string{"999"},
@@ -226,7 +226,7 @@ func TestTelegramChannel_HandleMessage_Rejected(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_EmptyText(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
@@ -241,7 +241,7 @@ func TestTelegramChannel_HandleMessage_EmptyText(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_Caption(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From:    &telego.User{ID: 123},
@@ -379,7 +379,7 @@ func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
 
 // === Reply Context Tests ===
 func TestTelegramChannel_HandleMessage_ReplyContext(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123, Username: "testuser"},
@@ -408,7 +408,7 @@ func TestTelegramChannel_HandleMessage_ReplyContext(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ReplyToPhoto(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
@@ -434,7 +434,7 @@ func TestTelegramChannel_HandleMessage_ReplyToPhoto(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ExternalReply(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
@@ -521,7 +521,7 @@ func TestTelegramChannel_HandleMessage_ExternalReplyWithPhoto(t *testing.T) {
 
 // === Forward Message Tests ===
 func TestTelegramChannel_HandleMessage_ForwardWithText(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
@@ -546,7 +546,7 @@ func TestTelegramChannel_HandleMessage_ForwardWithText(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ForwardNoComment(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, _ := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
 	msg := &telego.Message{
 		From: &telego.User{ID: 123},
@@ -666,7 +666,7 @@ func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 }
 
 func TestTelegramChannel_TelegramRootOverride(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken, RootDir: "/tmp/custom-telegram"}, "", channelTestLog, b)
 	if err != nil {
 		t.Fatalf("NewTelegramChannel error: %v", err)

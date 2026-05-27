@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/pkg/events"
-	"github.com/ageneralai/maven/pkg/events/eventstest"
+	"github.com/ageneralai/maven/pkg/events/eventsfake"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 var testLG = mavenlog.Std()
 
 func TestNewMessageBus_Capacity(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	if cap(b.InboundChan()) != 10 {
 		t.Errorf("inbound cap = %d, want 10", cap(b.InboundChan()))
@@ -26,7 +26,7 @@ func TestNewMessageBus_Capacity(t *testing.T) {
 }
 
 func TestNewMessageBus_DefaultSize(t *testing.T) {
-	b := NewMessageBus(0, testLG)
+	b := New(0, testLG)
 	defer b.Close()
 	if cap(b.InboundChan()) != 100 {
 		t.Errorf("inbound cap = %d, want 100", cap(b.InboundChan()))
@@ -41,7 +41,7 @@ func TestInboundMessage_StableRouteKey(t *testing.T) {
 }
 
 func TestPublishInbound_InvalidChannel(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	err := b.PublishInbound(context.Background(), InboundMessage{Channel: "   ", ChatID: "x"})
 	if err != ErrInvalidInbound {
@@ -53,7 +53,7 @@ func TestPublishInbound_InvalidChannel(t *testing.T) {
 }
 
 func TestPublishOutbound_InvalidChannel(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: ""})
 	if err != ErrInvalidOutbound {
@@ -65,7 +65,7 @@ func TestPublishOutbound_InvalidChannel(t *testing.T) {
 }
 
 func TestNormalizeInboundTrims(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	done := make(chan struct{})
 	go func() {
@@ -84,7 +84,7 @@ func TestNormalizeInboundTrims(t *testing.T) {
 }
 
 func TestSubscribeAndDispatch(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	var received OutboundMessage
 	var mu sync.Mutex
@@ -121,7 +121,7 @@ func TestSubscribeAndDispatch(t *testing.T) {
 }
 
 func TestSetOutboundSubscriber_Replaces(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	var first, second int
 	b.SetOutboundSubscriber("c", func(OutboundMessage) { first++ })
@@ -140,7 +140,7 @@ func TestSetOutboundSubscriber_Replaces(t *testing.T) {
 }
 
 func TestDispatch_NoSubscriber(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -155,7 +155,7 @@ func TestDispatch_NoSubscriber(t *testing.T) {
 }
 
 func TestDispatch_ContextCancel(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	defer b.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -172,7 +172,7 @@ func TestDispatch_ContextCancel(t *testing.T) {
 }
 
 func TestPublish_ContextCancel(t *testing.T) {
-	b := NewMessageBus(1, testLG)
+	b := New(1, testLG)
 	defer b.Close()
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "x", Content: "a"}); err != nil {
 		t.Fatal(err)
@@ -186,7 +186,7 @@ func TestPublish_ContextCancel(t *testing.T) {
 }
 
 func TestPublishOutbound_BufferFull_Deadline(t *testing.T) {
-	b := NewMessageBus(1, testLG)
+	b := New(1, testLG)
 	defer b.Close()
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "a", ChatID: "1", Content: "x"}); err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestPublishOutbound_BufferFull_Deadline(t *testing.T) {
 }
 
 func TestClose_PublishReturnsErrBusClosed(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	b.Close()
 	if err := b.PublishInbound(context.Background(), InboundMessage{Channel: "x"}); !errors.Is(err, ErrBusClosed) {
 		t.Fatalf("want ErrBusClosed got %v", err)
@@ -211,7 +211,7 @@ func TestClose_PublishReturnsErrBusClosed(t *testing.T) {
 }
 
 func TestClose_Concurrent(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	var wg sync.WaitGroup
 	for i := 0; i < 32; i++ {
 		wg.Add(1)
@@ -224,7 +224,7 @@ func TestClose_Concurrent(t *testing.T) {
 }
 
 func TestClose_IdempotentWithDispatch(t *testing.T) {
-	b := NewMessageBus(10, testLG)
+	b := New(10, testLG)
 	ctx, cancel := context.WithCancel(context.Background())
 	go b.DispatchOutbound(ctx)
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "c", Content: "m"}); err != nil {
@@ -236,8 +236,8 @@ func TestClose_IdempotentWithDispatch(t *testing.T) {
 }
 
 func TestWithEventPublisher_PublishFailureEmits(t *testing.T) {
-	capture := &eventstest.CapturePublisher{}
-	b := NewMessageBus(1, testLG, WithEventPublisher(capture))
+	capture := &eventsfake.CapturePublisher{}
+	b := New(1, testLG, WithEventPublisher(capture))
 	defer b.Close()
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "a", ChatID: "1", Content: "x"}); err != nil {
 		t.Fatal(err)
@@ -259,8 +259,8 @@ func TestWithEventPublisher_PublishFailureEmits(t *testing.T) {
 }
 
 func TestWithEventPublisher_CloseEmits(t *testing.T) {
-	capture := &eventstest.CapturePublisher{}
-	b := NewMessageBus(10, testLG, WithEventPublisher(capture))
+	capture := &eventsfake.CapturePublisher{}
+	b := New(10, testLG, WithEventPublisher(capture))
 	b.Close()
 	evts := capture.Snapshot()
 	var found bool
@@ -276,7 +276,7 @@ func TestWithEventPublisher_CloseEmits(t *testing.T) {
 }
 
 func TestWithEventPublisher_NilMeansNoOp(t *testing.T) {
-	b := NewMessageBus(2, testLG, WithEventPublisher(nil))
+	b := New(2, testLG, WithEventPublisher(nil))
 	defer b.Close()
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "x", Content: "a"}); err != nil {
 		t.Fatal(err)
@@ -301,7 +301,7 @@ func (r *recordingStreamDelegate) NotifyStreamEnd(_ context.Context, _ StreamHin
 
 func TestWithStreamDelegate_OnStreamBegin_OnStreamEnd(t *testing.T) {
 	d := &recordingStreamDelegate{}
-	b := NewMessageBus(2, testLG, WithStreamDelegate(d))
+	b := New(2, testLG, WithStreamDelegate(d))
 	defer b.Close()
 	h := StreamHints{Channel: "telegram", ChatID: "c1"}
 	ctx := context.Background()
@@ -322,7 +322,7 @@ func TestWithStreamDelegate_OnStreamBegin_OnStreamEnd(t *testing.T) {
 func TestSetStreamDelegate_replacesPrevious(t *testing.T) {
 	d1 := &recordingStreamDelegate{}
 	d2 := &recordingStreamDelegate{}
-	b := NewMessageBus(2, testLG, WithStreamDelegate(d1))
+	b := New(2, testLG, WithStreamDelegate(d1))
 	defer b.Close()
 	b.SetStreamDelegate(d2)
 	b.OnStreamBegin(context.Background(), StreamHints{})
@@ -333,7 +333,7 @@ func TestSetStreamDelegate_replacesPrevious(t *testing.T) {
 
 func TestSetStreamDelegate_nilNoOp(t *testing.T) {
 	d := &recordingStreamDelegate{}
-	b := NewMessageBus(2, testLG, WithStreamDelegate(d))
+	b := New(2, testLG, WithStreamDelegate(d))
 	defer b.Close()
 	b.SetStreamDelegate(nil)
 	h := StreamHints{Channel: "x", ChatID: "y"}
@@ -355,7 +355,7 @@ func (wrapCtxStreamDel) NotifyStreamBegin(ctx context.Context, _ StreamHints) co
 func (wrapCtxStreamDel) NotifyStreamEnd(context.Context, StreamHints, error) {}
 
 func TestOnStreamBegin_delegateWrapsContext(t *testing.T) {
-	b := NewMessageBus(2, testLG, WithStreamDelegate(wrapCtxStreamDel{}))
+	b := New(2, testLG, WithStreamDelegate(wrapCtxStreamDel{}))
 	defer b.Close()
 	out := b.OnStreamBegin(context.Background(), StreamHints{})
 	got, ok := out.Value(streamWrapCtxKey{}).(int)
@@ -365,7 +365,7 @@ func TestOnStreamBegin_delegateWrapsContext(t *testing.T) {
 }
 
 func TestWithStreamDelegate_NilMeansNoOp(t *testing.T) {
-	b := NewMessageBus(2, testLG, WithStreamDelegate(nil))
+	b := New(2, testLG, WithStreamDelegate(nil))
 	defer b.Close()
 	_ = b.OnStreamBegin(context.Background(), StreamHints{})
 	b.OnStreamEnd(context.Background(), StreamHints{}, errors.New("e"))

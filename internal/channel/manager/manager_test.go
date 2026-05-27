@@ -38,15 +38,15 @@ func (m *mockManagedChannel) Send(ctx context.Context, msg bus.OutboundMessage) 
 func (m *mockManagedChannel) Capabilities() chann.CapabilitySet { return chann.CapabilitySet{} }
 
 func TestChannelManager_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil, nil)
+	b := bus.New(10, mgrTestLog)
+	m := New(b, mgrTestLog, nil, nil)
 	if len(m.EnabledChannels()) != 0 {
 		t.Errorf("expected 0 enabled channels, got %d", len(m.EnabledChannels()))
 	}
 }
 
 func TestChannelManager_WithMockChannel(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
+	b := bus.New(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock"}
 	m := &ChannelManager{
 		channels: map[string]chann.Channel{"mock": mock},
@@ -73,23 +73,23 @@ func TestChannelManager_WithMockChannel(t *testing.T) {
 }
 
 func TestChannelManager_StartAll_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil, nil)
+	b := bus.New(10, mgrTestLog)
+	m := New(b, mgrTestLog, nil, nil)
 	if err := m.StartAll(context.Background()); err != nil {
 		t.Errorf("StartAll error: %v", err)
 	}
 }
 
 func TestChannelManager_StopAll_Empty(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
-	m := NewChannelManager(b, mgrTestLog, nil, nil)
+	b := bus.New(10, mgrTestLog)
+	m := New(b, mgrTestLog, nil, nil)
 	if err := m.StopAll(); err != nil {
 		t.Errorf("StopAll error: %v", err)
 	}
 }
 
 func TestChannelManager_StartAll_Error(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
+	b := bus.New(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock", startErr: fmt.Errorf("start failed")}
 	m := &ChannelManager{
 		channels: map[string]chann.Channel{"mock": mock},
@@ -102,7 +102,7 @@ func TestChannelManager_StartAll_Error(t *testing.T) {
 }
 
 func TestChannelManager_StopAll_Error(t *testing.T) {
-	b := bus.NewMessageBus(10, mgrTestLog)
+	b := bus.New(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock", stopErr: fmt.Errorf("stop failed")}
 	m := &ChannelManager{
 		channels: map[string]chann.Channel{"mock": mock},

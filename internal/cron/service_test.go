@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/sessionid"
 	"github.com/ageneralai/maven/pkg/executor"
 )
 
@@ -44,7 +45,7 @@ func TestServiceFiresJobViaExecutor(t *testing.T) {
 	if gotPrompt != "hi" {
 		t.Fatalf("prompt %q", gotPrompt)
 	}
-	if !MatchesJob(j.ID, gotSID) {
+	if !sessionid.MatchesCronJob(j.ID, gotSID) {
 		t.Fatalf("session %q for job %q", gotSID, j.ID)
 	}
 }

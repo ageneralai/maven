@@ -62,7 +62,7 @@ func (t *taskTool) Execute(ctx context.Context, params map[string]any) (*tool.To
 	}
 	parentSession := parentSessionID(ctx)
 	if isNestedTaskSession(parentSession) {
-		return nil, fmt.Errorf("nested Task delegation is not supported")
+		return nil, fmt.Errorf("nested task delegation is not supported")
 	}
 	rt := t.holder.Get()
 	if rt == nil {

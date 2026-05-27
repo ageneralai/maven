@@ -14,6 +14,7 @@ import (
 	"log/slog"
 
 	"github.com/adhocore/gronx"
+	"github.com/ageneralai/maven/internal/sessionid"
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/pkg/stringutil"
 	"golang.org/x/sync/semaphore"
@@ -234,7 +235,7 @@ func (s *Service) fire(ctx context.Context, job CronJob) {
 		return
 	}
 	defer s.sem.Release(1)
-	sessionID := SessionKey(job.ID)
+	sessionID := sessionid.New(sessionid.KindCron, job.ID)
 	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()

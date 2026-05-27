@@ -18,12 +18,13 @@ import (
 	"github.com/ageneralai/maven/internal/channel/manager"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
+	"github.com/ageneralai/maven/internal/sessionid"
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/heartbeat"
 	"github.com/ageneralai/maven/internal/pipeline"
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
-	"github.com/ageneralai/maven/internal/testutil"
+	"github.com/ageneralai/maven/internal/health/healthtest"
 	"github.com/ageneralai/maven/pkg/executor"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
@@ -75,7 +76,7 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 var _ agent.Runtime = (*mockRuntime)(nil)
 
 func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
-	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, &agent.PostActionHandler{Sessions: router, Workspace: ws})
+	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, agent.NewPostActionHandler(router, ws))
 	p.SlashRegistry = slash.BuiltIns(nil)
 	return p
 }
@@ -110,10 +111,10 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 	if sys == "" {
 		t.Error("expected non-empty prompt")
 	}
-	if !contains(sys, "# Agent") {
+	if !strings.Contains(sys, "# Agent") {
 		t.Error("missing AGENTS.md content")
 	}
-	if !contains(sys, "# Soul") {
+	if !strings.Contains(sys, "# Soul") {
 		t.Error("missing SOUL.md content")
 	}
 }
@@ -142,7 +143,7 @@ func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !contains(sys, "User is a developer") {
+	if !strings.Contains(sys, "User is a developer") {
 		t.Error("missing memory content")
 	}
 }
@@ -181,8 +182,8 @@ func TestGateway_Shutdown(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := manager.NewChannelManager(msgBus, testLG, nil, nil)
+	msgBus := bus.New(10, testLG)
+	chMgr := manager.New(msgBus, testLG, nil, nil)
 	cronSvc, err := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	if err != nil {
 		t.Fatalf("cron.NewService: %v", err)
@@ -269,7 +270,7 @@ func TestGateway_ProcessLoop(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	router, err := session.New(filepath.Join(tmpDir, "router.json"))
 	if err != nil {
 		t.Fatalf("session.New: %v", err)
@@ -326,7 +327,7 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	imgBlock := model.ContentBlock{
 		Type:      model.ContentBlockImage,
 		MediaType: "image/jpeg",
@@ -437,7 +438,7 @@ func TestGateway_ProcessLoop_AgentError(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	mockRt := &mockRuntime{err: context.DeadlineExceeded}
 	router, err := session.New(filepath.Join(tmpDir, "router.json"))
 	if err != nil {
@@ -483,7 +484,7 @@ func TestGateway_ProcessLoop_EmptyResult(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: ""},
@@ -532,7 +533,7 @@ func TestGateway_ProcessLoop_ContextCancelled(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	mockRt := &mockRuntime{}
 	router, err := session.New(filepath.Join(tmpDir, "router.json"))
 	if err != nil {
@@ -571,8 +572,8 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 		},
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
-	chMgr := manager.NewChannelManager(msgBus, testLG, nil, nil)
+	msgBus := bus.New(10, testLG)
+	chMgr := manager.New(msgBus, testLG, nil, nil)
 	cronSvc, err := cron.NewService(filepath.Join(tmpDir, "cron.json"), executor.Nop{}, 1, testLG, nil)
 	if err != nil {
 		t.Fatalf("cron.NewService: %v", err)
@@ -806,7 +807,7 @@ func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
 	}
 	mockRt := &mockRuntime{}
 	sigCh := make(chan os.Signal, 1)
-	var rec testutil.PulseRecorder
+	var rec healthtest.PulseRecorder
 	g, err := NewWithOptions(cfg, Options{
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		SignalChan:     sigCh,
@@ -919,7 +920,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	sid := cron.SessionKey(j.ID)
+	sid := sessionid.New(sessionid.KindCron, j.ID)
 	result, err := ge.RunTurn(context.Background(), j.Payload.Message, sid)
 	if err != nil {
 		t.Errorf("RunTurn error: %v", err)
@@ -929,7 +930,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	}
 	select {
 	case req := <-mockRt.reqCh:
-		if !cron.MatchesJob(j.ID, req.SessionID) {
+		if !sessionid.MatchesCronJob(j.ID, req.SessionID) {
 			t.Fatalf("SessionID = %q, want cron-isolated key for job %q", req.SessionID, j.ID)
 		}
 	case <-time.After(time.Second):
@@ -1058,7 +1059,7 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 		t.Fatal(err)
 	}
 	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	_, err = ge.RunTurn(context.Background(), j.Payload.Message, cron.SessionKey(j.ID))
+	_, err = ge.RunTurn(context.Background(), j.Payload.Message, sessionid.New(sessionid.KindCron, j.ID))
 	if err != context.DeadlineExceeded {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}
@@ -1071,7 +1072,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 		t.Fatalf("session.New error: %v", err)
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "important user goals and pending tasks"},
@@ -1117,8 +1118,8 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	if currentSession == defaultSession {
 		t.Fatal("expected compact to rotate session")
 	}
-	if !strings.HasPrefix(currentSession, defaultSession+"-r") {
-		t.Fatalf("expected rotated session prefix %q-r, got %q", defaultSession, currentSession)
+	if !strings.HasPrefix(currentSession, defaultSession+":rotated:") {
+		t.Fatalf("expected rotated session prefix %q:rotated:, got %q", defaultSession, currentSession)
 	}
 
 	seedPath := filepath.Join(tmpDir, ".maven", "history", currentSession+".json")
@@ -1126,7 +1127,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read compact seed: %v", err)
 	}
-	if !contains(string(data), "important user goals and pending tasks") {
+	if !strings.Contains(string(data), "important user goals and pending tasks") {
 		t.Fatalf("compact seed missing summary: %s", string(data))
 	}
 }
@@ -1138,7 +1139,7 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 		t.Fatalf("session.New error: %v", err)
 	}
 
-	msgBus := bus.NewMessageBus(10, testLG)
+	msgBus := bus.New(10, testLG)
 	reqCh := make(chan api.Request, 1)
 	mockRt := &mockRuntime{reqCh: reqCh}
 
@@ -1185,20 +1186,8 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	if currentSession == defaultSession {
 		t.Fatal("expected /new to rotate session")
 	}
-	if !strings.HasPrefix(currentSession, defaultSession+"-r") {
-		t.Fatalf("expected rotated session prefix %q-r, got %q", defaultSession, currentSession)
+	if !strings.HasPrefix(currentSession, defaultSession+":rotated:") {
+		t.Fatalf("expected rotated session prefix %q:rotated:, got %q", defaultSession, currentSession)
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

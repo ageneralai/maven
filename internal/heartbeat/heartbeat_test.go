@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/health"
-	"github.com/ageneralai/maven/internal/testutil"
+	"github.com/ageneralai/maven/internal/health/healthtest"
+	"github.com/ageneralai/maven/internal/sessionid"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -229,7 +230,7 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 	if ids[0] == ids[1] {
 		t.Fatal("expected distinct session ids")
 	}
-	if !MatchesSession(ids[0]) || !MatchesSession(ids[1]) {
+	if !sessionid.MatchesHeartbeat(ids[0]) || !sessionid.MatchesHeartbeat(ids[1]) {
 		t.Fatalf("not heartbeat sessions: %v", ids)
 	}
 }
@@ -237,7 +238,7 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 func TestStart_PulsesHeartbeatHealthSignal(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeHeartbeatPromptFile(t, tmpDir, "noop")
-	var rec testutil.PulseRecorder
+	var rec healthtest.PulseRecorder
 	s := mustNewHeartbeat(t, tmpDir, stubExec{func(context.Context, string, string) (string, error) {
 		return "HEARTBEAT_OK", nil
 	}}, 25*time.Millisecond, WithHealthReporter(&rec))

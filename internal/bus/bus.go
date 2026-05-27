@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -58,7 +59,7 @@ func WithStreamDelegate(d StreamDelegate) Option {
 	}
 }
 
-func NewMessageBus(bufSize int, log *slog.Logger, opts ...Option) *MessageBus {
+func New(bufSize int, log *slog.Logger, opts ...Option) *MessageBus {
 	if bufSize <= 0 {
 		bufSize = 100
 	}
@@ -179,7 +180,7 @@ func (b *MessageBus) Close() {
 func (b *MessageBus) SetOutboundSubscriber(channel string, fn func(OutboundMessage)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	channel = trim(channel)
+	channel = strings.TrimSpace(channel)
 	if fn == nil {
 		delete(b.subs, channel)
 		return

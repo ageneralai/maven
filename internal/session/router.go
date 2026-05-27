@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/ageneralai/maven/internal/sessionid"
 )
 
 type Router struct {
@@ -70,7 +72,7 @@ func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err erro
 	if oldSessionID == "" {
 		oldSessionID = defaultID
 	}
-	newSessionID = RotatedSessionID(oldSessionID)
+	newSessionID = sessionid.New(sessionid.KindRotated, oldSessionID)
 	r.sessions[key] = newSessionID
 	if err := r.persistLocked(); err != nil {
 		return "", "", err

@@ -26,19 +26,17 @@ func NewSTT(cfg *config.Config, reg *plugin.Registry) (pkgvoice.STT, error) {
 	if stt := reg.STTProvider(cfg); stt != nil {
 		return stt, nil
 	}
-	want := pkgvoice.STTName(cfg)
-	switch want {
-	case "openai":
-		return nil, fmt.Errorf("speech: sttProvider %q is not supported yet; use %q", cfg.Speech.STTProvider, "deepgram")
+	switch pkgvoice.STTName(cfg) {
 	case "deepgram":
-		k := pkgvoice.MergeKeys(cfg)
-		if strings.TrimSpace(k.Deepgram) == "" {
+		if strings.TrimSpace(pkgvoice.MergeKeys(cfg).Deepgram) == "" {
 			return nil, fmt.Errorf("speech: deepgram api key is empty")
 		}
+		return nil, fmt.Errorf("speech: deepgram stt provider not registered")
+	case "openai":
+		return nil, fmt.Errorf("speech: sttProvider %q not supported; use %q", cfg.Speech.STTProvider, "deepgram")
 	default:
 		return nil, fmt.Errorf("speech: unknown sttProvider %q", cfg.Speech.STTProvider)
 	}
-	return nil, fmt.Errorf("speech: stt provider %q failed to initialize", want)
 }
 
 // NewTTS builds TTS from speech config and plugin registry.
@@ -50,36 +48,34 @@ func NewTTS(cfg *config.Config, reg *plugin.Registry) (pkgvoice.TTS, error) {
 	if tts := reg.TTSProvider(cfg); tts != nil {
 		return tts, nil
 	}
-	want := pkgvoice.TTSName(cfg)
-	switch want {
+	switch pkgvoice.TTSName(cfg) {
 	case "deepgram":
-		k := pkgvoice.MergeKeys(cfg)
-		if strings.TrimSpace(k.Deepgram) == "" {
+		if strings.TrimSpace(pkgvoice.MergeKeys(cfg).Deepgram) == "" {
 			return nil, fmt.Errorf("speech: deepgram api key is empty")
 		}
+		return nil, fmt.Errorf("speech: deepgram tts provider not registered")
 	case "openai":
-		k := pkgvoice.MergeKeys(cfg)
-		if strings.TrimSpace(k.OpenAI) == "" {
+		if strings.TrimSpace(pkgvoice.MergeKeys(cfg).OpenAI) == "" {
 			return nil, fmt.Errorf("speech: openai api key is empty")
 		}
+		return nil, fmt.Errorf("speech: openai tts provider not registered")
 	case "elevenlabs":
 		if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
 			return nil, fmt.Errorf("speech: ELEVENLABS_VOICE_ID is required for elevenlabs tts")
 		}
-		k := pkgvoice.MergeKeys(cfg)
-		if strings.TrimSpace(k.ElevenLabs) == "" {
+		if strings.TrimSpace(pkgvoice.MergeKeys(cfg).ElevenLabs) == "" {
 			return nil, fmt.Errorf("speech: elevenlabs api key is empty")
 		}
+		return nil, fmt.Errorf("speech: elevenlabs tts provider not registered")
 	case "cartesia":
 		if strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID")) == "" {
 			return nil, fmt.Errorf("speech: CARTESIA_VOICE_ID is required for cartesia tts")
 		}
-		k := pkgvoice.MergeKeys(cfg)
-		if strings.TrimSpace(k.Cartesia) == "" {
+		if strings.TrimSpace(pkgvoice.MergeKeys(cfg).Cartesia) == "" {
 			return nil, fmt.Errorf("speech: cartesia api key is empty")
 		}
+		return nil, fmt.Errorf("speech: cartesia tts provider not registered")
 	default:
 		return nil, fmt.Errorf("speech: unknown ttsProvider %q", cfg.Speech.TTSProvider)
 	}
-	return nil, fmt.Errorf("speech: tts provider %q failed to initialize", want)
 }

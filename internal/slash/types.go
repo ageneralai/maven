@@ -5,15 +5,6 @@ import (
 	"strings"
 )
 
-// Maven metadata keys produced by slash handlers (post-turn effects in the gateway).
-const (
-	MetaPostAction = "maven.post_action"
-	MetaResponse   = "maven.response_mode"
-
-	PostActionCompactRotate = "compact_rotate"
-	ResponseCompactAck      = "compact_ack"
-)
-
 // Definition names a /slash command for documentation and registration.
 type Definition struct {
 	Name        string
@@ -22,9 +13,10 @@ type Definition struct {
 
 // Result is a handler outcome. Non-empty trimmed Output skips the model; Metadata is merged into api.Request.
 type Result struct {
-	Command  string
-	Output   string
-	Metadata map[string]any
+	Command     string
+	Output      string
+	Metadata    map[string]any
+	PostAction  PostAction
 }
 
 // Invocation is one parsed /command from user text (aligned with former agentsdk-go/pkg/runtime/commands).

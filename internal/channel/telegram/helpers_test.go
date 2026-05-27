@@ -81,7 +81,7 @@ func newTestChannel(t *testing.T, cfg config.TelegramConfig) (*TelegramChannel, 
 
 func newTestChannelWithWorkspace(t *testing.T, cfg config.TelegramConfig, workspace string) (*TelegramChannel, *mockCaller) {
 	t.Helper()
-	b := bus.NewMessageBus(10, channelTestLog)
+	b := bus.New(10, channelTestLog)
 	if cfg.Token == "" {
 		cfg.Token = fakeToken
 	}

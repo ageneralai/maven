@@ -10,7 +10,7 @@ import (
 	"github.com/ageneralai/maven/internal/session"
 	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/pkg/events"
-	"github.com/ageneralai/maven/pkg/events/eventstest"
+	"github.com/ageneralai/maven/pkg/events/eventsfake"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
@@ -32,10 +32,11 @@ var _ agent.Runtime = stubRuntime{}
 
 func TestHandle_emitsPipelineTurnStartViaRegistry(t *testing.T) {
 	t.Cleanup(func() { events.SetDefaultPublisher(nil) })
-	b := bus.NewMessageBus(10, mavenlog.Std())
-	cap := &eventstest.CapturePublisher{}
+	b := bus.New(10, mavenlog.Std())
+	cap := &eventsfake.CapturePublisher{}
 	events.SetDefaultPublisher(cap)
-	p := New(mavenlog.Std(), b, stubRuntime{}, &session.SessionResolver{}, &agent.PostActionHandler{})
+	router, _ := session.New("")
+	p := New(mavenlog.Std(), b, stubRuntime{}, &session.SessionResolver{Router: router}, agent.NewPostActionHandler(router, ""))
 	p.handle(context.Background(), bus.InboundMessage{
 		Channel: "telegram",
 		ChatID:  "42",

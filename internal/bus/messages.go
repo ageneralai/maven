@@ -13,12 +13,10 @@ var (
 	ErrInvalidOutbound = errors.New("bus: outbound message has empty channel")
 )
 
-func trim(s string) string { return strings.TrimSpace(s) }
-
 func normalizeInboundMessage(m InboundMessage) (InboundMessage, error) {
-	m.Channel = trim(m.Channel)
-	m.ChatID = trim(m.ChatID)
-	m.SenderID = trim(m.SenderID)
+	m.Channel = strings.TrimSpace(m.Channel)
+	m.ChatID = strings.TrimSpace(m.ChatID)
+	m.SenderID = strings.TrimSpace(m.SenderID)
 	if m.Channel == "" {
 		return InboundMessage{}, ErrInvalidInbound
 	}
@@ -26,9 +24,9 @@ func normalizeInboundMessage(m InboundMessage) (InboundMessage, error) {
 }
 
 func normalizeOutboundMessage(m OutboundMessage) (OutboundMessage, error) {
-	m.Channel = trim(m.Channel)
-	m.ChatID = trim(m.ChatID)
-	m.ReplyTo = trim(m.ReplyTo)
+	m.Channel = strings.TrimSpace(m.Channel)
+	m.ChatID = strings.TrimSpace(m.ChatID)
+	m.ReplyTo = strings.TrimSpace(m.ReplyTo)
 	if m.Channel == "" {
 		return OutboundMessage{}, ErrInvalidOutbound
 	}

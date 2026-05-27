@@ -1,9 +1,7 @@
 package session
 
 import (
-	"strconv"
 	"strings"
-	"time"
 )
 
 const WebChannelName = "web"
@@ -29,22 +27,4 @@ func SessionIDFromRouteKey(routeKey string) string {
 		return ChatSessionID(routeKey[:i], routeKey[i+1:])
 	}
 	return routeKey
-}
-
-// IsolatedSessionID returns a one-off session id for a single turn.
-func IsolatedSessionID(base string) string {
-	base = strings.TrimSpace(base)
-	if base == "" {
-		base = "session"
-	}
-	return base + "-isolated-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-}
-
-// RotatedSessionID returns a new session id after /new or compact rotation.
-func RotatedSessionID(base string) string {
-	base = strings.TrimSpace(base)
-	if base == "" {
-		base = "session"
-	}
-	return base + "-r" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }

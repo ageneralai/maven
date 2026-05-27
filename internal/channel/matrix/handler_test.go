@@ -39,7 +39,7 @@ func (m *mockMatrixSender) SyncWithContext(ctx context.Context) error {
 
 func testMatrixChannel(t *testing.T, allowFrom, allowRooms []string) (*MatrixChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.NewMessageBus(8, mavenlog.Std())
+	b := bus.New(8, mavenlog.Std())
 	ch := &MatrixChannel{
 		BaseChannel: chann.NewBaseChannel(matrixChannelName, b, allowFrom, mavenlog.Std()),
 		userID:      "@agent:example.org",
@@ -154,7 +154,7 @@ func TestHandleMessageEvent_SkipsNonText(t *testing.T) {
 func TestHandleMemberEvent_JoinsInvite(t *testing.T) {
 	mock := &mockMatrixSender{}
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.NewMessageBus(1, mavenlog.Std()), nil, mavenlog.Std()),
+		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.New(1, mavenlog.Std()), nil, mavenlog.Std()),
 		userID:      "@agent:example.org",
 		client:      mock,
 	}
@@ -212,7 +212,7 @@ func TestChunkText_RuneSafe(t *testing.T) {
 func TestMatrixChannel_Send_Chunks(t *testing.T) {
 	mock := &mockMatrixSender{}
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.NewMessageBus(1, mavenlog.Std()), nil, mavenlog.Std()),
+		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.New(1, mavenlog.Std()), nil, mavenlog.Std()),
 		client:      mock,
 	}
 	content := strings.Repeat("x", matrixSendChunkSize+100)

@@ -64,6 +64,14 @@ func (e *weComHTTPStatusError) Error() string {
 	return fmt.Sprintf("wecom response_url status %d: %s", e.Code, e.Body)
 }
 
+func (e *weComHTTPStatusError) IsRetryable() bool {
+	return e.Code >= 500
+}
+
+type retryable interface {
+	IsRetryable() bool
+}
+
 func (w *WeComChannel) sendMessage(ctx context.Context, responseURL string, msg bus.OutboundMessage) error {
 	if strings.TrimSpace(responseURL) == "" {
 		return fmt.Errorf("wecom response_url is required")
@@ -97,23 +105,13 @@ func (w *WeComChannel) sendTextWithRetry(ctx context.Context, responseURL, conte
 }
 
 func (w *WeComChannel) shouldRetry(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
+	var r retryable
+	if errors.As(err, &r) {
+		return r.IsRetryable()
 	}
-
-	var apiErr *weComAPIError
-	if errors.As(err, &apiErr) {
-		return apiErr.IsRetryable()
-	}
-
-	var statusErr *weComHTTPStatusError
-	if errors.As(err, &statusErr) {
-		return statusErr.Code >= 500
-	}
-
 	return true
 }
 

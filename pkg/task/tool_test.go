@@ -47,20 +47,20 @@ func TestExecute_UnknownSubagent(t *testing.T) {
 
 func TestExecute_NestedTaskRejected(t *testing.T) {
 	tt := &taskTool{holder: &RuntimeHolder{}}
-	ctx := context.WithValue(context.Background(), middleware.TraceSessionIDContextKey, "task-550e8400-e29b-41d4-a716-446655440000")
+	ctx := context.WithValue(context.Background(), middleware.TraceSessionIDContextKey, "task:550e8400-e29b-41d4-a716-446655440000")
 	_, err := tt.Execute(ctx, map[string]any{
 		"name": "explore",
 		"goal": "find main",
 	})
-	if err == nil || !strings.Contains(err.Error(), "nested Task") {
-		t.Fatalf("Execute() err = %v, want nested Task rejection", err)
+	if err == nil || !strings.Contains(err.Error(), "nested task") {
+		t.Fatalf("Execute() err = %v, want nested task rejection", err)
 	}
 }
 
 func TestChildSessionID_Prefix(t *testing.T) {
 	got := childSessionID("telegram-12345")
-	if !strings.HasPrefix(got, "task-") {
-		t.Fatalf("childSessionID = %q, want task- prefix", got)
+	if !strings.HasPrefix(got, "task:") {
+		t.Fatalf("childSessionID = %q, want task: prefix", got)
 	}
 }
 

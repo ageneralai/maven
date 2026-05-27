@@ -1,5 +1,5 @@
-// Package eventstest holds test doubles for github.com/ageneralai/maven/pkg/events.
-package eventstest
+// Package eventsfake holds test doubles for github.com/ageneralai/maven/pkg/events.
+package eventsfake
 
 import (
 	"context"

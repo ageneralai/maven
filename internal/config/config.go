@@ -26,7 +26,6 @@ type Config struct {
 	Provider      ProviderConfig      `json:"provider"`
 	Tools         ToolsConfig         `json:"tools"`
 	Skills        SkillsConfig        `json:"skills"`
-	Hooks         HooksConfig         `json:"hooks"`
 	MCP           MCPConfig           `json:"mcp"`
 	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
 	TokenTracking TokenTrackingConfig `json:"tokenTracking"`
@@ -131,18 +130,6 @@ type GatewayCronConfig struct {
 type SkillsConfig struct {
 	Enabled bool   `json:"enabled"`
 	Dir     string `json:"dir,omitempty"` // 默认 workspace/skills
-}
-
-type HooksConfig struct {
-	PreToolUse  []HookEntry `json:"preToolUse,omitempty"`
-	PostToolUse []HookEntry `json:"postToolUse,omitempty"`
-	Stop        []HookEntry `json:"stop,omitempty"`
-}
-
-type HookEntry struct {
-	Command string `json:"command"`
-	Pattern string `json:"pattern,omitempty"` // tool name regex
-	Timeout int    `json:"timeout,omitempty"` // seconds
 }
 
 type MCPConfig struct {
@@ -253,71 +240,101 @@ func (c *Config) Validate() error {
 	if c == nil {
 		return errors.New("config: nil")
 	}
-	var errs []error
-	if strings.TrimSpace(c.Provider.APIKey) == "" {
-		errs = append(errs, errors.New("provider.apiKey is required"))
+	return errors.Join(
+		c.Provider.Validate(),
+		c.Agent.Validate(),
+		c.Gateway.Validate(),
+		c.Channels.Validate(),
+		c.AutoCompact.Validate(),
+	)
+}
+
+func (c ProviderConfig) Validate() error {
+	if strings.TrimSpace(c.APIKey) == "" {
+		return errors.New("provider.apiKey is required")
 	}
-	if c.Channels.Telegram.Enabled && strings.TrimSpace(c.Channels.Telegram.Token) == "" {
+	return nil
+}
+
+func (c AgentConfig) Validate() error {
+	var errs []error
+	if strings.TrimSpace(c.Workspace) == "" {
+		errs = append(errs, errors.New("agent.workspace is required"))
+	}
+	if c.MaxTokens <= 0 {
+		errs = append(errs, errors.New("agent.maxTokens must be positive"))
+	}
+	if c.MaxToolIterations < 1 {
+		errs = append(errs, errors.New("agent.maxToolIterations must be at least 1"))
+	}
+	if c.Temperature < 0 || c.Temperature > 2 {
+		errs = append(errs, errors.New("agent.temperature must be between 0 and 2"))
+	}
+	return errors.Join(errs...)
+}
+
+func (c GatewayConfig) Validate() error {
+	var errs []error
+	if strings.TrimSpace(c.Host) == "" {
+		errs = append(errs, errors.New("gateway.host is required"))
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		errs = append(errs, fmt.Errorf("gateway.port must be 1..65535, got %d", c.Port))
+	}
+	if c.ReloadDebounceMs < 0 {
+		errs = append(errs, errors.New("gateway.reloadDebounceMs must be non-negative"))
+	}
+	if c.Cron.MaxConcurrentRuns < 0 {
+		errs = append(errs, errors.New("gateway.cron.maxConcurrentRuns must be >= 0 (0 means default 1)"))
+	}
+	return errors.Join(errs...)
+}
+
+func (c ChannelsConfig) Validate() error {
+	var errs []error
+	if c.Telegram.Enabled && strings.TrimSpace(c.Telegram.Token) == "" {
 		errs = append(errs, errors.New("channels.telegram.token is required when telegram is enabled"))
 	}
-	if c.Channels.Feishu.Enabled {
-		if strings.TrimSpace(c.Channels.Feishu.AppID) == "" {
+	if c.Feishu.Enabled {
+		if strings.TrimSpace(c.Feishu.AppID) == "" {
 			errs = append(errs, errors.New("channels.feishu.appId is required when feishu is enabled"))
 		}
-		if strings.TrimSpace(c.Channels.Feishu.AppSecret) == "" {
+		if strings.TrimSpace(c.Feishu.AppSecret) == "" {
 			errs = append(errs, errors.New("channels.feishu.appSecret is required when feishu is enabled"))
 		}
 	}
-	if c.Channels.WeCom.Enabled {
-		if strings.TrimSpace(c.Channels.WeCom.Token) == "" {
+	if c.WeCom.Enabled {
+		if strings.TrimSpace(c.WeCom.Token) == "" {
 			errs = append(errs, errors.New("channels.wecom.token is required when wecom is enabled"))
 		}
-		if strings.TrimSpace(c.Channels.WeCom.EncodingAESKey) == "" {
+		if strings.TrimSpace(c.WeCom.EncodingAESKey) == "" {
 			errs = append(errs, errors.New("channels.wecom.encodingAESKey is required when wecom is enabled"))
 		}
 	}
-	if c.Channels.Matrix.Enabled {
-		if strings.TrimSpace(c.Channels.Matrix.Homeserver) == "" {
+	if c.Matrix.Enabled {
+		if strings.TrimSpace(c.Matrix.Homeserver) == "" {
 			errs = append(errs, errors.New("channels.matrix.homeserver is required when matrix is enabled"))
 		}
-		if strings.TrimSpace(c.Channels.Matrix.AccessToken) == "" {
+		if strings.TrimSpace(c.Matrix.AccessToken) == "" {
 			errs = append(errs, errors.New("channels.matrix.accessToken is required when matrix is enabled"))
 		}
-		if strings.TrimSpace(c.Channels.Matrix.UserID) == "" {
+		if strings.TrimSpace(c.Matrix.UserID) == "" {
 			errs = append(errs, errors.New("channels.matrix.userId is required when matrix is enabled"))
 		}
 	}
-	if strings.TrimSpace(c.Agent.Workspace) == "" {
-		errs = append(errs, errors.New("agent.workspace is required"))
+	return errors.Join(errs...)
+}
+
+func (c AutoCompactConfig) Validate() error {
+	if !c.Enabled {
+		return nil
 	}
-	if c.Agent.MaxTokens <= 0 {
-		errs = append(errs, errors.New("agent.maxTokens must be positive"))
+	var errs []error
+	if c.Threshold <= 0 || c.Threshold > 1 {
+		errs = append(errs, errors.New("autoCompact.threshold must be in (0,1] when autoCompact.enabled"))
 	}
-	if c.Agent.MaxToolIterations < 1 {
-		errs = append(errs, errors.New("agent.maxToolIterations must be at least 1"))
-	}
-	if c.Agent.Temperature < 0 || c.Agent.Temperature > 2 {
-		errs = append(errs, errors.New("agent.temperature must be between 0 and 2"))
-	}
-	if strings.TrimSpace(c.Gateway.Host) == "" {
-		errs = append(errs, errors.New("gateway.host is required"))
-	}
-	if c.Gateway.Port < 1 || c.Gateway.Port > 65535 {
-		errs = append(errs, fmt.Errorf("gateway.port must be 1..65535, got %d", c.Gateway.Port))
-	}
-	if c.Gateway.ReloadDebounceMs < 0 {
-		errs = append(errs, errors.New("gateway.reloadDebounceMs must be non-negative"))
-	}
-	if c.Gateway.Cron.MaxConcurrentRuns < 0 {
-		errs = append(errs, errors.New("gateway.cron.maxConcurrentRuns must be >= 0 (0 means default 1)"))
-	}
-	if c.AutoCompact.Enabled {
-		if c.AutoCompact.Threshold <= 0 || c.AutoCompact.Threshold > 1 {
-			errs = append(errs, errors.New("autoCompact.threshold must be in (0,1] when autoCompact.enabled"))
-		}
-		if c.AutoCompact.PreserveCount < 0 {
-			errs = append(errs, errors.New("autoCompact.preserveCount must be non-negative"))
-		}
+	if c.PreserveCount < 0 {
+		errs = append(errs, errors.New("autoCompact.preserveCount must be non-negative"))
 	}
 	return errors.Join(errs...)
 }

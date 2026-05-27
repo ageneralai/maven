@@ -93,7 +93,7 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 // Pipeline runtime is unset until Apply; Run calls Apply before starting cron/pipeline goroutines.
 func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	g := &Gateway{cfg: cfg, logger: slog.Default()}
-	g.bus = bus.NewMessageBus(config.DefaultBufSize, g.logger)
+	g.bus = bus.New(config.DefaultBufSize, g.logger)
 	g.mem = memory.NewMemoryStore(cfg.Agent.Workspace)
 	router, routerErr := mavsession.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
 	if routerErr != nil {
@@ -116,7 +116,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	var pipe *pipeline.Pipeline
 	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
 	pipeRunner := &pipelineStreamRunner{pipeFn: func() *pipeline.Pipeline { return pipe }}
-	g.channelMgr = manager.NewChannelManager(g.bus, g.logger, g.plugins, pipeRunner)
+	g.channelMgr = manager.New(g.bus, g.logger, g.plugins, pipeRunner)
 	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
 	cronSvc, err := cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
 	if err != nil {
@@ -127,7 +127,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	liveness := health.OrHealthReporter(opts.HealthReporter)
 	g.liveness = liveness
 	sessRes := &mavsession.SessionResolver{Router: g.sessions}
-	posts := &agent.PostActionHandler{Sessions: g.sessions, Workspace: cfg.Agent.Workspace}
+	posts := agent.NewPostActionHandler(g.sessions, cfg.Agent.Workspace)
 	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
 	pipe.Channels = g.channelMgr
 	pipe.SlashRegistry = slash.BuiltIns(g.cron)

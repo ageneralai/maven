@@ -30,5 +30,5 @@ func resolveMavenSessionID(r *http.Request, previousResponseID string) (string, 
 	if headerSession != "" {
 		return mavsession.ChatSessionID(mavsession.WebChannelName, headerSession), nil
 	}
-	return "", fmt.Errorf("Maven-Session-Id required")
+	return "", fmt.Errorf("maven-Session-Id header required")
 }

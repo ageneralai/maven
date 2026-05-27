@@ -49,7 +49,7 @@ type RuntimeFactory func(cfg *config.Config) (Runtime, error)
 // DefaultRuntimeFactory creates the default agentsdk-go runtime
 func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
 	if cfg.Provider.APIKey == "" {
-		return nil, fmt.Errorf("API key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
+		return nil, fmt.Errorf("api key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
 	}
 
 	mem := memory.NewMemoryStore(cfg.Agent.Workspace)

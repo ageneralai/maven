@@ -26,7 +26,7 @@ func newFeishuTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Serve
 
 func newFeishuChannelWithBaseURL(t *testing.T, cfg config.FeishuConfig, baseURL string) *FeishuChannel {
 	t.Helper()
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	ch, err := NewFeishuChannel(cfg, feishuTestLog, b)
 	if err != nil {
 		t.Fatalf("NewFeishuChannel error: %v", err)
@@ -36,7 +36,7 @@ func newFeishuChannelWithBaseURL(t *testing.T, cfg config.FeishuConfig, baseURL 
 }
 
 func TestNewFeishuChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	ch, err := NewFeishuChannel(config.FeishuConfig{
 		AppID:     "cli_test",
 		AppSecret: "secret",
@@ -50,7 +50,7 @@ func TestNewFeishuChannel_Valid(t *testing.T) {
 }
 
 func TestNewFeishuChannel_MissingAppID(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	_, err := NewFeishuChannel(config.FeishuConfig{
 		AppSecret: "secret",
 	}, feishuTestLog, b)
@@ -60,7 +60,7 @@ func TestNewFeishuChannel_MissingAppID(t *testing.T) {
 }
 
 func TestNewFeishuChannel_MissingAppSecret(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	_, err := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test",
 	}, feishuTestLog, b)
@@ -130,7 +130,7 @@ func TestFeishuChannel_Send_Error(t *testing.T) {
 }
 
 func TestFeishuChannel_Stop_NotStarted(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	ch, _ := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	}, feishuTestLog, b)
@@ -142,7 +142,7 @@ func TestFeishuChannel_Stop_NotStarted(t *testing.T) {
 
 func newTestFeishuChannel(t *testing.T, cfg config.FeishuConfig) (*FeishuChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	ch, err := NewFeishuChannel(cfg, feishuTestLog, b)
 	if err != nil {
 		t.Fatalf("NewFeishuChannel error: %v", err)
@@ -505,7 +505,7 @@ func TestFeishuWebhook_NoVerificationToken(t *testing.T) {
 }
 
 func TestFeishuChannel_StartStop(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
+	b := bus.New(10, feishuTestLog)
 	ch, err := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret", Port: 0,
 	}, feishuTestLog, b)

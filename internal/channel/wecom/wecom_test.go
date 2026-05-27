@@ -27,7 +27,7 @@ import (
 var wecomTestLog = mavenlog.Std()
 
 func TestNewWeComChannel_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
+	b := bus.New(10, wecomTestLog)
 	ch, err := NewWeComChannel(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
@@ -42,7 +42,7 @@ func TestNewWeComChannel_Valid(t *testing.T) {
 }
 
 func TestNewWeComChannel_MissingRequiredConfig(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
+	b := bus.New(10, wecomTestLog)
 	_, err := NewWeComChannel(config.WeComConfig{}, wecomTestLog, b)
 	if err == nil {
 		t.Fatal("expected error for empty config")
@@ -50,7 +50,7 @@ func TestNewWeComChannel_MissingRequiredConfig(t *testing.T) {
 }
 
 func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
+	b := bus.New(10, wecomTestLog)
 	ch, err := NewWeComChannel(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
@@ -82,7 +82,7 @@ func TestWeComChannel_Send_Success(t *testing.T) {
 		_, _ = io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`)
 	}))
 	defer ts.Close()
-	b := bus.NewMessageBus(10, wecomTestLog)
+	b := bus.New(10, wecomTestLog)
 	ch, err := NewWeComChannel(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
@@ -314,7 +314,7 @@ func TestWeComCallback_DuplicateMsgID_Dropped(t *testing.T) {
 
 func newTestWeComChannel(t *testing.T, cfg config.WeComConfig) (*WeComChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.NewMessageBus(10, wecomTestLog)
+	b := bus.New(10, wecomTestLog)
 	ch, err := NewWeComChannel(cfg, wecomTestLog, b)
 	if err != nil {
 		t.Fatalf("new wecom channel error: %v", err)

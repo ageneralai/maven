@@ -172,7 +172,7 @@ func parseFrontmatter(content []byte) (commandMeta, string, error) {
 	frontmatter := strings.Join(lines[1:end], "\n")
 	var meta commandMeta
 	if err := yaml.Unmarshal([]byte(frontmatter), &meta); err != nil {
-		return commandMeta{}, "", fmt.Errorf("invalid YAML: %w", err)
+		return commandMeta{}, "", fmt.Errorf("invalid yaml: %w", err)
 	}
 
 	body := ""

@@ -21,12 +21,16 @@ type PostActionHandler struct {
 	Workspace string
 }
 
+func NewPostActionHandler(sessions *session.Router, workspace string) *PostActionHandler {
+	if sessions == nil {
+		panic("postaction: sessions router is required")
+	}
+	return &PostActionHandler{Sessions: sessions, Workspace: workspace}
+}
+
 func (h *PostActionHandler) HandleBuiltin(msg bus.InboundMessage) (bool, error) {
 	switch strings.TrimSpace(msg.Hints.BuiltinCommand) {
 	case "new":
-		if h == nil || h.Sessions == nil {
-			return true, nil
-		}
 		_, _, err := h.Sessions.Rotate(msg.StableRouteKey())
 		return true, err
 	default:
@@ -35,19 +39,13 @@ func (h *PostActionHandler) HandleBuiltin(msg bus.InboundMessage) (bool, error) 
 }
 
 func (h *PostActionHandler) HandlePostResponse(ctx context.Context, chatRouteKey string, resp *api.Response, trail []slash.Execution) (string, bool, error) {
-	// turnctx.From(ctx) is available here for future post-action use of Metadata/Budget.
-	action := trailMeta(trail, slash.MetaPostAction)
-	if action == "" {
-		return "", false, nil
-	}
-	switch action {
-	case slash.PostActionCompactRotate:
+	_ = ctx
+	action := extractPostAction(trail)
+	switch a := action.(type) {
+	case slash.CompactRotateAction:
 		summary := strings.TrimSpace(resultOutput(resp))
 		if summary == "" {
 			return "", true, fmt.Errorf("compact summary is empty")
-		}
-		if h == nil || h.Sessions == nil {
-			return "", true, fmt.Errorf("session router is not configured")
 		}
 		oldSessionID, newSessionID, err := h.Sessions.Rotate(chatRouteKey)
 		if err != nil {
@@ -57,7 +55,7 @@ func (h *PostActionHandler) HandlePostResponse(ctx context.Context, chatRouteKey
 			_ = h.Sessions.Set(chatRouteKey, oldSessionID)
 			return "", true, err
 		}
-		if trailMeta(trail, slash.MetaResponse) == slash.ResponseCompactAck {
+		if a.ResponseMode == slash.ResponseCompactAck {
 			return "✅ Conversation compacted and continued in a fresh session.", true, nil
 		}
 		return summary, true, nil
@@ -66,21 +64,13 @@ func (h *PostActionHandler) HandlePostResponse(ctx context.Context, chatRouteKey
 	}
 }
 
-func trailMeta(trail []slash.Execution, key string) string {
-	if key == "" {
-		return ""
-	}
+func extractPostAction(trail []slash.Execution) slash.PostAction {
 	for _, ex := range trail {
-		if ex.Result.Metadata == nil {
-			continue
-		}
-		if value, ok := ex.Result.Metadata[key]; ok {
-			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
-				return text
-			}
+		if ex.Result.PostAction != nil {
+			return ex.Result.PostAction
 		}
 	}
-	return ""
+	return nil
 }
 
 func resultOutput(resp *api.Response) string {

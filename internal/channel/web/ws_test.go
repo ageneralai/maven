@@ -18,7 +18,7 @@ import (
 var webTestLog = mavenlog.Std()
 
 func TestNewWebChannel(t *testing.T) {
-	b := bus.NewMessageBus(10, webTestLog)
+	b := bus.New(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 0}
 
@@ -32,7 +32,7 @@ func TestNewWebChannel(t *testing.T) {
 }
 
 func TestWebChannel_StartStop(t *testing.T) {
-	b := bus.NewMessageBus(10, webTestLog)
+	b := bus.New(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19876}
 
@@ -65,7 +65,7 @@ func TestWebChannel_StartStop(t *testing.T) {
 }
 
 func TestWebChannel_WebSocket(t *testing.T) {
-	b := bus.NewMessageBus(10, webTestLog)
+	b := bus.New(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19877}
 
@@ -137,7 +137,7 @@ func TestWebChannel_WebSocket(t *testing.T) {
 }
 
 func TestWebChannel_SendBroadcast(t *testing.T) {
-	b := bus.NewMessageBus(10, webTestLog)
+	b := bus.New(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19878}
 
@@ -196,7 +196,7 @@ func TestWebChannel_SendBroadcast(t *testing.T) {
 }
 
 func TestWebChannel_SendStream(t *testing.T) {
-	b := bus.NewMessageBus(10, webTestLog)
+	b := bus.New(10, webTestLog)
 	cfg := config.WebConfig{Enabled: true}
 	gwCfg := config.GatewayConfig{Port: 19879}
 

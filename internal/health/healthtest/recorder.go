@@ -1,5 +1,4 @@
-// Package testutil holds tiny helpers shared by internal tests.
-package testutil
+package healthtest
 
 import "sync"
 

@@ -29,7 +29,7 @@ type ChannelManager struct {
 	runner   web.StreamRunner
 }
 
-func NewChannelManager(b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
+func New(b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
 	return &ChannelManager{
 		channels: make(map[string]chann.Channel),
 		bus:      b,

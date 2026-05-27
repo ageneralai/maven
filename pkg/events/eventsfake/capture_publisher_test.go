@@ -1,4 +1,4 @@
-package eventstest
+package eventsfake
 
 import (
 	"context"

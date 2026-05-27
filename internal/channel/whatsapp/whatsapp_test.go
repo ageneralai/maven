@@ -20,7 +20,7 @@ import (
 var waTestLog = mavenlog.Std()
 
 func TestNewWhatsApp_Valid(t *testing.T) {
-	b := bus.NewMessageBus(10, waTestLog)
+	b := bus.New(10, waTestLog)
 	storePath := filepath.Join(t.TempDir(), "whatsapp-store.db")
 
 	ch, err := NewWhatsApp(config.WhatsAppConfig{
@@ -86,7 +86,7 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 	}
 
 	dispatched := func(allowFrom []string, sender types.JID) bool {
-		b := bus.NewMessageBus(1, waTestLog)
+		b := bus.New(1, waTestLog)
 		ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog), runCtx: context.Background()}
 		ch.handleMessage(makeEvent(sender))
 
@@ -206,7 +206,7 @@ func TestWhatsAppChannel_ParseJID(t *testing.T) {
 }
 
 func TestWhatsAppChannel_Stop_NotStarted(t *testing.T) {
-	b := bus.NewMessageBus(1, waTestLog)
+	b := bus.New(1, waTestLog)
 	ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, nil, waTestLog)}
 	if err := ch.Stop(); err != nil {
 		t.Fatalf("Stop error: %v", err)

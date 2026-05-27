@@ -3,7 +3,7 @@ package health
 import (
 	"testing"
 
-	"github.com/ageneralai/maven/internal/testutil"
+	"github.com/ageneralai/maven/internal/health/healthtest"
 )
 
 func TestNoOp_Pulse(t *testing.T) {
@@ -21,7 +21,7 @@ func TestOrHealthReporter_nil(t *testing.T) {
 }
 
 func TestOrHealthReporter_preserves(t *testing.T) {
-	var rec testutil.PulseRecorder
+	var rec healthtest.PulseRecorder
 	h := OrHealthReporter(&rec)
 	h.Pulse(SignalHeartbeatTick)
 	snaps := rec.Snapshot()

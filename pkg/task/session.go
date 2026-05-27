@@ -5,10 +5,8 @@ import (
 	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/middleware"
-	"github.com/google/uuid"
+	"github.com/ageneralai/maven/internal/sessionid"
 )
-
-const taskSessionKeyPrefix = "task-"
 
 // parentSessionID reads the session id injected by the SDK middleware.
 // TraceSessionIDContextKey is the single source of truth.
@@ -27,9 +25,9 @@ func parentSessionID(ctx context.Context) string {
 }
 
 func childSessionID(_ string) string {
-	return taskSessionKeyPrefix + uuid.NewString()
+	return sessionid.New(sessionid.KindTask, "")
 }
 
 func isNestedTaskSession(sessionID string) bool {
-	return strings.HasPrefix(strings.TrimSpace(sessionID), taskSessionKeyPrefix)
+	return sessionid.MatchesTask(sessionID)
 }
