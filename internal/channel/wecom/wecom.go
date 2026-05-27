@@ -143,7 +143,7 @@ func (w *WeComChannel) sendTextOnce(ctx context.Context, responseURL, content st
 	if err != nil {
 		return fmt.Errorf("send wecom response_url message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -600,7 +600,7 @@ func downloadWeComImageAsBase64(ctx context.Context, imageURL string, httpClient
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, wecomInboundImageMaxBytes+1))
 	if err != nil {

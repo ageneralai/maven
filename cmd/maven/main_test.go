@@ -27,9 +27,7 @@ var testApp = cmdContext{log: slog.New(slog.DiscardHandler)}
 func setupTestHome(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	t.Cleanup(func() { _ = os.Setenv("HOME", origHome) })
 }
 
 func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
@@ -199,9 +197,7 @@ func TestDefaultConstants(t *testing.T) {
 
 func TestRunOnboard(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -210,7 +206,7 @@ func TestRunOnboard(t *testing.T) {
 
 	err := testApp.runOnboard(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -245,9 +241,7 @@ func TestRunOnboard(t *testing.T) {
 
 func TestRunOnboard_AlreadyExists(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create existing config
 	cfgDir := filepath.Join(tmpDir, ".maven")
@@ -265,7 +259,7 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 
 	err := testApp.runOnboard(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -284,9 +278,7 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 
 func TestRunStatus(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -295,7 +287,7 @@ func TestRunStatus(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -346,7 +338,7 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -376,7 +368,7 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -395,9 +387,7 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 
 func TestRunStatus_WithWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create workspace with memory
 	wsDir := filepath.Join(tmpDir, ".maven", "workspace", "memory")
@@ -415,7 +405,7 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -434,9 +424,7 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 
 func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create config with non-existent workspace
 	cfgDir := filepath.Join(tmpDir, ".maven")
@@ -454,7 +442,7 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -848,9 +836,7 @@ func TestInit(t *testing.T) {
 
 func TestRunAgent_NoAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
 	err := testApp.runAgent(&cobra.Command{}, []string{})
@@ -865,9 +851,7 @@ func TestRunAgent_NoAPIKey(t *testing.T) {
 
 func TestRunGateway_NoAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
 	err := testApp.runGateway(&cobra.Command{}, []string{})
@@ -882,9 +866,7 @@ func TestRunGateway_NoAPIKey(t *testing.T) {
 
 func TestRunStatus_EmptyMemory(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create workspace with empty memory
 	wsDir := filepath.Join(tmpDir, ".maven", "workspace", "memory")
@@ -902,7 +884,7 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 
 	err := testApp.runStatus(&cobra.Command{}, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -948,9 +930,7 @@ func mockRuntimeFactory(rt agent.Runtime) func(cfg *config.Config) (agent.Runtim
 
 func TestRunAgentWithOptions_SingleMessage(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
 	mockRt := &mockRuntime{
@@ -986,9 +966,7 @@ func TestRunAgentWithOptions_SingleMessage(t *testing.T) {
 
 func TestRunAgentWithOptions_REPLMode(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
 	mockRt := &mockRuntime{
@@ -1028,9 +1006,7 @@ func TestRunAgentWithOptions_REPLMode(t *testing.T) {
 
 func TestRunAgentWithOptions_REPLMode_EmptyInput(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	mockRt := &mockRuntime{
 		response: &api.Response{
@@ -1059,9 +1035,7 @@ func TestRunAgentWithOptions_REPLMode_EmptyInput(t *testing.T) {
 
 func TestRunAgentWithOptions_REPLMode_Error(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	mockRt := &mockRuntime{
 		err: context.DeadlineExceeded,
@@ -1093,9 +1067,7 @@ func TestRunAgentWithOptions_REPLMode_Error(t *testing.T) {
 
 func TestRunAgentWithOptions_SingleMessage_Error(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	mockRt := &mockRuntime{
 		err: context.DeadlineExceeded,
@@ -1119,9 +1091,7 @@ func TestRunAgentWithOptions_SingleMessage_Error(t *testing.T) {
 
 func TestRunAgentWithOptions_NilResult(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	mockRt := &mockRuntime{
 		response: &api.Response{Result: nil},

@@ -32,6 +32,7 @@ func (s *Store) Load(sessionID string) ([]message.Message, error) {
 		return nil, nil
 	}
 	path := s.path(sessionID)
+	// #nosec G304 -- session path is derived from sanitized sessionID under store dir
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -39,7 +40,7 @@ func (s *Store) Load(sessionID string) ([]message.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("session load open: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var msgs []message.Message
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -64,11 +65,12 @@ func (s *Store) Save(sessionID string, msgs []message.Message) error {
 		return nil
 	}
 	path := s.path(sessionID)
+	// #nosec G304 -- session path is derived from sanitized sessionID under store dir
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("session save create: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	w := bufio.NewWriter(f)
 	for _, m := range msgs {
 		b, err := json.Marshal(m)

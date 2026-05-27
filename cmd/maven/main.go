@@ -178,16 +178,22 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 			return fmt.Errorf("agent error: %w", err)
 		}
 		if resp != nil && resp.Result != nil {
-			fmt.Fprintln(stdout, resp.Result.Output)
+			if _, err := fmt.Fprintln(stdout, resp.Result.Output); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 
 	// REPL mode
-	fmt.Fprintln(stdout, "maven agent (type 'exit' to quit)")
+	if _, err := fmt.Fprintln(stdout, "maven agent (type 'exit' to quit)"); err != nil {
+		return err
+	}
 	scanner := bufio.NewScanner(stdin)
 	for {
-		fmt.Fprint(stdout, "\n> ")
+		if _, err := fmt.Fprint(stdout, "\n> "); err != nil {
+			return err
+		}
 		if !scanner.Scan() {
 			break
 		}
@@ -204,11 +210,15 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 			SessionID: "cli",
 		})
 		if err != nil {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
+			if _, werr := fmt.Fprintf(stderr, "Error: %v\n", err); werr != nil {
+				return werr
+			}
 			continue
 		}
 		if resp != nil && resp.Result != nil {
-			fmt.Fprintln(stdout, resp.Result.Output)
+			if _, err := fmt.Fprintln(stdout, resp.Result.Output); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

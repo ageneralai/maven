@@ -30,7 +30,7 @@ func (r *runtimeAdapter) RunStream(ctx context.Context, req api.Request) (<-chan
 }
 
 func (r *runtimeAdapter) Close() {
-	r.rt.Close()
+	_ = r.rt.Close()
 }
 
 // NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).

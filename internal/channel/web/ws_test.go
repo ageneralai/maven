@@ -55,7 +55,7 @@ func TestWebChannel_StartStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Errorf("GET / status = %d, want 200", resp.StatusCode)
 	}

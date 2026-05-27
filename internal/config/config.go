@@ -402,6 +402,7 @@ func LoadConfig() (*Config, error) {
 // LoadConfigFromPath reads and merges JSON at path with the same defaults as LoadConfig.
 func LoadConfigFromPath(path string) (*Config, error) {
 	cfg := DefaultConfig()
+	// #nosec G304 -- path is app-controlled/config path, not user-supplied arbitrary include
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -420,7 +421,7 @@ func LoadConfigFromPath(path string) (*Config, error) {
 
 func SaveConfig(cfg *Config) error {
 	dir := ConfigDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 

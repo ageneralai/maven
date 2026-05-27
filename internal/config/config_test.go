@@ -53,9 +53,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadConfig_NoFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -68,9 +66,7 @@ func TestLoadConfig_NoFile(t *testing.T) {
 
 func TestLoadConfig_FromFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create config file
 	cfgDir := filepath.Join(tmpDir, ".maven")
@@ -109,9 +105,7 @@ func TestLoadConfig_FromFile(t *testing.T) {
 
 func TestSaveConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := DefaultConfig()
 	cfg.Provider.APIKey = "test-key"
@@ -136,9 +130,7 @@ func TestSaveConfig(t *testing.T) {
 
 func TestLoadConfig_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfgDir := filepath.Join(tmpDir, ".maven")
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
@@ -156,9 +148,7 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 
 func TestLoadConfig_EmptyWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfgDir := filepath.Join(tmpDir, ".maven")
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {

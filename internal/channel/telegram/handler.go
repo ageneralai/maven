@@ -363,7 +363,7 @@ func (t *TelegramChannel) downloadFileData(fileID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("download telegram file: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download telegram file: unexpected status %d", resp.StatusCode)
 	}

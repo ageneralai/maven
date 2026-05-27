@@ -428,7 +428,7 @@ func (s *Service) saveAtomicLocked() error {
 
 func writeAtomic(path string, data []byte, perm fs.FileMode) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".cron-jobs-*.json")
@@ -440,12 +440,10 @@ func writeAtomic(path string, data []byte, perm fs.FileMode) error {
 	serr := tmp.Sync()
 	cerr := tmp.Close()
 	if werr != nil || serr != nil || cerr != nil {
-		os.Remove(tmpName)
-		return errors.Join(werr, serr, cerr)
+		return errors.Join(werr, serr, cerr, os.Remove(tmpName))
 	}
 	if err := os.Rename(tmpName, path); err != nil {
-		os.Remove(tmpName)
-		return err
+		return errors.Join(err, os.Remove(tmpName))
 	}
 	if perm != 0 {
 		_ = os.Chmod(path, perm)

@@ -21,6 +21,7 @@ type fileTrigger struct {
 
 func (t *fileTrigger) Prompt() string {
 	hbPath := filepath.Join(t.workspace, "HEARTBEAT.md")
+	// #nosec G304 -- path is workspace/HEARTBEAT.md under app-configured workspace
 	data, err := os.ReadFile(hbPath)
 	if err != nil {
 		if !os.IsNotExist(err) {

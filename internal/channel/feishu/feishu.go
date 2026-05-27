@@ -77,7 +77,7 @@ func (c *feishuClient) GetTenantAccessToken(ctx context.Context) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("get tenant token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Code              int    `json:"code"`
@@ -138,7 +138,7 @@ func (c *feishuClient) SendMessage(ctx context.Context, chatID, content string) 
 	if err != nil {
 		return fmt.Errorf("send feishu message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Code int    `json:"code"`
@@ -222,7 +222,7 @@ func (f *FeishuChannel) Start(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		f.server.Close()
+		_ = f.server.Close()
 	}()
 
 	return nil
@@ -232,11 +232,12 @@ func (f *FeishuChannel) Stop() error {
 	if f.cancel != nil {
 		f.cancel()
 	}
+	var err error
 	if f.server != nil {
-		f.server.Close()
+		err = f.server.Close()
 	}
 	f.log.Info("feishu stopped")
-	return nil
+	return err
 }
 
 func (f *FeishuChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
@@ -434,7 +435,7 @@ func (c *feishuClient) downloadImageAsBase64(ctx context.Context, tenantAccessTo
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, feishuInboundImageMaxBytes+1))
 	if err != nil {
 		return "", "", fmt.Errorf("read image response: %w", err)

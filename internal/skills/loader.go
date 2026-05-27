@@ -73,6 +73,7 @@ func LoadSkills(skillDir string, lg *slog.Logger) ([]api.SkillRegistration, erro
 }
 
 func parseSkillFile(path string, lg *slog.Logger) (api.SkillRegistration, bool, error) {
+	// #nosec G304 -- path is skillDir/entry/SKILL.md from ReadDir, not arbitrary user input
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
