@@ -30,7 +30,6 @@ const (
 	wecomDefaultReplyCacheTTL = 1 * time.Hour
 	wecomMarkdownMaxBytes     = 20480
 	wecomInboundImageMaxBytes = 10 << 20 // 10MB
-	wecomInboundImageTimeout  = 10 * time.Second
 	wecomSendMaxRetries       = 3
 )
 
@@ -74,7 +73,7 @@ func (e *weComHTTPStatusError) Error() string {
 
 func newDefaultWeComClient(cfg config.WeComConfig) WeComClient {
 	return &defaultWeComClient{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: http.DefaultClient,
 	}
 }
 
@@ -765,8 +764,7 @@ func downloadWeComImageAsBase64(ctx context.Context, imageURL string) (string, s
 		return "", "", fmt.Errorf("create image request: %w", err)
 	}
 
-	httpClient := &http.Client{Timeout: wecomInboundImageTimeout}
-	resp, err := httpClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}

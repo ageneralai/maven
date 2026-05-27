@@ -29,7 +29,6 @@ Edit `~/.maven/config.json`:
       "enabled": true,
       "token": "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz",
       "allowFrom": [],
-      "proxy": "",
       "rootDir": ""
     }
   }
@@ -49,7 +48,6 @@ export MAVEN_TELEGRAM_TOKEN="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 | `enabled` | bool | Whether the Telegram channel is enabled |
 | `token` | string | Bot token from BotFather |
 | `allowFrom` | []string | Allowed user IDs (`[]` = everyone) |
-| `proxy` | string | Proxy URL (e.g. `socks5://127.0.0.1:1080`); required in some regions |
 | `rootDir` | string | Telegram assets directory; default `<agent.workspace>/.telegram` with `slashes/` and `handlers/` |
 
 ### Find your user ID
@@ -82,32 +80,25 @@ In Telegram, find your bot by username and send a message to test.
 
 ## Proxy (regions without direct Telegram API access)
 
-If you cannot reach the Telegram API directly, configure a proxy:
+Maven has no per-channel proxy setting. Configure egress at the process level — see [Proxy](proxy.md):
 
-```json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "your-token",
-      "proxy": "socks5://127.0.0.1:1080"
-    }
-  }
-}
+```bash
+export HTTPS_PROXY=socks5://127.0.0.1:1080
+./maven gateway
 ```
 
-Supported schemes: `socks5://`, `http://`, `https://`
+This applies to Telegram, LLM APIs, and all other outbound HTTP through one path.
 
 ## Troubleshooting
 
 **Q: The bot does not respond?**
 - Check logs for `[telegram] authorized as @xxx`
 - Confirm the API key is configured (`maven status`)
-- If you are behind a restrictive network, confirm the proxy settings
+- If you are behind a restrictive network, set `HTTPS_PROXY` (see [Proxy](proxy.md))
 
 **Q: You get “Sorry, I encountered an error”?**
 - Check logs for `[gateway] agent error`
-- Confirm the API proxy/key is valid
+- Confirm the LLM API key or vault proxy is configured
 
 **Q: How do I restrict usage to myself?**
 - Get your user ID and add it to `allowFrom`

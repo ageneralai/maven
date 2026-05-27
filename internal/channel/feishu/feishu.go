@@ -24,7 +24,6 @@ const feishuChannelName = "feishu"
 
 const (
 	feishuInboundImageMaxBytes = 10 << 20 // 10MB
-	feishuInboundImageTimeout  = 10 * time.Second
 )
 
 type FeishuImageDownloader func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error)
@@ -421,8 +420,7 @@ func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKe
 	}
 	req.Header.Set("Authorization", "Bearer "+tenantAccessToken)
 
-	httpClient := &http.Client{Timeout: feishuInboundImageTimeout}
-	resp, err := httpClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}

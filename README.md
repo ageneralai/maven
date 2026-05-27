@@ -14,6 +14,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 - **Feishu Channel** - Receive and send messages via Feishu (Lark) bot
 - **WeCom Channel** - Receive inbound messages and send markdown replies via WeCom intelligent bot API mode
 - **WhatsApp Channel** - Receive and send messages via WhatsApp (QR code login)
+- **Matrix Channel** - Receive and send plaintext messages via Matrix (any homeserver); sync loop with auto-join on invite
 - **Web UI** - Browser-based chat interface with WebSocket (responsive, PC + mobile)
 - **Multi-Provider** - Support for Anthropic and OpenAI models
 - **Multimodal** - Image recognition and document processing
@@ -24,6 +25,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 - **Memory** - Long-term (MEMORY.md) + daily memories
 - **Skills** - Custom skill loading from workspace
 - **Gateway config hot reload** - Optional watch on `~/.maven/config.json` (`gateway.hotReload`) to reload channels and runtime without restarting the process
+- **Process-level egress** - All outbound HTTP uses `http.DefaultClient` (`HTTPS_PROXY`, `SSL_CERT_FILE`); see [docs/proxy.md](docs/proxy.md) and [docs/onecli.md](docs/onecli.md)
 
 ## Quick Start
 
@@ -135,6 +137,15 @@ Run `make setup` for interactive config, or copy `config.example.json` to `~/.ma
       "enabled": true,
       "allowFrom": []
     },
+    "matrix": {
+      "enabled": true,
+      "homeserver": "https://matrix.example.org",
+      "accessToken": "syt_...",
+      "userId": "@agent:example.org",
+      "deviceId": "MAVEN01",
+      "allowFrom": [],
+      "allowRooms": []
+    },
     "web": {
       "enabled": true,
       "allowFrom": [],
@@ -209,6 +220,13 @@ Validation rules are enforced in `config.Validate()` when `enabled` is true.
 
 - **`streaming`** (optional, default `false`): when `true`, the gateway uses the streaming pipeline and Telegram shows progressive output. **Private** DMs use Bot API **`sendMessageDraft`** (then a final `sendMessage`). **Groups/supergroups** use placeholder + `editMessageText` (draft API is private-chat only). For visible streaming, the LLM provider must actually return streamed chunks (`stream: true` / SSE); otherwise you still get one burst when the model finishes.
 
+### Matrix (`channels.matrix`)
+
+- **`homeserver`**, **`accessToken`**, **`userId`**: required when enabled; use a dedicated bot account and a long-lived access token (see [docs/matrix-setup.md](docs/matrix-setup.md)).
+- **`deviceId`** (optional): persisted in `<agent.workspace>/.matrix/state.json`; auto-generated on first start if omitted.
+- **`allowFrom`** / **`allowRooms`**: MXID and room ID allowlists; empty = allow all.
+- Plaintext only (no E2EE in v1). Sync state is stored at `<agent.workspace>/.matrix/state.json`.
+
 ### Provider Types
 
 | Type | Config | Env Vars |
@@ -232,8 +250,25 @@ When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
 | `MAVEN_WECOM_TOKEN` | WeCom intelligent bot callback token |
 | `MAVEN_WECOM_ENCODING_AES_KEY` | WeCom intelligent bot callback EncodingAESKey |
 | `MAVEN_WECOM_RECEIVE_ID` | Optional receive ID for strict decrypt validation |
+| `HTTPS_PROXY` | HTTP(S) proxy for all outbound traffic (LLM, channels, tools) |
+| `HTTP_PROXY` | HTTP proxy (fallback when `HTTPS_PROXY` unset) |
+| `NO_PROXY` | Comma-separated hosts to bypass the proxy |
+| `SSL_CERT_FILE` | CA bundle for TLS trust (required for MITM proxies such as OneCLI) |
 
 > Prefer environment variables over config files for sensitive values like API keys.
+
+### Networking (proxy / OneCLI)
+
+Maven has no proxy fields in `config.json`. Set egress at process start:
+
+```bash
+export HTTPS_PROXY=http://127.0.0.1:10254   # optional: OneCLI or any HTTP proxy
+export SSL_CERT_FILE=/path/to/proxy-ca.pem  # when the proxy terminates TLS
+./maven gateway
+```
+
+- [Proxy setup](docs/proxy.md) — regions without direct API access, systemd/Docker
+- [OneCLI vault](docs/onecli.md) — credential injection without API keys in config
 
 ### Skills
 
@@ -339,6 +374,22 @@ Quick steps:
 3. Scan the QR code displayed in terminal with your WhatsApp
 4. Session is stored locally in SQLite (auto-reconnects on restart)
 
+### Matrix
+
+See [docs/matrix-setup.md](docs/matrix-setup.md) for detailed setup guide.
+
+Quick steps:
+1. Create a dedicated bot account on your Matrix homeserver
+2. Obtain a long-lived **access token** and the bot **MXID** (`@agent:example.org`)
+3. Set `homeserver`, `accessToken`, and `userId` under `channels.matrix` in config
+4. Run `make gateway`
+5. Invite the bot MXID to a room and send a message to test
+
+Matrix notes:
+- Plaintext messages only (encrypted rooms are not supported in v1)
+- Auto-joins rooms when invited
+- Sync state persists at `<agent.workspace>/.matrix/state.json`
+
 ### Web UI
 
 Quick steps:
@@ -363,6 +414,8 @@ docker build -t maven .
 docker run -d \
   -e MAVEN_API_KEY=your-api-key \
   -e MAVEN_TELEGRAM_TOKEN=your-token \
+  -e HTTPS_PROXY=http://host.docker.internal:10254 \
+  -e SSL_CERT_FILE=/etc/proxy/ca.pem \
   -p 18790:18790 \
   -p 9876:9876 \
   -p 9886:9886 \

@@ -22,6 +22,11 @@ Personal AI assistant: CLI agent, gateway (channels, cron, heartbeat), and Web U
 - [Plugins](plugins.md)
 - [Workspace](workspace.md)
 
+## Networking
+
+- [Proxy](proxy.md) — process-level egress via `HTTPS_PROXY`
+- [OneCLI Vault](onecli.md) — credential injection through OneCLI
+
 ## Contributors
 
 - [Contributing to the docs](contributing.md) — MkDocs setup, local preview, GitHub Pages deploy

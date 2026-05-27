@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -23,7 +22,6 @@ type TelegramChannel struct {
 	chann.BaseChannel
 	token      string
 	bot        *telego.Bot
-	proxy      string
 	httpClient *http.Client
 	cancel     context.CancelFunc
 	feedback   string // "debug", "normal", "minimal", "silent"
@@ -49,7 +47,6 @@ func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg mavenlog
 	tc := &TelegramChannel{
 		BaseChannel: chann.NewBaseChannel(telegramChannelName, b, cfg.AllowFrom, lg),
 		token:       cfg.Token,
-		proxy:       cfg.Proxy,
 		httpClient:  http.DefaultClient,
 		feedback:    feedback,
 		streaming:   cfg.Streaming,
@@ -83,21 +80,8 @@ func (t *TelegramChannel) telegramRoot() string {
 
 func (t *TelegramChannel) initBot() error {
 	var opts []telego.BotOption
-
-	var client *http.Client
-	if t.proxy != "" {
-		proxyURL, err := url.Parse(t.proxy)
-		if err != nil {
-			return fmt.Errorf("parse proxy url: %w", err)
-		}
-		client = &http.Client{
-			Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
-		}
-	} else {
-		client = http.DefaultClient
-	}
-	t.httpClient = client
-	opts = append(opts, telego.WithHTTPClient(client))
+	t.httpClient = http.DefaultClient
+	opts = append(opts, telego.WithHTTPClient(http.DefaultClient))
 
 	bot, err := telego.NewBot(t.token, opts...)
 	if err != nil {

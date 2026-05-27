@@ -108,8 +108,7 @@ cat > "$CONFIG_FILE" <<EOF_JSON
     "telegram": {
       "enabled": ${TG_ENABLED},
       "token": "${TG_TOKEN}",
-      "allowFrom": [],
-      "proxy": ""
+      "allowFrom": []
     },
     "feishu": {
       "enabled": ${FEISHU_ENABLED},

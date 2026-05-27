@@ -33,6 +33,9 @@ nav:
     - Voice: voice.md
     - Plugins: plugins.md
     - Workspace: workspace.md
+  - Networking:
+    - Proxy: proxy.md
+    - OneCLI Vault: onecli.md
   - Contributing: contributing.md
 
 exclude_docs: |

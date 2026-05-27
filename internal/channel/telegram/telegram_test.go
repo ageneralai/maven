@@ -197,19 +197,6 @@ func TestTelegramChannel_Send_NilBot(t *testing.T) {
 		t.Error("expected error when bot is nil")
 	}
 }
-func TestTelegramChannel_WithProxy(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
-	ch, err := NewTelegramChannel(config.TelegramConfig{
-		Token: fakeToken,
-		Proxy: "http://proxy.local:8080",
-	}, "", channelTestLog, b)
-	if err != nil {
-		t.Fatalf("NewTelegramChannel error: %v", err)
-	}
-	if ch.proxy != "http://proxy.local:8080" {
-		t.Errorf("proxy = %q, want http://proxy.local:8080", ch.proxy)
-	}
-}
 func TestTelegramChannel_Send_InvalidChatID(t *testing.T) {
 	ch, _ := newTestChannel(t, config.TelegramConfig{})
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "not-a-number", Content: "test"})
@@ -750,18 +737,6 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 }
 
 // === WeChat Image Test (unchanged, no tgbotapi dependency) ===
-func TestTelegramChannel_InitBot_InvalidProxy(t *testing.T) {
-	b := bus.NewMessageBus(10, channelTestLog)
-	ch, _ := NewTelegramChannel(config.TelegramConfig{
-		Token: fakeToken,
-		Proxy: "://invalid-url",
-	}, "", channelTestLog, b)
-	err := ch.initBot()
-	if err == nil {
-		t.Error("expected error for invalid proxy URL")
-	}
-}
-
 func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 	ch, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
 	ch.slashCommands = map[string]Command{
