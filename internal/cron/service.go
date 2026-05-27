@@ -84,49 +84,39 @@ func (s *Service) ensureNextRunLocked(now int64) {
 		if !j.Enabled || j.State.NextRunAtMs > 0 {
 			continue
 		}
-		switch j.Schedule.Kind {
-		case "every":
-			if j.Schedule.EveryMs <= 0 {
-				continue
-			}
-			if j.State.LastRunAtMs == 0 {
-				j.State.NextRunAtMs = now + j.Schedule.EveryMs
-			} else {
-				j.State.NextRunAtMs = j.State.LastRunAtMs + j.Schedule.EveryMs
-			}
-		case "at":
-			j.State.NextRunAtMs = j.Schedule.AtMs
-		case "cron":
-			next, err := gronx.NextTickAfter(j.Schedule.Expr, time.UnixMilli(now), false)
-			if err != nil {
-				s.log.Error("cron job invalid expr", "job", j.Name, "err", err)
-				continue
-			}
-			j.State.NextRunAtMs = next.UnixMilli()
+		fromMs := j.State.LastRunAtMs
+		if fromMs == 0 {
+			fromMs = now
 		}
+		next, err := computeNextScheduleRun(j.Schedule, fromMs)
+		if err != nil {
+			s.log.Error("cron job invalid expr", "job", j.Name, "err", err)
+			continue
+		}
+		j.State.NextRunAtMs = next
 	}
 }
 
-func computeNextScheduleRun(sch Schedule, fromMs int64) int64 {
+func computeNextScheduleRun(sch Schedule, fromMs int64) (int64, error) {
 	switch sch.Kind {
 	case "at":
-		if sch.AtMs > fromMs {
-			return sch.AtMs
+		if sch.AtMs >= fromMs {
+			return sch.AtMs, nil
 		}
-		return 0
+		return 0, nil
 	case "every":
 		if sch.EveryMs <= 0 {
-			return 0
+			return 0, nil
 		}
-		return fromMs + sch.EveryMs
+		return fromMs + sch.EveryMs, nil
 	case "cron":
 		next, err := gronx.NextTickAfter(sch.Expr, time.UnixMilli(fromMs), false)
 		if err != nil {
-			return 0
+			return 0, err
 		}
-		return next.UnixMilli()
+		return next.UnixMilli(), nil
 	}
-	return 0
+	return 0, nil
 }
 
 func (s *Service) nextDelayLocked() time.Duration {
@@ -222,7 +212,7 @@ func (s *Service) checkAndFire(ctx context.Context) {
 	s.fireWg.Add(len(due))
 	s.mu.Unlock()
 	for _, job := range due {
-		job := job
+		job := job // capture by value so the goroutine does not hold s.mu during execution
 		go func() {
 			defer s.fireWg.Done()
 			s.fire(ctx, job)
@@ -274,7 +264,12 @@ func (s *Service) fire(ctx context.Context, job CronJob) {
 	if j.DeleteAfterRun {
 		s.jobs = append(s.jobs[:idx], s.jobs[idx+1:]...)
 	} else if j.Schedule.Kind != "at" {
-		j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
+		next, err := computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
+		if err != nil {
+			s.log.Error("cron job invalid expr after run", "job", j.Name, "err", err)
+		} else {
+			j.State.NextRunAtMs = next
+		}
 	}
 	if serr := s.saveAtomicLocked(); serr != nil {
 		s.log.Error("cron save after run", "job", j.Name, "err", serr)
@@ -293,7 +288,12 @@ func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {
 	j := &s.jobs[idx]
 	j.State.LastStatus = "error"
 	j.State.LastError = validateErr.Error()
-	j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, time.Now().UnixMilli())
+	next, err := computeNextScheduleRun(j.Schedule, time.Now().UnixMilli())
+	if err != nil {
+		s.log.Error("cron job invalid expr after validation failure", "job", j.Name, "err", err)
+	} else {
+		j.State.NextRunAtMs = next
+	}
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -324,23 +324,19 @@ func (s *Service) Stop() {
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {
 	s.mu.Lock()
 	job := NewCronJob(name, schedule, payload)
-	switch job.Schedule.Kind {
-	case "every":
-		if job.Schedule.EveryMs > 0 && job.State.LastRunAtMs == 0 {
-			job.State.NextRunAtMs = time.Now().UnixMilli() + job.Schedule.EveryMs
-		}
-	case "at":
-		job.State.NextRunAtMs = job.Schedule.AtMs
-	case "cron":
-		next, err := gronx.NextTickAfter(job.Schedule.Expr, time.Now(), false)
-		if err != nil {
-			s.mu.Unlock()
-			return nil, fmt.Errorf("cron expr: %w", err)
-		}
-		job.State.NextRunAtMs = next.UnixMilli()
+	now := time.Now().UnixMilli()
+	fromMs := job.State.LastRunAtMs
+	if fromMs == 0 {
+		fromMs = now
 	}
+	next, err := computeNextScheduleRun(job.Schedule, fromMs)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("cron expr: %w", err)
+	}
+	job.State.NextRunAtMs = next
 	s.jobs = append(s.jobs, job)
-	err := s.saveAtomicLocked()
+	err = s.saveAtomicLocked()
 	out := s.jobs[len(s.jobs)-1]
 	s.mu.Unlock()
 	if err != nil {
@@ -390,22 +386,15 @@ func (s *Service) EnableJob(id string, enabled bool) (*CronJob, error) {
 		if enabled {
 			if s.jobs[i].State.NextRunAtMs == 0 {
 				now := time.Now().UnixMilli()
-				switch s.jobs[i].Schedule.Kind {
-				case "every":
-					if s.jobs[i].Schedule.EveryMs > 0 {
-						if s.jobs[i].State.LastRunAtMs == 0 {
-							s.jobs[i].State.NextRunAtMs = now + s.jobs[i].Schedule.EveryMs
-						} else {
-							s.jobs[i].State.NextRunAtMs = s.jobs[i].State.LastRunAtMs + s.jobs[i].Schedule.EveryMs
-						}
-					}
-				case "at":
-					s.jobs[i].State.NextRunAtMs = s.jobs[i].Schedule.AtMs
-				case "cron":
-					next, err := gronx.NextTickAfter(s.jobs[i].Schedule.Expr, time.UnixMilli(now), false)
-					if err == nil {
-						s.jobs[i].State.NextRunAtMs = next.UnixMilli()
-					}
+				fromMs := s.jobs[i].State.LastRunAtMs
+				if fromMs == 0 {
+					fromMs = now
+				}
+				next, err := computeNextScheduleRun(s.jobs[i].Schedule, fromMs)
+				if err != nil {
+					s.log.Error("cron job invalid expr on enable", "job", s.jobs[i].Name, "err", err)
+				} else {
+					s.jobs[i].State.NextRunAtMs = next
 				}
 			}
 		} else {

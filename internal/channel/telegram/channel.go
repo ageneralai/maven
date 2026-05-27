@@ -163,3 +163,9 @@ func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
 	t.Log.Info("telegram bot commands registered", "count", len(commands))
 	return nil
 }
+
+var (
+	_ chann.Channel             = (*TelegramChannel)(nil)
+	_ chann.StreamChannel       = (*TelegramChannel)(nil)
+	_ chann.InboundPreprocessor = (*TelegramChannel)(nil)
+)

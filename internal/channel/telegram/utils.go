@@ -86,22 +86,21 @@ func SummarizeToolInput(name string, input json.RawMessage) string {
 	return ""
 }
 
-func ToTelegramHTML(s string) string {
-	s = convertThinkTags(s)
-	type segment struct {
-		text   string
-		isCode bool
-	}
-	var segments []segment
+type textSegment struct {
+	text   string
+	isCode bool
+}
+
+func stripCodeBlocks(s string) []textSegment {
+	var segments []textSegment
 	for len(s) > 0 {
 		if idx := strings.Index(s, "```"); idx >= 0 {
 			if idx > 0 {
-				segments = append(segments, segment{text: s[:idx]})
+				segments = append(segments, textSegment{text: s[:idx]})
 			}
 			end := strings.Index(s[idx+3:], "```")
 			if end == -1 {
-				segments = append(segments, segment{text: s[idx:]})
-				s = ""
+				segments = append(segments, textSegment{text: s[idx:]})
 				break
 			}
 			end += idx + 3
@@ -112,37 +111,44 @@ func ToTelegramHTML(s string) string {
 					code = code[nl+1:]
 				}
 			}
-			segments = append(segments, segment{text: "<pre>" + EscapeHTML(code) + "</pre>", isCode: true})
+			segments = append(segments, textSegment{text: "<pre>" + EscapeHTML(code) + "</pre>", isCode: true})
 			s = s[end+3:]
 			continue
 		}
 		if idx := strings.Index(s, "`"); idx >= 0 {
 			if idx > 0 {
-				segments = append(segments, segment{text: s[:idx]})
+				segments = append(segments, textSegment{text: s[:idx]})
 			}
 			end := strings.Index(s[idx+1:], "`")
 			if end == -1 {
-				segments = append(segments, segment{text: s[idx:]})
-				s = ""
+				segments = append(segments, textSegment{text: s[idx:]})
 				break
 			}
 			end += idx + 1
-			segments = append(segments, segment{text: "<code>" + EscapeHTML(s[idx+1:end]) + "</code>", isCode: true})
+			segments = append(segments, textSegment{text: "<code>" + EscapeHTML(s[idx+1:end]) + "</code>", isCode: true})
 			s = s[end+1:]
 			continue
 		}
-		segments = append(segments, segment{text: s})
+		segments = append(segments, textSegment{text: s})
 		break
 	}
+	return segments
+}
+
+func convertMarkdownInline(s string) string {
+	text := EscapeHTMLPreservingTags(s)
+	return convertBoldItalic(text)
+}
+
+func ToTelegramHTML(s string) string {
+	s = convertThinkTags(s)
 	var out strings.Builder
-	for _, seg := range segments {
+	for _, seg := range stripCodeBlocks(s) {
 		if seg.isCode {
 			out.WriteString(seg.text)
 			continue
 		}
-		text := EscapeHTMLPreservingTags(seg.text)
-		text = convertBoldItalic(text)
-		out.WriteString(text)
+		out.WriteString(convertMarkdownInline(seg.text))
 	}
 	return out.String()
 }

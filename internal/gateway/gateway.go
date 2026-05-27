@@ -169,7 +169,10 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 	g.skillRegs = g.loadSkillRegs(cfg)
-	sysPrompt := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	sysPrompt, err := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	if err != nil {
+		return fmt.Errorf("system prompt: %w", err)
+	}
 	rt, err := g.buildRuntime(cfg, sysPrompt, g.skillRegs)
 	if err != nil {
 		return fmt.Errorf("runtime factory: %w", err)

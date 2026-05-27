@@ -1,8 +1,7 @@
 package cron
 
 import (
-	"crypto/rand"
-	"fmt"
+	"github.com/google/uuid"
 )
 
 type Schedule struct {
@@ -37,10 +36,8 @@ type CronJob struct {
 }
 
 func NewCronJob(name string, schedule Schedule, payload Payload) CronJob {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
 	return CronJob{
-		ID:       fmt.Sprintf("%x", b),
+		ID:       uuid.NewString(),
 		Name:     name,
 		Enabled:  true,
 		Schedule: schedule,

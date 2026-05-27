@@ -244,3 +244,8 @@ func extractPrompt(input any) string {
 	}
 	return ""
 }
+
+var (
+	_ chann.Channel       = (*WebChannel)(nil)
+	_ chann.StreamChannel = (*WebChannel)(nil)
+)

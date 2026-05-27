@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/middleware"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/config"
 )
@@ -48,9 +47,7 @@ func TestExecute_UnknownSubagent(t *testing.T) {
 
 func TestExecute_NestedTaskRejected(t *testing.T) {
 	tt := &taskTool{holder: &RuntimeHolder{}}
-	ctx := context.WithValue(context.Background(), model.MiddlewareStateKey, &middleware.State{
-		Values: map[string]any{"session_id": "task-550e8400-e29b-41d4-a716-446655440000"},
-	})
+	ctx := context.WithValue(context.Background(), middleware.TraceSessionIDContextKey, "task-550e8400-e29b-41d4-a716-446655440000")
 	_, err := tt.Execute(ctx, map[string]any{
 		"name": "explore",
 		"goal": "find main",

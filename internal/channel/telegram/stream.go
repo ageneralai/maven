@@ -16,6 +16,7 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
+// telegramStreamContentDraftID is the Bot API draft slot id; only one draft per chat, always slot 1.
 const telegramStreamContentDraftID = 1
 
 func telegramRetryAfter(err error) (time.Duration, bool) {

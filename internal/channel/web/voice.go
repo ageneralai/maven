@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 )
 
+// voiceClearSentinel signals the browser to flush its TTS playback queue.
 const voiceClearSentinel = byte(0)
 
 const voiceDetectRMSThreshold = 0.01

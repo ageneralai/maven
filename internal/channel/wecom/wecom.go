@@ -30,21 +30,12 @@ const (
 	wecomDefaultMsgCacheTTL   = 5 * time.Minute
 	wecomDefaultMsgCacheScan  = 1 * time.Minute
 	wecomDefaultReplyCacheTTL = 1 * time.Hour
-	wecomMarkdownMaxBytes     = 20480
 	wecomInboundImageMaxBytes = 10 << 20 // 10MB
 	wecomSendMaxRetries       = 3
 )
 
-type WeComClient interface {
-	SendMessage(ctx context.Context, responseURL string, msg bus.OutboundMessage) error
-	Close()
-}
-
-type WeComClientFactory func(cfg config.WeComConfig) WeComClient
-
-type defaultWeComClient struct {
-	httpClient *http.Client
-}
+// wecomMarkdownMaxBytes is the WeCom API hard limit on markdown message length.
+const wecomMarkdownMaxBytes = 20480
 
 type weComSendResponse struct {
 	ErrCode int    `json:"errcode"`
@@ -73,31 +64,24 @@ func (e *weComHTTPStatusError) Error() string {
 	return fmt.Sprintf("wecom response_url status %d: %s", e.Code, e.Body)
 }
 
-func newDefaultWeComClient(cfg config.WeComConfig, httpClient *http.Client) WeComClient {
-	return &defaultWeComClient{httpClient: httpClient}
-}
-
-func (c *defaultWeComClient) Close() {}
-
-func (c *defaultWeComClient) SendMessage(ctx context.Context, responseURL string, msg bus.OutboundMessage) error {
+func (w *WeComChannel) sendMessage(ctx context.Context, responseURL string, msg bus.OutboundMessage) error {
 	if strings.TrimSpace(responseURL) == "" {
 		return fmt.Errorf("wecom response_url is required")
 	}
-
 	content := truncateUTF8ByByteLimit(msg.Content, wecomMarkdownMaxBytes)
-	return c.sendTextWithRetry(ctx, responseURL, content)
+	return w.sendTextWithRetry(ctx, responseURL, content)
 }
 
-func (c *defaultWeComClient) sendTextWithRetry(ctx context.Context, responseURL, content string) error {
+func (w *WeComChannel) sendTextWithRetry(ctx context.Context, responseURL, content string) error {
 	var lastErr error
 	for attempt := 1; attempt <= wecomSendMaxRetries; attempt++ {
-		err := c.sendTextOnce(ctx, responseURL, content)
+		err := w.sendTextOnce(ctx, responseURL, content)
 		if err == nil {
 			return nil
 		}
 
 		lastErr = err
-		if !c.shouldRetry(err) || attempt == wecomSendMaxRetries {
+		if !w.shouldRetry(err) || attempt == wecomSendMaxRetries {
 			return err
 		}
 
@@ -112,7 +96,7 @@ func (c *defaultWeComClient) sendTextWithRetry(ctx context.Context, responseURL,
 	return lastErr
 }
 
-func (c *defaultWeComClient) shouldRetry(err error) bool {
+func (w *WeComChannel) shouldRetry(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -133,7 +117,7 @@ func (c *defaultWeComClient) shouldRetry(err error) bool {
 	return true
 }
 
-func (c *defaultWeComClient) sendTextOnce(ctx context.Context, responseURL, content string) error {
+func (w *WeComChannel) sendTextOnce(ctx context.Context, responseURL, content string) error {
 	payload := map[string]any{
 		"msgtype": "markdown",
 		"markdown": map[string]string{
@@ -152,7 +136,7 @@ func (c *defaultWeComClient) sendTextOnce(ctx context.Context, responseURL, cont
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send wecom response_url message: %w", err)
 	}
@@ -332,67 +316,39 @@ type WeComChannel struct {
 	server           *http.Server
 	cancel           context.CancelFunc
 	runCtx           context.Context
-	client           WeComClient
-	clientFactory    WeComClientFactory
 	allowlistEnabled bool
 	msgCache         *weComMsgCache
 	replyCache       *weComReplyCache
 	receiveID        string
 }
 
-var defaultWeComClientFactory WeComClientFactory = func(cfg config.WeComConfig) WeComClient {
-	return newDefaultWeComClient(cfg, http.DefaultClient)
-}
-
 func NewWeComChannel(cfg config.WeComConfig, lg *slog.Logger, b *bus.MessageBus) (*WeComChannel, error) {
-	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
-	if err != nil {
-		return nil, fmt.Errorf("wecom proxy: %w", err)
-	}
-	factory := func(cfg config.WeComConfig) WeComClient {
-		return newDefaultWeComClient(cfg, httpClient)
-	}
-	ch, err := NewWeComChannelWithFactory(cfg, lg, b, factory)
-	if err != nil {
-		return nil, err
-	}
-	ch.httpClient = httpClient
-	return ch, nil
-}
-
-func NewWeComChannelWithFactory(cfg config.WeComConfig, lg *slog.Logger, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("wecom token is required")
 	}
 	if len(strings.TrimSpace(cfg.EncodingAESKey)) != 43 {
 		return nil, fmt.Errorf("wecom encodingAESKey must be 43 chars")
 	}
-
-	if factory == nil {
-		factory = defaultWeComClientFactory
+	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("wecom proxy: %w", err)
 	}
-
 	receiveID := strings.TrimSpace(cfg.ReceiveID)
-
-	ch := &WeComChannel{
+	return &WeComChannel{
 		BaseChannel:      chann.NewBaseChannel(wecomChannelName, b, cfg.AllowFrom, lg),
 		cfg:              cfg,
-		httpClient:       http.DefaultClient,
-		clientFactory:    factory,
+		httpClient:       httpClient,
 		allowlistEnabled: len(cfg.AllowFrom) > 0,
 		msgCache:         newWeComMsgCache(wecomDefaultMsgCacheTTL),
 		replyCache:       newWeComReplyCache(wecomDefaultReplyCacheTTL),
 		receiveID:        receiveID,
 		runCtx:           context.Background(),
-	}
-
-	return ch, nil
+	}, nil
 }
 
 func (w *WeComChannel) Start(ctx context.Context) error {
 	ctx, w.cancel = context.WithCancel(ctx)
 	w.runCtx = ctx
-	w.client = w.clientFactory(w.cfg)
 
 	port := w.cfg.Port
 	if port == 0 {
@@ -429,29 +385,20 @@ func (w *WeComChannel) Stop() error {
 	if w.server != nil {
 		_ = w.server.Close()
 	}
-	if w.client != nil {
-		w.client.Close()
-	}
 	w.Log.Info("wecom stopped")
 	return nil
 }
 
 func (w *WeComChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
-	if w.client == nil {
-		return fmt.Errorf("wecom client not initialized")
-	}
-
 	chatID := strings.TrimSpace(msg.ChatID)
 	if chatID == "" {
 		return fmt.Errorf("wecom chat id is required")
 	}
-
 	responseURL, ok := w.replyCache.Get(chatID)
 	if !ok {
 		return fmt.Errorf("wecom response_url not found or expired for chat id %q", chatID)
 	}
-
-	return w.client.SendMessage(ctx, responseURL, msg)
+	return w.sendMessage(ctx, responseURL, msg)
 }
 
 func (w *WeComChannel) Capabilities() chann.CapabilitySet {
@@ -853,3 +800,5 @@ func (w *WeComChannel) allowMessageFrom(senderID string) bool {
 	}
 	return w.IsAllowed(senderID)
 }
+
+var _ chann.Channel = (*WeComChannel)(nil)

@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 )
 
+// maxSpeechFragmentRunes is the empirical TTS latency sweet spot;
+// shorter increases round trips, longer delays the first word.
 const maxSpeechFragmentRunes = 800
 
 // TakeCompleteSentences moves leading sentence-sized fragments from buf (ending at . ! ? before whitespace or EOF).

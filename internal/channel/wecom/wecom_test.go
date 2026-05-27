@@ -26,29 +26,6 @@ import (
 
 var wecomTestLog = mavenlog.Std()
 
-type mockWeComSend struct {
-	ResponseURL string
-	Message     bus.OutboundMessage
-}
-
-type mockWeComClient struct {
-	sent []mockWeComSend
-	err  error
-}
-
-func (m *mockWeComClient) SendMessage(ctx context.Context, responseURL string, msg bus.OutboundMessage) error {
-	m.sent = append(m.sent, mockWeComSend{ResponseURL: responseURL, Message: msg})
-	return m.err
-}
-
-func (m *mockWeComClient) Close() {}
-
-func mockWeComClientFactory(client *mockWeComClient) WeComClientFactory {
-	return func(cfg config.WeComConfig) WeComClient {
-		return client
-	}
-}
-
 func TestNewWeComChannel_Valid(t *testing.T) {
 	b := bus.NewMessageBus(10, wecomTestLog)
 	ch, err := NewWeComChannel(config.WeComConfig{
@@ -72,16 +49,58 @@ func TestNewWeComChannel_MissingRequiredConfig(t *testing.T) {
 	}
 }
 
-func TestWeComChannel_Send_NilClient(t *testing.T) {
+func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
 	b := bus.NewMessageBus(10, wecomTestLog)
-	ch, _ := NewWeComChannelWithFactory(config.WeComConfig{
+	ch, err := NewWeComChannel(config.WeComConfig{
 		Token:          "verify-token",
 		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-	}, wecomTestLog, b, nil)
-
-	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "hello"})
+		AllowFrom:      []string{"zhangsan"},
+	}, wecomTestLog, b)
+	if err != nil {
+		t.Fatalf("new channel error: %v", err)
+	}
+	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
 	if err == nil {
-		t.Fatal("expected error when client is nil")
+		t.Fatal("expected response_url missing error")
+	}
+	if !strings.Contains(err.Error(), "response_url") {
+		t.Fatalf("error = %v, want response_url hint", err)
+	}
+}
+
+func TestWeComChannel_Send_Success(t *testing.T) {
+	var receivedURL, receivedContent string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedURL = r.URL.String()
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("invalid send payload json: %v", err)
+		}
+		md := payload["markdown"].(map[string]any)
+		receivedContent = md["content"].(string)
+		_, _ = io.WriteString(w, `{"errcode":0,"errmsg":"ok"}`)
+	}))
+	defer ts.Close()
+	b := bus.NewMessageBus(10, wecomTestLog)
+	ch, err := NewWeComChannel(config.WeComConfig{
+		Token:          "verify-token",
+		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
+		AllowFrom:      []string{"zhangsan"},
+	}, wecomTestLog, b)
+	if err != nil {
+		t.Fatalf("new channel error: %v", err)
+	}
+	ch.replyCache.Set("zhangsan", ts.URL)
+	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
+	if err != nil {
+		t.Fatalf("send error: %v", err)
+	}
+	if receivedContent != "pong" {
+		t.Errorf("content = %q, want pong", receivedContent)
+	}
+	if receivedURL == "" {
+		t.Fatal("expected outbound request")
 	}
 }
 
@@ -293,72 +312,13 @@ func TestWeComCallback_DuplicateMsgID_Dropped(t *testing.T) {
 	}
 }
 
-func TestWeComChannel_Send_Success(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
-	mock := &mockWeComClient{}
-
-	ch, err := NewWeComChannelWithFactory(config.WeComConfig{
-		Token:          "verify-token",
-		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-		AllowFrom:      []string{"zhangsan"},
-	}, wecomTestLog, b, mockWeComClientFactory(mock))
-	if err != nil {
-		t.Fatalf("new channel error: %v", err)
-	}
-	ch.client = mock
-	ch.replyCache.Set("zhangsan", "https://example.com/response-url")
-
-	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
-	if err != nil {
-		t.Fatalf("send error: %v", err)
-	}
-
-	if len(mock.sent) != 1 {
-		t.Fatalf("sent count = %d, want 1", len(mock.sent))
-	}
-	if mock.sent[0].ResponseURL != "https://example.com/response-url" {
-		t.Errorf("response_url = %q, want https://example.com/response-url", mock.sent[0].ResponseURL)
-	}
-	if mock.sent[0].Message.ChatID != "zhangsan" {
-		t.Errorf("chatID = %q, want zhangsan", mock.sent[0].Message.ChatID)
-	}
-	if mock.sent[0].Message.Content != "pong" {
-		t.Errorf("content = %q, want pong", mock.sent[0].Message.Content)
-	}
-}
-
-func TestWeComChannel_Send_ResponseURLMissing(t *testing.T) {
-	b := bus.NewMessageBus(10, wecomTestLog)
-	mock := &mockWeComClient{}
-
-	ch, err := NewWeComChannelWithFactory(config.WeComConfig{
-		Token:          "verify-token",
-		EncodingAESKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
-		AllowFrom:      []string{"zhangsan"},
-	}, wecomTestLog, b, mockWeComClientFactory(mock))
-	if err != nil {
-		t.Fatalf("new channel error: %v", err)
-	}
-	ch.client = mock
-
-	err = ch.Send(context.Background(), bus.OutboundMessage{ChatID: "zhangsan", Content: "pong"})
-	if err == nil {
-		t.Fatal("expected response_url missing error")
-	}
-	if !strings.Contains(err.Error(), "response_url") {
-		t.Fatalf("error = %v, want response_url hint", err)
-	}
-}
-
 func newTestWeComChannel(t *testing.T, cfg config.WeComConfig) (*WeComChannel, *bus.MessageBus) {
 	t.Helper()
 	b := bus.NewMessageBus(10, wecomTestLog)
-	mock := &mockWeComClient{}
-	ch, err := NewWeComChannelWithFactory(cfg, wecomTestLog, b, mockWeComClientFactory(mock))
+	ch, err := NewWeComChannel(cfg, wecomTestLog, b)
 	if err != nil {
 		t.Fatalf("new wecom channel error: %v", err)
 	}
-	ch.client = mock
 	return ch, b
 }
 
@@ -491,11 +451,11 @@ func TestWeComClient_Send_IntegrationShape(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &defaultWeComClient{
+	client := &WeComChannel{
 		httpClient: &http.Client{Timeout: 3 * time.Second},
 	}
 
-	err := client.SendMessage(context.Background(), ts.URL+"/reply", bus.OutboundMessage{ChatID: "zhangsan", Content: "hello from test"})
+	err := client.sendMessage(context.Background(), ts.URL+"/reply", bus.OutboundMessage{ChatID: "zhangsan", Content: "hello from test"})
 	if err != nil {
 		t.Fatalf("send message: %v", err)
 	}
@@ -524,12 +484,12 @@ func TestWeComClient_Send_TruncateLongContent(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &defaultWeComClient{
+	client := &WeComChannel{
 		httpClient: &http.Client{Timeout: 3 * time.Second},
 	}
 
 	content := strings.Repeat("A", 25000)
-	err := client.SendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: content})
+	err := client.sendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: content})
 	if err != nil {
 		t.Fatalf("send message: %v", err)
 	}
@@ -559,11 +519,11 @@ func TestWeComClient_Send_RetryTransientErrcode(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &defaultWeComClient{
+	client := &WeComChannel{
 		httpClient: &http.Client{Timeout: 3 * time.Second},
 	}
 
-	err := client.SendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: "retry me"})
+	err := client.sendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: "retry me"})
 	if err != nil {
 		t.Fatalf("send message: %v", err)
 	}
@@ -583,11 +543,11 @@ func TestWeComClient_Send_NoRetryOnPayloadErrcode(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &defaultWeComClient{
+	client := &WeComChannel{
 		httpClient: &http.Client{Timeout: 3 * time.Second},
 	}
 
-	err := client.SendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: "payload error"})
+	err := client.sendMessage(context.Background(), ts.URL, bus.OutboundMessage{ChatID: "zhangsan", Content: "payload error"})
 	if err == nil {
 		t.Fatal("expected error")
 	}

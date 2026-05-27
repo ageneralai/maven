@@ -185,6 +185,14 @@ func TestChunkText(t *testing.T) {
 	}
 }
 
+func TestChunkText_NewlineRoundTrip(t *testing.T) {
+	original := strings.Repeat("a", matrixSendChunkSize-10) + "\n\n" + strings.Repeat("b", matrixSendChunkSize+50)
+	chunks := chunkText(original, matrixSendChunkSize)
+	if strings.Join(chunks, "") != original {
+		t.Fatalf("chunks do not reconstruct original string byte-for-byte")
+	}
+}
+
 func TestChunkText_RuneSafe(t *testing.T) {
 	// Each 日 is 3 bytes. Build a string that crosses the chunk boundary mid-rune.
 	rune3 := "日"

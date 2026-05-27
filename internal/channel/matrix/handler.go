@@ -83,11 +83,14 @@ func chunkText(text string, maxLen int) []string {
 	var chunks []string
 	for len(text) > maxLen {
 		split := strings.LastIndex(text[:maxLen], "\n")
-		if split <= 0 {
-			split = runeAlignedSplit(text, maxLen)
+		if split > 0 {
+			chunks = append(chunks, text[:split])
+			text = text[split:]
+			continue
 		}
+		split = runeAlignedSplit(text, maxLen)
 		chunks = append(chunks, text[:split])
-		text = strings.TrimLeft(text[split:], "\n")
+		text = text[split:]
 	}
 	if text != "" {
 		chunks = append(chunks, text)

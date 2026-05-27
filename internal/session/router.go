@@ -43,12 +43,6 @@ func New(path string) (*Router, error) {
 func (r *Router) Resolve(key, fallback string) string {
 	key = strings.TrimSpace(key)
 	fallback = strings.TrimSpace(fallback)
-	if r == nil {
-		if fallback != "" {
-			return fallback
-		}
-		return SessionIDFromRouteKey(key)
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if sessionID := strings.TrimSpace(r.sessions[key]); sessionID != "" {
@@ -70,10 +64,6 @@ func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err erro
 		return "", "", errors.New("session key is empty")
 	}
 	defaultID := SessionIDFromRouteKey(key)
-	if r == nil {
-		newSessionID = RotatedSessionID(defaultID)
-		return defaultID, newSessionID, nil
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	oldSessionID = strings.TrimSpace(r.sessions[key])
@@ -91,7 +81,7 @@ func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err erro
 func (r *Router) Set(key, sessionID string) error {
 	key = strings.TrimSpace(key)
 	sessionID = strings.TrimSpace(sessionID)
-	if key == "" || r == nil {
+	if key == "" {
 		return nil
 	}
 	r.mu.Lock()
@@ -106,7 +96,7 @@ func (r *Router) Set(key, sessionID string) error {
 
 func (r *Router) Reset(key string) error {
 	key = strings.TrimSpace(key)
-	if key == "" || r == nil {
+	if key == "" {
 		return nil
 	}
 	r.mu.Lock()
@@ -116,7 +106,7 @@ func (r *Router) Reset(key string) error {
 }
 
 func (r *Router) persistLocked() error {
-	if r == nil || r.path == "" {
+	if r.path == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(r.path), 0o700); err != nil {

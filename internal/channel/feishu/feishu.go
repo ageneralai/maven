@@ -24,29 +24,29 @@ import (
 
 const feishuChannelName = "feishu"
 
-const (
-	feishuInboundImageMaxBytes = 10 << 20 // 10MB
-)
+// feishuInboundImageMaxBytes is a self-imposed download cap; Feishu has no documented limit.
+const feishuInboundImageMaxBytes = 10 << 20
 
-type FeishuImageDownloader func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error)
-
-// FeishuClient interface for sending messages (allows mocking)
-type FeishuClient interface {
-	SendMessage(ctx context.Context, chatID, content string) error
-	GetTenantAccessToken(ctx context.Context) (string, error)
-}
-
-// defaultFeishuClient implements FeishuClient using Feishu Open API
-type defaultFeishuClient struct {
+type feishuClient struct {
 	appID      string
 	appSecret  string
+	baseURL    string
 	httpClient *http.Client
 	mu         sync.RWMutex
 	token      string
 	tokenExp   time.Time
 }
 
-func (c *defaultFeishuClient) GetTenantAccessToken(ctx context.Context) (string, error) {
+func newFeishuClient(appID, appSecret string, httpClient *http.Client) *feishuClient {
+	return &feishuClient{
+		appID:      appID,
+		appSecret:  appSecret,
+		baseURL:    "https://open.feishu.cn",
+		httpClient: httpClient,
+	}
+}
+
+func (c *feishuClient) GetTenantAccessToken(ctx context.Context) (string, error) {
 	c.mu.RLock()
 	if c.token != "" && time.Now().Before(c.tokenExp) {
 		token := c.token
@@ -65,7 +65,7 @@ func (c *defaultFeishuClient) GetTenantAccessToken(ctx context.Context) (string,
 
 	body := fmt.Sprintf(`{"app_id":"%s","app_secret":"%s"}`, c.appID, c.appSecret)
 	req, err := http.NewRequestWithContext(ctx, "POST",
-		"https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+		c.baseURL+"/open-apis/auth/v3/tenant_access_token/internal",
 		strings.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("create token request: %w", err)
@@ -96,7 +96,7 @@ func (c *defaultFeishuClient) GetTenantAccessToken(ctx context.Context) (string,
 	return c.token, nil
 }
 
-func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content string) error {
+func (c *feishuClient) SendMessage(ctx context.Context, chatID, content string) error {
 	token, err := c.GetTenantAccessToken(ctx)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content s
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
-		"https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+		c.baseURL+"/open-apis/im/v1/messages?receive_id_type=chat_id",
 		strings.NewReader(string(data)))
 	if err != nil {
 		return fmt.Errorf("create send request: %w", err)
@@ -146,66 +146,40 @@ func (c *defaultFeishuClient) SendMessage(ctx context.Context, chatID, content s
 	return nil
 }
 
-// FeishuClientFactory creates FeishuClient instances
-type FeishuClientFactory func(appID, appSecret string) FeishuClient
-
-func newDefaultFeishuClient(appID, appSecret string, httpClient *http.Client) FeishuClient {
-	return &defaultFeishuClient{appID: appID, appSecret: appSecret, httpClient: httpClient}
-}
-
-var defaultFeishuClientFactory FeishuClientFactory = func(appID, appSecret string) FeishuClient {
-	return newDefaultFeishuClient(appID, appSecret, http.DefaultClient)
-}
+type FeishuImageDownloader func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error)
 
 type FeishuChannel struct {
 	chann.BaseChannel
 	cfg             config.FeishuConfig
-	client          FeishuClient
+	client          *feishuClient
 	httpClient      *http.Client
 	server          *http.Server
 	cancel          context.CancelFunc
-	clientFactory   FeishuClientFactory
 	imageDownloader FeishuImageDownloader
 }
 
 func NewFeishuChannel(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBus) (*FeishuChannel, error) {
+	if cfg.AppID == "" || cfg.AppSecret == "" {
+		return nil, fmt.Errorf("feishu app_id and app_secret are required")
+	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
 	if err != nil {
 		return nil, fmt.Errorf("feishu proxy: %w", err)
 	}
-	factory := func(appID, appSecret string) FeishuClient {
-		return newDefaultFeishuClient(appID, appSecret, httpClient)
-	}
-	ch, err := NewFeishuChannelWithFactory(cfg, lg, b, factory)
-	if err != nil {
-		return nil, err
-	}
-	ch.httpClient = httpClient
-	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
-		return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, httpClient)
-	}
-	return ch, nil
-}
-
-func NewFeishuChannelWithFactory(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBus, factory FeishuClientFactory) (*FeishuChannel, error) {
-	if cfg.AppID == "" || cfg.AppSecret == "" {
-		return nil, fmt.Errorf("feishu app_id and app_secret are required")
-	}
+	client := newFeishuClient(cfg.AppID, cfg.AppSecret, httpClient)
 	ch := &FeishuChannel{
-		BaseChannel:   chann.NewBaseChannel(feishuChannelName, b, cfg.AllowFrom, lg),
-		cfg:           cfg,
-		httpClient:    http.DefaultClient,
-		clientFactory: factory,
+		BaseChannel: chann.NewBaseChannel(feishuChannelName, b, cfg.AllowFrom, lg),
+		cfg:         cfg,
+		client:      client,
+		httpClient:  httpClient,
 	}
 	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
-		return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, ch.httpClient)
+		return ch.client.downloadImageAsBase64(ctx, tenantAccessToken, imageKey)
 	}
 	return ch, nil
 }
 
 func (f *FeishuChannel) Start(ctx context.Context) error {
-	f.client = f.clientFactory(f.cfg.AppID, f.cfg.AppSecret)
-
 	ctx, f.cancel = context.WithCancel(ctx)
 
 	port := f.cfg.Port
@@ -248,9 +222,6 @@ func (f *FeishuChannel) Stop() error {
 }
 
 func (f *FeishuChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
-	if f.client == nil {
-		return fmt.Errorf("feishu client not initialized")
-	}
 	return f.client.SendMessage(ctx, msg.ChatID, msg.Content)
 }
 
@@ -405,10 +376,6 @@ func (f *FeishuChannel) parseFeishuInboundMessage(ctx context.Context, messageTy
 }
 
 func (f *FeishuChannel) buildFeishuImageContentBlock(ctx context.Context, imageKey string) (*model.ContentBlock, error) {
-	if f.client == nil {
-		return nil, fmt.Errorf("feishu client not initialized")
-	}
-
 	tenantAccessToken, err := f.client.GetTenantAccessToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get tenant access token: %w", err)
@@ -416,20 +383,15 @@ func (f *FeishuChannel) buildFeishuImageContentBlock(ctx context.Context, imageK
 
 	downloader := f.imageDownloader
 	if downloader == nil {
-		hc := f.httpClient
-		if hc == nil {
-			hc = http.DefaultClient
-		}
 		downloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
-			return downloadFeishuImageAsBase64(ctx, tenantAccessToken, imageKey, hc)
+			return f.client.downloadImageAsBase64(ctx, tenantAccessToken, imageKey)
 		}
 	}
-
 	base64Data, mediaType, err := downloader(ctx, tenantAccessToken, imageKey)
 	if err != nil {
 		return &model.ContentBlock{
 			Type: model.ContentBlockImage,
-			URL:  buildFeishuImageDownloadURL(imageKey),
+			URL:  f.client.imageDownloadURL(imageKey),
 		}, fmt.Errorf("download image %q: %w", imageKey, err)
 	}
 
@@ -440,23 +402,21 @@ func (f *FeishuChannel) buildFeishuImageContentBlock(ctx context.Context, imageK
 	}, nil
 }
 
-func buildFeishuImageDownloadURL(imageKey string) string {
-	return fmt.Sprintf("https://open.feishu.cn/open-apis/im/v1/images/%s?image_type=message", url.PathEscape(strings.TrimSpace(imageKey)))
+func (c *feishuClient) imageDownloadURL(imageKey string) string {
+	return fmt.Sprintf("%s/open-apis/im/v1/images/%s?image_type=message", c.baseURL, url.PathEscape(strings.TrimSpace(imageKey)))
 }
 
-func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKey string, httpClient *http.Client) (string, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildFeishuImageDownloadURL(imageKey), nil)
+func (c *feishuClient) downloadImageAsBase64(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.imageDownloadURL(imageKey), nil)
 	if err != nil {
 		return "", "", fmt.Errorf("create image request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+tenantAccessToken)
-
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request image: %w", err)
 	}
 	defer resp.Body.Close()
-
 	body, err := io.ReadAll(io.LimitReader(resp.Body, feishuInboundImageMaxBytes+1))
 	if err != nil {
 		return "", "", fmt.Errorf("read image response: %w", err)
@@ -464,16 +424,13 @@ func downloadFeishuImageAsBase64(ctx context.Context, tenantAccessToken, imageKe
 	if int64(len(body)) > feishuInboundImageMaxBytes {
 		return "", "", fmt.Errorf("image exceeds %d bytes", feishuInboundImageMaxBytes)
 	}
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", "", fmt.Errorf("image request failed with status %d", resp.StatusCode)
 	}
-
 	mediaType := normalizeFeishuMediaType(resp.Header.Get("Content-Type"))
 	if mediaType == "" {
 		mediaType = http.DetectContentType(body)
 	}
-
 	// TODO: If image_type=message is insufficient, extend this to choose download parameters from conversation context.
 	return base64.StdEncoding.EncodeToString(body), mediaType, nil
 }
@@ -488,3 +445,5 @@ func normalizeFeishuMediaType(value string) string {
 	}
 	return strings.TrimSpace(contentType)
 }
+
+var _ chann.Channel = (*FeishuChannel)(nil)

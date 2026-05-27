@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,27 +19,20 @@ import (
 
 var feishuTestLog = mavenlog.Std()
 
-// mockFeishuClient implements FeishuClient for testing
-type mockFeishuClient struct {
-	sentMessages []struct{ chatID, content string }
-	sendErr      error
-	token        string
-	tokenErr     error
+func newFeishuTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(handler)
 }
 
-func (m *mockFeishuClient) SendMessage(ctx context.Context, chatID, content string) error {
-	m.sentMessages = append(m.sentMessages, struct{ chatID, content string }{chatID, content})
-	return m.sendErr
-}
-
-func (m *mockFeishuClient) GetTenantAccessToken(ctx context.Context) (string, error) {
-	return m.token, m.tokenErr
-}
-
-func mockFeishuClientFactory(client *mockFeishuClient) FeishuClientFactory {
-	return func(appID, appSecret string) FeishuClient {
-		return client
+func newFeishuChannelWithBaseURL(t *testing.T, cfg config.FeishuConfig, baseURL string) *FeishuChannel {
+	t.Helper()
+	b := bus.NewMessageBus(10, feishuTestLog)
+	ch, err := NewFeishuChannel(cfg, feishuTestLog, b)
+	if err != nil {
+		t.Fatalf("NewFeishuChannel error: %v", err)
 	}
+	ch.client.baseURL = baseURL
+	return ch
 }
 
 func TestNewFeishuChannel_Valid(t *testing.T) {
@@ -75,49 +69,60 @@ func TestNewFeishuChannel_MissingAppSecret(t *testing.T) {
 	}
 }
 
-func TestFeishuChannel_Send_NilClient(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
-	ch, _ := NewFeishuChannel(config.FeishuConfig{
-		AppID: "cli_test", AppSecret: "secret",
-	}, feishuTestLog, b)
-
-	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
-	if err == nil {
-		t.Error("expected error when client is nil")
-	}
-}
-
 func TestFeishuChannel_Send_Success(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
-	mock := &mockFeishuClient{token: "test-token"}
-
-	ch, _ := NewFeishuChannelWithFactory(config.FeishuConfig{
+	var sentChatID, sentContent string
+	ts := newFeishuTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/open-apis/auth/v3/tenant_access_token/internal":
+			_, _ = io.WriteString(w, `{"code":0,"tenant_access_token":"test-token","expire":7200}`)
+		case "/open-apis/im/v1/messages":
+			body, _ := io.ReadAll(r.Body)
+			var payload map[string]any
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatalf("invalid payload: %v", err)
+			}
+			sentChatID = payload["receive_id"].(string)
+			var textContent map[string]string
+			if err := json.Unmarshal([]byte(payload["content"].(string)), &textContent); err != nil {
+				t.Fatalf("invalid text content: %v", err)
+			}
+			sentContent = textContent["text"]
+			_, _ = io.WriteString(w, `{"code":0,"msg":"ok"}`)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	})
+	defer ts.Close()
+	ch := newFeishuChannelWithBaseURL(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, feishuTestLog, b, mockFeishuClientFactory(mock))
-
-	ch.client = mock
-
+	}, ts.URL)
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
 	}
-	if len(mock.sentMessages) != 1 {
-		t.Fatalf("expected 1 sent message, got %d", len(mock.sentMessages))
+	if sentChatID != "chat_123" {
+		t.Errorf("chatID = %q, want chat_123", sentChatID)
 	}
-	if mock.sentMessages[0].chatID != "chat_123" {
-		t.Errorf("chatID = %q, want chat_123", mock.sentMessages[0].chatID)
+	if sentContent != "hello" {
+		t.Errorf("content = %q, want hello", sentContent)
 	}
 }
 
 func TestFeishuChannel_Send_Error(t *testing.T) {
-	b := bus.NewMessageBus(10, feishuTestLog)
-	mock := &mockFeishuClient{sendErr: fmt.Errorf("send failed")}
-
-	ch, _ := NewFeishuChannelWithFactory(config.FeishuConfig{
+	ts := newFeishuTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/open-apis/auth/v3/tenant_access_token/internal":
+			_, _ = io.WriteString(w, `{"code":0,"tenant_access_token":"test-token","expire":7200}`)
+		case "/open-apis/im/v1/messages":
+			_, _ = io.WriteString(w, `{"code":1,"msg":"send failed"}`)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	})
+	defer ts.Close()
+	ch := newFeishuChannelWithBaseURL(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
-	}, feishuTestLog, b, mockFeishuClientFactory(mock))
-	ch.client = mock
-
+	}, ts.URL)
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "chat_123", Content: "hello"})
 	if err == nil {
 		t.Error("expected error")
@@ -129,24 +134,19 @@ func TestFeishuChannel_Stop_NotStarted(t *testing.T) {
 	ch, _ := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	}, feishuTestLog, b)
-
 	err := ch.Stop()
 	if err != nil {
 		t.Errorf("Stop error: %v", err)
 	}
 }
 
-// --- Webhook handler tests ---
-
 func newTestFeishuChannel(t *testing.T, cfg config.FeishuConfig) (*FeishuChannel, *bus.MessageBus) {
 	t.Helper()
 	b := bus.NewMessageBus(10, feishuTestLog)
-	mock := &mockFeishuClient{token: "test-token"}
-	ch, err := NewFeishuChannelWithFactory(cfg, feishuTestLog, b, mockFeishuClientFactory(mock))
+	ch, err := NewFeishuChannel(cfg, feishuTestLog, b)
 	if err != nil {
-		t.Fatalf("NewFeishuChannelWithFactory error: %v", err)
+		t.Fatalf("NewFeishuChannel error: %v", err)
 	}
-	ch.client = mock
 	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
 		return "", "", fmt.Errorf("test image downloader not configured")
 	}
@@ -157,13 +157,10 @@ func TestFeishuWebhook_Challenge(t *testing.T) {
 	ch, _ := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	body := `{"challenge":"test-challenge-token","token":"xxx","type":"url_verification"}`
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(body))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
@@ -171,7 +168,6 @@ func TestFeishuWebhook_Challenge(t *testing.T) {
 	if !json.Valid(raw) {
 		t.Fatalf("response body is not valid JSON: %q", raw)
 	}
-
 	var resp map[string]string
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode body: %v", err)
@@ -185,12 +181,9 @@ func TestFeishuWebhook_MethodNotAllowed(t *testing.T) {
 	ch, _ := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	req := httptest.NewRequest(http.MethodGet, "/feishu/webhook", nil)
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", w.Code)
 	}
@@ -200,12 +193,9 @@ func TestFeishuWebhook_InvalidJSON(t *testing.T) {
 	ch, _ := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader("not json"))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", w.Code)
 	}
@@ -217,13 +207,10 @@ func TestFeishuWebhook_InvalidToken(t *testing.T) {
 		AppSecret:         "secret",
 		VerificationToken: "correct-token",
 	})
-
 	body := `{"header":{"event_type":"im.message.receive_v1","token":"wrong-token"},"event":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(body))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", w.Code)
 	}
@@ -235,13 +222,10 @@ func TestFeishuWebhook_ValidToken(t *testing.T) {
 		AppSecret:         "secret",
 		VerificationToken: "correct-token",
 	})
-
 	body := `{"header":{"event_type":"other.event","token":"correct-token"},"event":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(body))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
@@ -251,7 +235,6 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 	ch, b := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -271,16 +254,12 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
-
 	select {
 	case msg := <-b.InboundChan():
 		if msg.Content != "hello maven" {
@@ -306,7 +285,6 @@ func TestFeishuWebhook_RejectedSender(t *testing.T) {
 		AppSecret: "secret",
 		AllowFrom: []string{"ou_allowed"},
 	})
-
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -325,17 +303,13 @@ func TestFeishuWebhook_RejectedSender(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	select {
 	case <-b.InboundChan():
 		t.Error("should not receive message from rejected sender")
 	default:
-		// OK
 	}
 }
 
@@ -352,7 +326,8 @@ func TestFeishuWebhook_ImageMessage(t *testing.T) {
 		}
 		return "iVBORw0KGgo=", "image/png", nil
 	}
-
+	ch.client.token = "test-token"
+	ch.client.tokenExp = time.Now().Add(time.Hour)
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -371,12 +346,9 @@ func TestFeishuWebhook_ImageMessage(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	select {
 	case msg := <-b.InboundChan():
 		if msg.Content != "[image]" {
@@ -407,7 +379,6 @@ func TestFeishuWebhook_UnsupportedMessageType(t *testing.T) {
 	ch, b := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -426,17 +397,13 @@ func TestFeishuWebhook_UnsupportedMessageType(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	select {
 	case <-b.InboundChan():
 		t.Error("should not receive unsupported message type")
 	default:
-		// OK
 	}
 }
 
@@ -444,7 +411,6 @@ func TestFeishuWebhook_EmptyText(t *testing.T) {
 	ch, b := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -463,17 +429,13 @@ func TestFeishuWebhook_EmptyText(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	select {
 	case <-b.InboundChan():
 		t.Error("should not receive empty text message")
 	default:
-		// OK
 	}
 }
 
@@ -481,7 +443,6 @@ func TestFeishuWebhook_InvalidContent(t *testing.T) {
 	ch, b := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	event := map[string]any{
 		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
@@ -500,17 +461,13 @@ func TestFeishuWebhook_InvalidContent(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(event)
-
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(string(data)))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	select {
 	case <-b.InboundChan():
 		t.Error("should not receive message with invalid content JSON")
 	default:
-		// OK
 	}
 }
 
@@ -518,22 +475,17 @@ func TestFeishuWebhook_NonMessageEvent(t *testing.T) {
 	ch, b := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret",
 	})
-
 	body := `{"header":{"event_type":"im.chat.member.bot.added_v1"},"event":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(body))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
 	}
-
 	select {
 	case <-b.InboundChan():
 		t.Error("should not receive non-message event")
 	default:
-		// OK
 	}
 }
 
@@ -541,15 +493,12 @@ func TestFeishuWebhook_NoVerificationToken(t *testing.T) {
 	ch, _ := newTestFeishuChannel(t, config.FeishuConfig{
 		AppID:             "cli_test",
 		AppSecret:         "secret",
-		VerificationToken: "", // No token configured = skip verification
+		VerificationToken: "",
 	})
-
 	body := `{"header":{"event_type":"other.event","token":"any-token"},"event":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/feishu/webhook", strings.NewReader(body))
 	w := httptest.NewRecorder()
-
 	ch.handleWebhook(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (token verification should be skipped)", w.Code)
 	}
@@ -557,26 +506,19 @@ func TestFeishuWebhook_NoVerificationToken(t *testing.T) {
 
 func TestFeishuChannel_StartStop(t *testing.T) {
 	b := bus.NewMessageBus(10, feishuTestLog)
-	mock := &mockFeishuClient{token: "test-token"}
-
-	ch, err := NewFeishuChannelWithFactory(config.FeishuConfig{
+	ch, err := NewFeishuChannel(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret", Port: 0,
-	}, feishuTestLog, b, mockFeishuClientFactory(mock))
+	}, feishuTestLog, b)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	err = ch.Start(ctx)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
-
-	// Give server time to start
 	time.Sleep(50 * time.Millisecond)
-
 	err = ch.Stop()
 	if err != nil {
 		t.Errorf("Stop error: %v", err)

@@ -102,7 +102,10 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 		mem: memory.NewMemoryStore(tmpDir),
 	}
 
-	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if sys == "" {
 		t.Error("expected non-empty prompt")
@@ -134,7 +137,10 @@ func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 		mem: mem,
 	}
 
-	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !contains(sys, "User is a developer") {
 		t.Error("missing memory content")
@@ -155,7 +161,10 @@ func TestGateway_BuildSystemPrompt_NoFiles(t *testing.T) {
 		mem: memory.NewMemoryStore(tmpDir),
 	}
 
-	sys := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Should return empty when no files exist
 	if sys != "" {

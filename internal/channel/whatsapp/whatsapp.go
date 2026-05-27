@@ -312,3 +312,5 @@ func isDigitsOnly(val string) bool {
 	}
 	return true
 }
+
+var _ chann.Channel = (*WhatsAppChannel)(nil)
