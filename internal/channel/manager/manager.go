@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -135,10 +136,11 @@ func (m *ChannelManager) startAll(ctx context.Context, byName map[string]chann.C
 	}
 	wg.Wait()
 	close(errCh)
+	var errs []error
 	for err := range errCh {
-		return err
+		errs = append(errs, err)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (m *ChannelManager) StartAll(ctx context.Context) error {

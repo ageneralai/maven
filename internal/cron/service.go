@@ -215,7 +215,9 @@ func (s *Service) checkAndFire() {
 		due = append(due, *j)
 		s.clearNextRun(j)
 	}
-	_ = s.saveAtomicLocked()
+	if err := s.saveAtomicLocked(); err != nil {
+		s.log.Error("cron save after firing", "err", err)
+	}
 	s.mu.Unlock()
 	for _, job := range due {
 		job := job
@@ -227,7 +229,9 @@ func (s *Service) fire(job CronJob) {
 	if err := job.Payload.Validate(); err != nil {
 		s.mu.Lock()
 		s.applyJobValidationFailure(job.ID, err)
-		_ = s.saveAtomicLocked()
+		if serr := s.saveAtomicLocked(); serr != nil {
+			s.log.Error("cron save after validation failure", "err", serr)
+		}
 		s.mu.Unlock()
 		return
 	}
@@ -242,7 +246,9 @@ func (s *Service) fire(job CronJob) {
 	s.mu.Lock()
 	idx := s.findJobIndex(job.ID)
 	if idx < 0 {
-		_ = s.saveAtomicLocked()
+		if err := s.saveAtomicLocked(); err != nil {
+			s.log.Error("cron save after job removed", "err", err)
+		}
 		s.mu.Unlock()
 		return
 	}
@@ -266,7 +272,9 @@ func (s *Service) fire(job CronJob) {
 	} else if j.Schedule.Kind != "at" {
 		j.State.NextRunAtMs = computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
 	}
-	_ = s.saveAtomicLocked()
+	if err := s.saveAtomicLocked(); err != nil {
+		s.log.Error("cron save after run", "job", j.Name, "err", err)
+	}
 	s.mu.Unlock()
 	if err == nil && s.deliver != nil {
 		s.deliver.AfterSuccessfulRun(runCtx, job, out)
@@ -292,7 +300,9 @@ func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
 	now := time.Now().UnixMilli()
 	s.ensureNextRunLocked(now)
-	_ = s.saveAtomicLocked()
+	if err := s.saveAtomicLocked(); err != nil {
+		s.log.Error("cron save on start", "err", err)
+	}
 	n := len(s.jobs)
 	s.mu.Unlock()
 	s.log.Info("cron started", "jobs", n)
@@ -351,7 +361,9 @@ func (s *Service) RemoveJob(id string) bool {
 			continue
 		}
 		s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
-		_ = s.saveAtomicLocked()
+		if err := s.saveAtomicLocked(); err != nil {
+			s.log.Error("cron save after remove", "id", id, "err", err)
+		}
 		removed = true
 		break
 	}
@@ -402,7 +414,9 @@ func (s *Service) EnableJob(id string, enabled bool) (*CronJob, error) {
 		} else {
 			s.jobs[i].State.NextRunAtMs = 0
 		}
-		_ = s.saveAtomicLocked()
+		if err := s.saveAtomicLocked(); err != nil {
+			s.log.Error("cron save after enable/disable", "id", id, "err", err)
+		}
 		job := s.jobs[i]
 		out = &job
 		break

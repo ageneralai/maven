@@ -92,14 +92,18 @@ func (w *WebChannel) Stop() error {
 		}
 	}
 	w.clients.Range(func(key, value any) bool {
-		c := value.(*wsClient)
-		_ = c.conn.CloseNow()
+		c, ok := value.(*wsClient)
+		if ok {
+			_ = c.conn.CloseNow()
+		}
 		return true
 	})
 	w.voiceSessions.Range(func(key, value any) bool {
-		vc := value.(*voiceClient)
-		vc.sess.Close()
-		_ = vc.conn.CloseNow()
+		vc, ok := value.(*voiceClient)
+		if ok {
+			vc.sess.Close()
+			_ = vc.conn.CloseNow()
+		}
 		return true
 	})
 	w.Log.Info("web stopped")
@@ -129,24 +133,24 @@ func (w *WebChannel) handleResponses(wr http.ResponseWriter, r *http.Request) {
 		PreviousResponseID string `json:"previous_response_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(wr, `{"error":{"message":"invalid request","type":"invalid_request_error"}}`, http.StatusBadRequest)
+		writeJSONError(wr, "invalid request", "invalid_request_error", http.StatusBadRequest)
 		return
 	}
 	// Extract text from input — string or [{type:message,role:user,content:...}]
 	prompt := extractPrompt(req.Input)
 	if strings.TrimSpace(prompt) == "" {
-		http.Error(wr, `{"error":{"message":"input is required","type":"invalid_request_error"}}`, http.StatusBadRequest)
+		writeJSONError(wr, "input is required", "invalid_request_error", http.StatusBadRequest)
 		return
 	}
 	sessionID, err := resolveMavenSessionID(r, req.PreviousResponseID)
 	if err != nil {
-		http.Error(wr, `{"error":{"message":"`+err.Error()+`","type":"invalid_request_error"}}`, http.StatusBadRequest)
+		writeJSONError(wr, err.Error(), "invalid_request_error", http.StatusBadRequest)
 		return
 	}
 
 	events, err := w.runner.RunStream(r.Context(), prompt, sessionID)
 	if err != nil {
-		http.Error(wr, `{"error":{"message":"agent error","type":"server_error"}}`, http.StatusInternalServerError)
+		writeJSONError(wr, "agent error", "server_error", http.StatusInternalServerError)
 		return
 	}
 
@@ -208,6 +212,15 @@ func (w *WebChannel) handleResponses(wr http.ResponseWriter, r *http.Request) {
 	storeMavenResponseSession(responseID, sessionID)
 	fmt.Fprint(wr, "data: [DONE]\n\n")
 	fl.Flush()
+}
+
+func writeJSONError(wr http.ResponseWriter, message, errType string, status int) {
+	b, _ := json.Marshal(map[string]any{
+		"error": map[string]any{"message": message, "type": errType},
+	})
+	wr.Header().Set("Content-Type", "application/json; charset=utf-8")
+	wr.WriteHeader(status)
+	_, _ = wr.Write(b)
 }
 
 func extractPrompt(input any) string {

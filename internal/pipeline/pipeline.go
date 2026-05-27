@@ -177,12 +177,14 @@ func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bo
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		return true
 	}
-	_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+	if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel:  msg.Channel,
 		ChatID:   msg.ChatID,
 		Content:  "✅ Started a fresh session.",
 		Metadata: cloneTransportMeta(msg.TransportMeta),
-	})
+	}); err != nil {
+		p.Log.Error("pipeline publish session reset reply", "channel", msg.Channel, "err", err)
+	}
 	return true
 }
 
@@ -226,12 +228,14 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 		result = postResult
 	}
 	if result != "" {
-		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+		if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  result,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
-		})
+		}); err != nil {
+			p.Log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
+		}
 	}
 	return nil
 }
@@ -269,12 +273,14 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		return
 	}
 	if !slashOut.ContinueToModel {
-		_ = p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+		if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  slashOut.DirectReply,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
-		})
+		}); err != nil {
+			p.Log.Error("pipeline publish slash reply", "channel", msg.Channel, "err", err)
+		}
 		return
 	}
 	if ch != nil && !msg.Hints.ForceSync {

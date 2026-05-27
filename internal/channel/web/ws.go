@@ -78,13 +78,18 @@ func (w *WebChannel) writeToClient(ctx context.Context, chatID string, data []by
 	client, ok := w.clients.Load(chatID)
 	if !ok {
 		w.clients.Range(func(key, value any) bool {
-			c := value.(*wsClient)
-			_ = c.conn.Write(ctx, websocket.MessageText, data)
+			c, ok := value.(*wsClient)
+			if ok {
+				_ = c.conn.Write(ctx, websocket.MessageText, data)
+			}
 			return true
 		})
 		return nil
 	}
-	c := client.(*wsClient)
+	c, ok := client.(*wsClient)
+	if !ok {
+		return nil
+	}
 	return c.conn.Write(ctx, websocket.MessageText, data)
 }
 
@@ -112,7 +117,10 @@ func (w *WebChannel) writeVoiceClient(ctx context.Context, chatID string, typ we
 	if !ok {
 		return nil
 	}
-	vc := v.(*voiceClient)
+	vc, ok := v.(*voiceClient)
+	if !ok {
+		return nil
+	}
 	vc.writeMu.Lock()
 	defer vc.writeMu.Unlock()
 	return vc.conn.Write(ctx, typ, data)
@@ -164,7 +172,10 @@ func (w *WebChannel) sendStreamVoice(ctx context.Context, chatID string, events 
 	if !ok {
 		return nil
 	}
-	vc := v.(*voiceClient)
+	vc, ok := v.(*voiceClient)
+	if !ok {
+		return nil
+	}
 	sess := vc.sess
 	conn := vc.conn
 	micAgentCtx := sess.NewAgentCtx()
