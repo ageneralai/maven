@@ -11,7 +11,7 @@ import (
 	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
-// CronToolInput is parsed JSON for CronSchedule / cron-add tool flows (gateway defaults applied separately).
+// CronToolInput is parsed JSON for cron-schedule / cron-add tool flows (inbound-chat defaults applied separately).
 type CronToolInput struct {
 	Name                  string
 	Message               string
@@ -76,10 +76,10 @@ func (in *CronToolInput) ValidateDeliveryPolicy(ctx context.Context) error {
 	}
 	if deliverIncoming {
 		if ch != "" || to != "" {
-			return fmt.Errorf("tool: with deliver_to_incoming_chat omit channel and to (they come from the current gateway chat)")
+			return fmt.Errorf("tool: with deliver_to_incoming_chat omit channel and to (they come from the current chat)")
 		}
 		if _, ok := turnctx.From(ctx); !ok {
-			return fmt.Errorf("tool: deliver_to_incoming_chat needs an active gateway conversation (missing inbound channel or chat id)")
+			return fmt.Errorf("tool: deliver_to_incoming_chat needs an active conversation (missing inbound channel or chat id)")
 		}
 		return nil
 	}

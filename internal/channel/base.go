@@ -17,7 +17,7 @@ type CapabilitySet struct {
 }
 
 // Channel is a named chat transport. Send delivers to msg.ChatID. Channels with
-// Capabilities().ReactiveOnly only support reply-path outbound; see gateway cron deliver path.
+// Capabilities().ReactiveOnly only support reply-path outbound; see cron.Deliver.
 type Channel interface {
 	Name() string
 	Start(ctx context.Context) error

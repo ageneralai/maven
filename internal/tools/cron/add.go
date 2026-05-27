@@ -67,7 +67,7 @@ func Add(s *svcron.Service, p AddParams, now time.Time) (*svcron.CronJob, error)
 		sch = svcron.Schedule{Kind: "at", AtMs: pp.AtMs}
 	}
 	if pp.Deliver && (pp.Channel == "" || pp.To == "") {
-		return nil, fmt.Errorf("deliver requires channel and to, or use deliver_to_incoming_chat in a gateway chat session")
+		return nil, fmt.Errorf("deliver requires channel and to, or use deliver_to_incoming_chat in the current chat session")
 	}
 	payload := svcron.Payload{
 		Message: pp.Message,

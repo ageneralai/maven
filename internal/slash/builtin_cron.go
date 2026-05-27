@@ -19,8 +19,8 @@ func cronHandlers(svc *cron.Service) []handlerEntry {
 		{
 			def: Definition{
 				Name: "cron-add",
-				Description: "Schedule a gateway cron job. Exactly one of --expr (cron with seconds, six fields), " +
-					"--in (duration from now, e.g. 1m), or --at-ms (Unix ms). When the job runs, the gateway runs the agent with --message. " +
+				Description: "Schedule a persisted cron job. Exactly one of --expr (cron with seconds, six fields), " +
+					"--in (duration from now, e.g. 1m), or --at-ms (Unix ms). When the job runs, the agent executes with --message. " +
 					"Use --deliver true with --channel and --to to send the agent reply (e.g. telegram + chat id).",
 			},
 			h: HandlerFunc(func(ctx context.Context, inv Invocation) (Result, error) {
@@ -30,7 +30,7 @@ func cronHandlers(svc *cron.Service) []handlerEntry {
 		{
 			def: Definition{
 				Name:        "cron-list",
-				Description: "List persisted gateway cron jobs (id, name, schedule, delivery).",
+				Description: "List persisted cron jobs (id, name, schedule, delivery).",
 			},
 			h: HandlerFunc(func(ctx context.Context, inv Invocation) (Result, error) {
 				return handleCronList(ctx, svc, inv)
@@ -39,7 +39,7 @@ func cronHandlers(svc *cron.Service) []handlerEntry {
 		{
 			def: Definition{
 				Name:        "cron-remove",
-				Description: "Remove a gateway cron job by id (see /cron-list).",
+				Description: "Remove a persisted cron job by id (see /cron-list).",
 			},
 			h: HandlerFunc(func(ctx context.Context, inv Invocation) (Result, error) {
 				return handleCronRemove(ctx, svc, inv)

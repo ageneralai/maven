@@ -96,7 +96,7 @@ var cronScheduleToolSchema = &tool.JSONSchema{
 		},
 		"deliver_to_incoming_chat": map[string]interface{}{
 			"type":        "boolean",
-			"description": "If true (gateway chat only), deliver to the same channel/chat as the current conversation. Sets deliver implicitly. When omitted from a gateway chat with no channel/to, defaults to true.",
+			"description": "If true, deliver to the same channel/chat as the current conversation. Sets deliver implicitly. When omitted in an active chat with no channel/to, defaults to true.",
 		},
 		"channel": map[string]interface{}{
 			"type":        "string",
@@ -120,7 +120,7 @@ var cronRemoveToolSchema = &tool.JSONSchema{
 	Properties: map[string]interface{}{
 		"id": map[string]interface{}{
 			"type":        "string",
-			"description": "Job id from CronList output.",
+			"description": "Job id from cron-list output.",
 		},
 	},
 	Required: []string{"id"},

@@ -288,7 +288,7 @@ The runtime is constructed during `Apply` with:
 - Skill registrations
 - MCP server definitions (optional)
 - Auto-compact configuration
-- Cron tools (`CronSchedule`, `CronList`, `CronRemove`)
+- Cron tools (`cron-schedule`, `cron-list`, `cron-remove`)
 
 ### 7.2 Execution Surface
 
@@ -579,7 +579,7 @@ internal/
   cron/                 Scheduler, persistent job store, SessionKey, Deliver
 
   tools/
-    cron/               CronSchedule / CronList / CronRemove SDK tools + slash helpers
+    cron/               cron-schedule / cron-list / cron-remove SDK tools + slash helpers
 
   heartbeat/            HEARTBEAT.md periodic runner and tick SessionKey
   session/              Session ID routing and rotation

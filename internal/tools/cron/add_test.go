@@ -74,7 +74,7 @@ func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
 	}
 }
 
-func TestCronScheduleTool_Execute(t *testing.T) {
+func TestScheduleToolExecute(t *testing.T) {
 	svc := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	tools := Tools(svc)
 	if len(tools) != 3 {
