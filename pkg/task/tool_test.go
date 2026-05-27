@@ -37,7 +37,7 @@ func TestInterface_Compliance(t *testing.T) {
 
 func TestExecute_UnknownSubagent(t *testing.T) {
 	tt := &taskTool{holder: &RuntimeHolder{}}
-	_, err := tt.Execute(context.Background(), map[string]interface{}{
+	_, err := tt.Execute(context.Background(), map[string]any{
 		"name": "shell",
 		"goal": "inspect repo",
 	})
@@ -51,7 +51,7 @@ func TestExecute_NestedTaskRejected(t *testing.T) {
 	ctx := context.WithValue(context.Background(), model.MiddlewareStateKey, &middleware.State{
 		Values: map[string]any{"session_id": "task-550e8400-e29b-41d4-a716-446655440000"},
 	})
-	_, err := tt.Execute(ctx, map[string]interface{}{
+	_, err := tt.Execute(ctx, map[string]any{
 		"name": "explore",
 		"goal": "find main",
 	})

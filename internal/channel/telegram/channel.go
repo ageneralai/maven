@@ -85,7 +85,7 @@ func (t *TelegramChannel) telegramRoot() string {
 	return filepath.Join(t.workspace, ".telegram")
 }
 
-func (t *TelegramChannel) initBot() error {
+func (t *TelegramChannel) initBot(ctx context.Context) error {
 	var opts []telego.BotOption
 	client, err := httpc.ClientFromProxy(t.proxy)
 	if err != nil {
@@ -100,7 +100,7 @@ func (t *TelegramChannel) initBot() error {
 	}
 	t.bot = bot
 
-	me, err := bot.GetMe(context.Background())
+	me, err := bot.GetMe(ctx)
 	if err != nil {
 		return fmt.Errorf("telegram getMe: %w", err)
 	}
@@ -109,7 +109,7 @@ func (t *TelegramChannel) initBot() error {
 }
 
 func (t *TelegramChannel) Start(ctx context.Context) error {
-	if err := t.initBot(); err != nil {
+	if err := t.initBot(ctx); err != nil {
 		return err
 	}
 	t.loadSlashCommands()

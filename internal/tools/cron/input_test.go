@@ -8,7 +8,7 @@ import (
 	turnctx "github.com/ageneralai/maven/pkg/context"
 )
 
-func validateToolDeliveryPolicy(ctx context.Context, m map[string]interface{}) error {
+func validateToolDeliveryPolicy(ctx context.Context, m map[string]any) error {
 	in, err := ParseCronToolInput(m)
 	if err != nil {
 		return err
@@ -18,7 +18,7 @@ func validateToolDeliveryPolicy(ctx context.Context, m map[string]interface{}) e
 }
 
 func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
-	base := map[string]interface{}{
+	base := map[string]any{
 		"name": "x", "message": "y", "in": "1s",
 	}
 	t.Run("incoming_ok", func(t *testing.T) {
@@ -119,8 +119,8 @@ func TestCronToolInput_ValidateDeliveryPolicy(t *testing.T) {
 	})
 }
 
-func cloneToolMap(m map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(m))
+func cloneToolMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
 	for k, v := range m {
 		out[k] = v
 	}

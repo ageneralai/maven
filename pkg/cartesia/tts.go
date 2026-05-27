@@ -24,7 +24,7 @@ type ttsRequest struct {
 	ModelID      string                 `json:"model_id"`
 	Transcript   string                 `json:"transcript"`
 	Voice        map[string]string      `json:"voice"`
-	OutputFormat map[string]interface{} `json:"output_format"`
+	OutputFormat map[string]any `json:"output_format"`
 }
 
 func (c *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error) {
@@ -56,7 +56,7 @@ func (c *TTS) Synthesize(ctx context.Context, text string) (<-chan []byte, error
 			"mode": "id",
 			"id":   voiceID,
 		},
-		OutputFormat: map[string]interface{}{
+		OutputFormat: map[string]any{
 			"container":   "raw",
 			"encoding":    "pcm_s16le",
 			"sample_rate": 24000,

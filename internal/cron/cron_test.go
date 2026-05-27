@@ -29,6 +29,13 @@ func newTestService(t *testing.T) *Service {
 	return mustNewService(t, filepath.Join(t.TempDir(), "jobs.json"), executor.Nop{}, 1)
 }
 
+func TestNewService_NilExecutor(t *testing.T) {
+	_, err := NewService(filepath.Join(t.TempDir(), "jobs.json"), nil, 1, testLG, nil)
+	if err == nil {
+		t.Fatal("expected error for nil executor")
+	}
+}
+
 func TestNewCronJob(t *testing.T) {
 	job := NewCronJob("test", Schedule{Kind: "cron", Expr: "0 * * * *"}, Payload{Message: "hello"})
 	if job.ID == "" {

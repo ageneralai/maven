@@ -219,10 +219,10 @@ func (s *Service) checkAndFire(ctx context.Context) {
 	if err := s.saveAtomicLocked(); err != nil {
 		s.log.Error("cron save after firing", "err", err)
 	}
+	s.fireWg.Add(len(due))
 	s.mu.Unlock()
 	for _, job := range due {
 		job := job
-		s.fireWg.Add(1)
 		go func() {
 			defer s.fireWg.Done()
 			s.fire(ctx, job)

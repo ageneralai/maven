@@ -33,9 +33,11 @@ func (d *Deliver) AfterSuccessfulRun(ctx context.Context, job CronJob, output st
 		}
 		return
 	}
-	_ = d.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+	if err := d.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: job.Payload.Channel,
 		ChatID:  job.Payload.To,
 		Content: output,
-	})
+	}); err != nil && d.Log != nil {
+		d.Log.Error("cron deliver publish failed", "channel", job.Payload.Channel, "job", job.Name, "err", err)
+	}
 }

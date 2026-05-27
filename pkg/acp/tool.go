@@ -16,20 +16,20 @@ const delegateToolDescription = `Delegate a coding task to a configured external
 
 var delegateTaskSchema = &tool.JSONSchema{
 	Type: "object",
-	Properties: map[string]interface{}{
-		"agent": map[string]interface{}{
+	Properties: map[string]any{
+		"agent": map[string]any{
 			"type":        "string",
 			"description": "Configured ACP agent name (tools.acp.agents key), e.g. codex, claude, gemini.",
 		},
-		"prompt": map[string]interface{}{
+		"prompt": map[string]any{
 			"type":        "string",
 			"description": "Task instructions for the delegated agent.",
 		},
-		"cwd": map[string]interface{}{
+		"cwd": map[string]any{
 			"type":        "string",
 			"description": "Working directory for the subprocess and ACP session cwd. Defaults to maven workspace.",
 		},
-		"timeout": map[string]interface{}{
+		"timeout": map[string]any{
 			"type":        "number",
 			"description": "Optional timeout in seconds (default 120).",
 		},
@@ -65,11 +65,11 @@ func (t *delegateTaskTool) Metadata() tool.Metadata {
 	return tool.Metadata{IsDestructive: true}
 }
 
-func (t *delegateTaskTool) Execute(ctx context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
+func (t *delegateTaskTool) Execute(ctx context.Context, params map[string]any) (*tool.ToolResult, error) {
 	return t.StreamExecute(ctx, params, func(string, bool) {})
 }
 
-func (t *delegateTaskTool) StreamExecute(ctx context.Context, params map[string]interface{}, emit func(string, bool)) (*tool.ToolResult, error) {
+func (t *delegateTaskTool) StreamExecute(ctx context.Context, params map[string]any, emit func(string, bool)) (*tool.ToolResult, error) {
 	if t == nil || len(t.agents) == 0 {
 		return nil, fmt.Errorf("delegate task tool is not configured")
 	}
@@ -111,7 +111,7 @@ func (t *delegateTaskTool) StreamExecute(ctx context.Context, params map[string]
 	return &tool.ToolResult{Success: true, Output: final}, nil
 }
 
-func stringFromMap(m map[string]interface{}, key string) string {
+func stringFromMap(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok || v == nil {
 		return ""
@@ -124,7 +124,7 @@ func stringFromMap(m map[string]interface{}, key string) string {
 	}
 }
 
-func numberToInt(v interface{}) (int, bool) {
+func numberToInt(v any) (int, bool) {
 	switch x := v.(type) {
 	case int:
 		return x, true

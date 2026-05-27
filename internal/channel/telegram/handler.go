@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -400,11 +399,7 @@ func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string
 	if t.bot == nil || messageID <= 0 {
 		return
 	}
-	ctx := t.runCtx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	err := t.bot.SetMessageReaction(ctx, &telego.SetMessageReactionParams{
+	err := t.bot.SetMessageReaction(t.runCtx, &telego.SetMessageReactionParams{
 		ChatID:    tu.ID(chatID),
 		MessageID: messageID,
 		Reaction:  []telego.ReactionType{tu.ReactionEmoji(emoji)},
@@ -418,11 +413,7 @@ func (t *TelegramChannel) sendTyping(chatID int64) {
 	if t.bot == nil {
 		return
 	}
-	ctx := t.runCtx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	err := t.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
+	err := t.bot.SendChatAction(t.runCtx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
 	if err != nil {
 		t.Log.Warn("telegram sendTyping failed", "err", err)
 	}

@@ -330,7 +330,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	messageType := strings.ToLower(strings.TrimSpace(event.Event.Message.MessageType))
 	content, contentBlocks, messageMetadata, err := f.parseFeishuInboundMessage(
-		context.Background(),
+		r.Context(),
 		messageType,
 		event.Event.Message.Content,
 	)

@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -94,11 +93,7 @@ func (t *TelegramChannel) sendBotReply(chatID int64, text string) {
 	if t.bot == nil {
 		return
 	}
-	ctx := t.runCtx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if _, err := t.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), text)); err != nil {
+	if _, err := t.bot.SendMessage(t.runCtx, tu.Message(tu.ID(chatID), text)); err != nil {
 		t.Log.Error("telegram sendMessage failed", "err", err)
 	}
 }

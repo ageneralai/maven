@@ -16,16 +16,16 @@ const toolDescription = `Delegate a scoped goal to an in-process SDK subagent (g
 
 var taskSchema = &tool.JSONSchema{
 	Type: "object",
-	Properties: map[string]interface{}{
-		"name": map[string]interface{}{
+	Properties: map[string]any{
+		"name": map[string]any{
 			"type":        "string",
 			"description": "Subagent type: general-purpose, explore, or plan.",
 		},
-		"goal": map[string]interface{}{
+		"goal": map[string]any{
 			"type":        "string",
 			"description": "Specific goal or instruction for the subagent.",
 		},
-		"model": map[string]interface{}{
+		"model": map[string]any{
 			"type":        "string",
 			"description": "Optional model tier override (sonnet, haiku, low, mid, high).",
 		},
@@ -50,7 +50,7 @@ func (t *taskTool) Description() string { return toolDescription }
 
 func (t *taskTool) Schema() *tool.JSONSchema { return taskSchema }
 
-func (t *taskTool) Execute(ctx context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
+func (t *taskTool) Execute(ctx context.Context, params map[string]any) (*tool.ToolResult, error) {
 	name := strings.ToLower(strings.TrimSpace(stringParam(params, "name")))
 	goal := strings.TrimSpace(stringParam(params, "goal"))
 	if name == "" || goal == "" {
@@ -95,7 +95,7 @@ func (t *taskTool) Execute(ctx context.Context, params map[string]interface{}) (
 	return &tool.ToolResult{Success: true, Output: output}, nil
 }
 
-func stringParam(m map[string]interface{}, key string) string {
+func stringParam(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok || v == nil {
 		return ""

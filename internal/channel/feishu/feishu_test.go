@@ -252,18 +252,18 @@ func TestFeishuWebhook_MessageReceive(t *testing.T) {
 		AppID: "cli_test", AppSecret: "secret",
 	})
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 			"token":      "",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_test123",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat456",
 				"message_type": "text",
 				"content":      `{"text":"hello maven"}`,
@@ -307,17 +307,17 @@ func TestFeishuWebhook_RejectedSender(t *testing.T) {
 		AllowFrom: []string{"ou_allowed"},
 	})
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_rejected",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat",
 				"message_type": "text",
 				"content":      `{"text":"hello"}`,
@@ -353,17 +353,17 @@ func TestFeishuWebhook_ImageMessage(t *testing.T) {
 		return "iVBORw0KGgo=", "image/png", nil
 	}
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_test",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat",
 				"message_type": "image",
 				"content":      `{"image_key":"img_xxx"}`,
@@ -408,17 +408,17 @@ func TestFeishuWebhook_UnsupportedMessageType(t *testing.T) {
 		AppID: "cli_test", AppSecret: "secret",
 	})
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_test",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat",
 				"message_type": "post",
 				"content":      `{}`,
@@ -445,17 +445,17 @@ func TestFeishuWebhook_EmptyText(t *testing.T) {
 		AppID: "cli_test", AppSecret: "secret",
 	})
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_test",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat",
 				"message_type": "text",
 				"content":      `{"text":""}`,
@@ -482,17 +482,17 @@ func TestFeishuWebhook_InvalidContent(t *testing.T) {
 		AppID: "cli_test", AppSecret: "secret",
 	})
 
-	event := map[string]interface{}{
-		"header": map[string]interface{}{
+	event := map[string]any{
+		"header": map[string]any{
 			"event_type": "im.message.receive_v1",
 		},
-		"event": map[string]interface{}{
-			"sender": map[string]interface{}{
-				"sender_id": map[string]interface{}{
+		"event": map[string]any{
+			"sender": map[string]any{
+				"sender_id": map[string]any{
 					"open_id": "ou_test",
 				},
 			},
-			"message": map[string]interface{}{
+			"message": map[string]any{
 				"chat_id":      "oc_chat",
 				"message_type": "text",
 				"content":      "not-valid-json",
