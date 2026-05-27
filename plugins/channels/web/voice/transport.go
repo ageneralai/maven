@@ -19,7 +19,6 @@ import (
 	"github.com/ageneralai/maven/kernel/voice"
 	"github.com/ageneralai/maven/kernel/executor"
 	"github.com/ageneralai/maven/kernel/plugin"
-	pkgvoice "github.com/ageneralai/maven/kernel/voice"
 	"github.com/coder/websocket"
 	"log/slog"
 )
@@ -256,7 +255,7 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 				return
 			case ev, ok := <-events:
 				if !ok {
-					tail := pkgvoice.FlushRemainder(&buf)
+					tail := voice.FlushRemainder(&buf)
 					if tail != "" {
 						select {
 						case textCh <- tail:
@@ -273,7 +272,7 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 				}
 				if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
 					buf += ev.Delta.Text
-					for _, sent := range pkgvoice.TakeCompleteSentences(&buf) {
+					for _, sent := range voice.TakeCompleteSentences(&buf) {
 						select {
 						case textCh <- sent:
 						case <-agentCtx.Done():

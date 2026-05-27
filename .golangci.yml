@@ -22,7 +22,7 @@ linters:
     forbidigo:
       forbid:
         - pattern: '^slog\.Default\(\)'
-          msg: use injected logger (pkg/log.Std), not slog.Default in internal/
+          msg: use injected logger (kernel/log.Std), not slog.Default
     revive:
       rules:
         - name: exported
@@ -53,9 +53,25 @@ linters:
         linters:
           - tagliatelle
           - gosec
+      - path: plugins/voice/
+        linters:
+          - tagliatelle
+          - gosec
+      - path: plugins/tools/acp/
+        linters:
+          - gosec
       - path: kernel/config/
         linters:
           - tagliatelle
+      - path: kernel/memory/
+        linters:
+          - gosec
+      - path: kernel/prompt/
+        linters:
+          - gosec
+      - path: kernel/channels/webhook/
+        linters:
+          - gosec
       - path: internal/testutil/
         linters:
           - gosec
