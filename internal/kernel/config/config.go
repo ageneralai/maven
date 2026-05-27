@@ -16,7 +16,6 @@ var telegramTokenPattern = regexp.MustCompile(`^\d+:[A-Za-z0-9_-]+$`)
 const (
 	DefaultModel             = "claude-sonnet-4-5-20250929"
 	DefaultMaxTokens         = 8192
-	DefaultTemperature       = 0.7
 	DefaultMaxToolIterations = 20
 	DefaultExecTimeout       = 60
 	DefaultHost              = "0.0.0.0"
@@ -32,7 +31,6 @@ type Config struct {
 	Skills        SkillsConfig        `json:"skills"`
 	MCP           MCPConfig           `json:"mcp"`
 	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
-	TokenTracking TokenTrackingConfig `json:"tokenTracking"`
 	Gateway       GatewayConfig       `json:"gateway"`
 	Speech        SpeechConfig        `json:"speech,omitempty"`
 }
@@ -41,7 +39,6 @@ type AgentConfig struct {
 	Workspace         string  `json:"workspace"`
 	Model             string  `json:"model"`
 	MaxTokens         int     `json:"maxTokens"`
-	Temperature       float64 `json:"temperature"`
 	MaxToolIterations int     `json:"maxToolIterations"`
 }
 
@@ -204,9 +201,6 @@ type AutoCompactConfig struct {
 	PreserveCount int     `json:"preserveCount,omitempty"`
 }
 
-type TokenTrackingConfig struct {
-	Enabled bool `json:"enabled"`
-}
 
 func DefaultConfig() *Config {
 	home, _ := os.UserHomeDir()
@@ -215,7 +209,6 @@ func DefaultConfig() *Config {
 			Workspace:         filepath.Join(home, ".maven", "workspace"),
 			Model:             DefaultModel,
 			MaxTokens:         DefaultMaxTokens,
-			Temperature:       DefaultTemperature,
 			MaxToolIterations: DefaultMaxToolIterations,
 		},
 		Provider: ProviderConfig{},
@@ -269,9 +262,6 @@ func (c AgentConfig) Validate() error {
 	}
 	if c.MaxToolIterations < 1 {
 		errs = append(errs, errors.New("agent.maxToolIterations must be at least 1"))
-	}
-	if c.Temperature < 0 || c.Temperature > 2 {
-		errs = append(errs, errors.New("agent.temperature must be between 0 and 2"))
 	}
 	return errors.Join(errs...)
 }

@@ -87,7 +87,6 @@ cat > "$CONFIG_FILE" <<EOF_JSON
     "workspace": "${HOME}/.maven/workspace",
     "model": "claude-sonnet-4-5-20250929",
     "maxTokens": 8192,
-    "temperature": 0.7,
     "maxToolIterations": 20
   },
   "provider": {

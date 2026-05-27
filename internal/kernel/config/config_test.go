@@ -222,7 +222,7 @@ func TestProviderConfig_Validate(t *testing.T) {
 
 func TestAgentConfig_Validate(t *testing.T) {
 	t.Parallel()
-	cfg := AgentConfig{Workspace: "/tmp", MaxTokens: 100, MaxToolIterations: 1, Temperature: 0.5}
+	cfg := AgentConfig{Workspace: "/tmp", MaxTokens: 100, MaxToolIterations: 1}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid agent config: %v", err)
 	}
