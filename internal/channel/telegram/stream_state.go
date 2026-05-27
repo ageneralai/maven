@@ -101,7 +101,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 		pid, err := s.t.sendPlaceholder(s.numChatID, text, parseMode, silent)
 		if err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Printf("[telegram] stream placeholder failed: %v", err)
+			s.t.Log.Error("telegram stream placeholder failed", "err", err)
 			sm.dirty = true
 			return false
 		}
@@ -109,7 +109,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 	} else {
 		if err := s.t.editMessage(s.numChatID, sm.id, text, parseMode); err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Printf("[telegram] stream edit failed: %v", err)
+			s.t.Log.Error("telegram stream edit failed", "err", err)
 			sm.dirty = true
 			return false
 		}
@@ -165,7 +165,7 @@ func (s *streamState) flushContent(now time.Time, force bool) {
 			WithParseMode(telego.ModeHTML)
 		if err := s.t.bot.SendMessageDraft(s.ctx, params); err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Printf("[telegram] sendMessageDraft failed: %v", err)
+			s.t.Log.Error("telegram sendMessageDraft failed", "err", err)
 			s.contentMsg.dirty = true
 			return
 		}
@@ -206,7 +206,7 @@ func (s *streamState) tickFlush(now time.Time, forceContent bool) {
 
 func (s *streamState) handleEvent(event api.StreamEvent) {
 	if s.debugLogEvents && event.Type != api.EventContentBlockDelta && event.Type != api.EventContentBlockStop && event.Type != api.EventPing && event.Type != api.EventToolExecutionOutput {
-		s.t.Log.Printf("[telegram] stream event: type=%s name=%s", event.Type, event.Name)
+		s.t.Log.Debug("telegram stream event", "type", event.Type, "name", event.Name)
 	}
 	switch event.Type {
 	case api.EventIterationStart:
@@ -278,7 +278,7 @@ func (s *streamState) handleEvent(event api.StreamEvent) {
 		s.tryUpdateStatus(time.Now())
 	case api.EventError:
 		s.streamErr = strings.TrimSpace(fmt.Sprintf("%v", event.Output))
-		s.t.Log.Printf("[telegram] stream error: %s", s.streamErr)
+		s.t.Log.Error("telegram stream error", "err", s.streamErr)
 		s.tryUpdateStatus(time.Now())
 	}
 }
@@ -310,12 +310,12 @@ func (s *streamState) finalizeSend(ctx context.Context) error {
 	}
 	if s.statusMsg.id != 0 {
 		if err := s.t.deleteMessage(s.numChatID, s.statusMsg.id); err != nil {
-			s.t.Log.Printf("[telegram] delete status message failed: %v", err)
+			s.t.Log.Error("telegram delete status message failed", "err", err)
 		}
 	}
 	if s.contentMsg.id != 0 {
 		if err := s.t.deleteMessage(s.numChatID, s.contentMsg.id); err != nil {
-			s.t.Log.Printf("[telegram] delete content message failed: %v", err)
+			s.t.Log.Error("telegram delete content message failed", "err", err)
 		}
 	}
 	return nil

@@ -16,8 +16,9 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
+	"log/slog"
+
 	"github.com/ageneralai/maven/pkg/plugin"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/google/uuid"
 )
 
@@ -39,7 +40,7 @@ type WebChannel struct {
 	runner        StreamRunner
 }
 
-func NewWebChannel(cfg config.WebConfig, gwCfg config.GatewayConfig, appCfg *config.Config, plugins *plugin.Registry, lg mavenlog.PrintLogger, b *bus.MessageBus, runner StreamRunner) (*WebChannel, error) {
+func NewWebChannel(cfg config.WebConfig, gwCfg config.GatewayConfig, appCfg *config.Config, plugins *plugin.Registry, lg *slog.Logger, b *bus.MessageBus, runner StreamRunner) (*WebChannel, error) {
 	port := gwCfg.Port
 	if port == 0 {
 		port = config.DefaultPort
@@ -74,9 +75,9 @@ func (w *WebChannel) Start(ctx context.Context) error {
 		Handler: mux,
 	}
 	go func() {
-		w.Log.Printf("[web] listening on :%d", w.port)
+		w.Log.Info("web channel listening", "port", w.port)
 		if err := w.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			w.Log.Printf("[web] server error: %v", err)
+			w.Log.Error("web server error", "err", err)
 		}
 	}()
 	return nil
@@ -87,7 +88,7 @@ func (w *WebChannel) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := w.server.Shutdown(ctx); err != nil {
-			w.Log.Printf("[web] shutdown error: %v", err)
+			w.Log.Error("web shutdown error", "err", err)
 		}
 	}
 	w.clients.Range(func(key, value any) bool {
@@ -101,7 +102,7 @@ func (w *WebChannel) Stop() error {
 		_ = vc.conn.CloseNow()
 		return true
 	})
-	w.Log.Printf("[web] stopped")
+	w.Log.Info("web stopped")
 	return nil
 }
 

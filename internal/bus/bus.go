@@ -6,8 +6,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"log/slog"
+
 	"github.com/ageneralai/maven/pkg/events"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 var ErrBusClosed = errors.New("bus closed")
@@ -35,7 +36,7 @@ type MessageBus struct {
 
 	mu   sync.RWMutex
 	subs map[string]func(OutboundMessage)
-	log  mavenlog.PrintLogger
+	log  *slog.Logger
 }
 
 // Option configures MessageBus construction.
@@ -57,7 +58,7 @@ func WithStreamDelegate(d StreamDelegate) Option {
 	}
 }
 
-func NewMessageBus(bufSize int, log mavenlog.PrintLogger, opts ...Option) *MessageBus {
+func NewMessageBus(bufSize int, log *slog.Logger, opts ...Option) *MessageBus {
 	if bufSize <= 0 {
 		bufSize = 100
 	}
@@ -130,7 +131,7 @@ func publishEnqueue[T any](b *MessageBus, ctx context.Context, stream, routingKe
 }
 
 func (b *MessageBus) reportPublishFailure(stream, routingKey string, err error) {
-	b.log.Printf("[bus] metric=publish_failure stream=%s channel=%q err=%v", stream, routingKey, err)
+	b.log.Error("bus publish failure", "stream", stream, "channel", routingKey, "err", err)
 	b.publisher.Publish(context.Background(), busPublishFailureEvent(stream, routingKey, err))
 }
 
@@ -202,13 +203,13 @@ func (b *MessageBus) DispatchOutbound(ctx context.Context) {
 				func() {
 					defer func() {
 						if rec := recover(); rec != nil {
-							b.log.Printf("[bus] panic in outbound subscriber: %v", rec)
+							b.log.Error("bus outbound subscriber panic", "recover", rec)
 						}
 					}()
 					cb(msg)
 				}()
 			} else {
-				b.log.Printf("[bus] no subscriber for channel %q, dropping message", msg.Channel)
+				b.log.Warn("bus dropping message, no subscriber", "channel", msg.Channel)
 			}
 		}
 	}

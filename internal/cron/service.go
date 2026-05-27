@@ -11,9 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/adhocore/gronx"
 	"github.com/ageneralai/maven/pkg/executor"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
 	"golang.org/x/sync/semaphore"
 )
@@ -23,7 +24,7 @@ type Service struct {
 	exec      executor.TurnExecutor
 	deliver   *Deliver
 	sem       *semaphore.Weighted
-	log       mavenlog.PrintLogger
+	log       *slog.Logger
 	mu        sync.RWMutex
 	jobs      []CronJob
 	runCtx    context.Context
@@ -33,7 +34,7 @@ type Service struct {
 	wakeChan  chan struct{}
 }
 
-func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg mavenlog.PrintLogger, deliver *Deliver) *Service {
+func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int, lg *slog.Logger, deliver *Deliver) *Service {
 	if exec == nil {
 		panic("cron: TurnExecutor is required")
 	}
@@ -99,7 +100,7 @@ func (s *Service) ensureNextRunLocked(now int64) {
 		case "cron":
 			next, err := gronx.NextTickAfter(j.Schedule.Expr, time.UnixMilli(now), false)
 			if err != nil {
-				s.log.Printf("[cron] job %s invalid cron expr: %v", j.Name, err)
+				s.log.Error("cron job invalid expr", "job", j.Name, "err", err)
 				continue
 			}
 			j.State.NextRunAtMs = next.UnixMilli()
@@ -250,11 +251,11 @@ func (s *Service) fire(job CronJob) {
 	if err != nil {
 		j.State.LastStatus = "error"
 		j.State.LastError = err.Error()
-		s.log.Printf("[cron] job %s error: %v", j.Name, err)
+		s.log.Error("cron job error", "job", j.Name, "err", err)
 	} else {
 		j.State.LastStatus = "ok"
 		j.State.LastError = ""
-		s.log.Printf("[cron] job %s result: %s", j.Name, stringutil.Truncate(out, 100))
+		s.log.Info("cron job result", "job", j.Name, "output", stringutil.Truncate(out, 100))
 	}
 	if j.Schedule.Kind == "at" {
 		j.Enabled = false
@@ -286,7 +287,7 @@ func (s *Service) applyJobValidationFailure(jobID string, validateErr error) {
 func (s *Service) Start(ctx context.Context) error {
 	s.runCtx, s.runCancel = context.WithCancel(ctx)
 	if err := s.load(); err != nil {
-		s.log.Printf("[cron] warning: failed to load jobs: %v", err)
+		s.log.Warn("cron failed to load jobs", "err", err)
 	}
 	s.mu.Lock()
 	now := time.Now().UnixMilli()
@@ -294,7 +295,7 @@ func (s *Service) Start(ctx context.Context) error {
 	_ = s.saveAtomicLocked()
 	n := len(s.jobs)
 	s.mu.Unlock()
-	s.log.Printf("[cron] started with %d jobs", n)
+	s.log.Info("cron started", "jobs", n)
 	go s.runLoop()
 	go func() {
 		<-ctx.Done()
@@ -310,7 +311,7 @@ func (s *Service) Stop() {
 			s.runCancel()
 		}
 	})
-	s.log.Printf("[cron] stopped")
+	s.log.Info("cron stopped")
 }
 
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {

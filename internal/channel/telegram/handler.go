@@ -29,7 +29,7 @@ func (t *TelegramChannel) handleMessage(msg *telego.Message) {
 	}
 	senderID := strconv.FormatInt(msg.From.ID, 10)
 	if !t.IsAllowed(senderID) {
-		t.Log.Printf("[telegram] rejected message from %s (%s)", senderID, msg.From.Username)
+		t.Log.Info("telegram rejected message", "sender", senderID, "username", msg.From.Username)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		photo := msg.Photo[len(msg.Photo)-1]
 		data, err := t.downloadFileData(photo.FileID)
 		if err != nil {
-			t.Log.Printf("[telegram] download photo %s failed: %v", photo.FileID, err)
+			t.Log.Warn("telegram download photo failed", "file_id", photo.FileID, "err", err)
 		} else {
 			mediaType := http.DetectContentType(data)
 			if mediaType == "application/octet-stream" {
@@ -190,7 +190,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 	}
 	if msg.Voice != nil {
 		if path, err := t.saveFile(msg.Voice.FileID, "voice.ogg"); err != nil {
-			t.Log.Printf("[telegram] save voice failed: %v", err)
+			t.Log.Warn("telegram save voice failed", "err", err)
 			content = AppendLine(content, fmt.Sprintf("[Voice message, %ds, download failed]", msg.Voice.Duration))
 		} else {
 			content = AppendLine(content, "[Voice message saved to: "+path+"]")
@@ -202,7 +202,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "audio.mp3"
 		}
 		if path, err := t.saveFile(msg.Audio.FileID, name); err != nil {
-			t.Log.Printf("[telegram] save audio failed: %v", err)
+			t.Log.Warn("telegram save audio failed", "err", err)
 			content = AppendLine(content, fmt.Sprintf("[Audio: %s, download failed]", name))
 		} else {
 			content = AppendLine(content, "[Audio file saved to: "+path+"]")
@@ -214,7 +214,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			name = "video.mp4"
 		}
 		if path, err := t.saveFile(msg.Video.FileID, name); err != nil {
-			t.Log.Printf("[telegram] save video failed: %v", err)
+			t.Log.Warn("telegram save video failed", "err", err)
 			content = AppendLine(content, fmt.Sprintf("[Video: %s, download failed]", name))
 		} else {
 			content = AppendLine(content, "[Video file saved to: "+path+"]")
@@ -229,7 +229,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 		if strings.HasPrefix(mediaType, "image/") {
 			data, err := t.downloadFileData(msg.Document.FileID)
 			if err != nil {
-				t.Log.Printf("[telegram] download document %s failed: %v", msg.Document.FileID, err)
+				t.Log.Warn("telegram download document failed", "file_id", msg.Document.FileID, "err", err)
 				content = AppendLine(content, fmt.Sprintf("[Image document: %s (%s), download failed]", name, mediaType))
 			} else {
 				blocks = append(blocks, model.ContentBlock{
@@ -240,7 +240,7 @@ func (t *TelegramChannel) extractContent(msg *telego.Message) (string, []model.C
 			}
 		} else {
 			if path, err := t.saveFile(msg.Document.FileID, name); err != nil {
-				t.Log.Printf("[telegram] save document failed: %v", err)
+				t.Log.Warn("telegram save document failed", "err", err)
 				info := fmt.Sprintf("[File: %s (%s)", name, mediaType)
 				if msg.Document.FileSize > 0 {
 					info += fmt.Sprintf(", %d bytes", msg.Document.FileSize)
@@ -275,7 +275,7 @@ func (t *TelegramChannel) extractExternalReplyContext(ext *telego.ExternalReplyI
 			photo := ext.Photo[len(ext.Photo)-1]
 			data, err := t.downloadFileData(photo.FileID)
 			if err != nil {
-				t.Log.Printf("[telegram] download external reply photo failed: %v", err)
+				t.Log.Warn("telegram download external reply photo failed", "err", err)
 				b.WriteString("\n[Photo, download failed]")
 			} else {
 				mediaType := http.DetectContentType(data)
@@ -329,7 +329,7 @@ func (t *TelegramChannel) saveFile(fileID, name string) (string, error) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
-	t.Log.Printf("[telegram] saved file to %s (%d bytes)", path, len(data))
+	t.Log.Debug("telegram saved file", "path", path, "bytes", len(data))
 	return path, nil
 }
 
@@ -408,7 +408,7 @@ func (t *TelegramChannel) sendReaction(chatID int64, messageID int, emoji string
 		Reaction:  []telego.ReactionType{tu.ReactionEmoji(emoji)},
 	})
 	if err != nil {
-		t.Log.Printf("[telegram] sendReaction failed: %v", err)
+		t.Log.Warn("telegram sendReaction failed", "err", err)
 	}
 }
 
@@ -418,6 +418,6 @@ func (t *TelegramChannel) sendTyping(chatID int64) {
 	}
 	err := t.bot.SendChatAction(context.Background(), tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
 	if err != nil {
-		t.Log.Printf("[telegram] sendTyping failed: %v", err)
+		t.Log.Warn("telegram sendTyping failed", "err", err)
 	}
 }

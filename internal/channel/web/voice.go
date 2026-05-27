@@ -37,18 +37,18 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		w.Log.Printf("[web] voice websocket accept error: %v", err)
+		w.Log.Error("web voice websocket accept error", "err", err)
 		return
 	}
 	stt, err := voice.NewSTT(w.appCfg, w.plugins)
 	if err != nil {
-		w.Log.Printf("[web] voice stt init: %v", err)
+		w.Log.Error("web voice stt init", "err", err)
 		_ = conn.CloseNow()
 		return
 	}
 	tts, err := voice.NewTTS(w.appCfg, w.plugins)
 	if err != nil {
-		w.Log.Printf("[web] voice tts init: %v", err)
+		w.Log.Error("web voice tts init", "err", err)
 		_ = conn.CloseNow()
 		return
 	}
@@ -56,11 +56,11 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 	defer sess.Close()
 	vc := &voiceClient{sess: sess, conn: conn}
 	w.voiceSessions.Store(sessionID, vc)
-	w.Log.Printf("[web] voice client connected: session=%s", sessionID)
+	w.Log.Info("web voice client connected", "session", sessionID)
 	defer func() {
 		w.voiceSessions.Delete(sessionID)
 		_ = conn.CloseNow()
-		w.Log.Printf("[web] voice client disconnected: session=%s", sessionID)
+		w.Log.Info("web voice client disconnected", "session", sessionID)
 	}()
 	audioCh := make(chan []byte, 64)
 	go func() {
@@ -98,15 +98,15 @@ func (w *WebChannel) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			vc.writeCancel()
 			events, err := w.runner.RunStream(r.Context(), t, sessionID)
 			if err != nil {
-				w.Log.Printf("[web] voice agent stream session=%s: %v", sessionID, err)
+				w.Log.Error("web voice agent stream", "session", sessionID, "err", err)
 				return
 			}
 			if err := w.sendStreamVoice(r.Context(), sessionID, events); err != nil {
-				w.Log.Printf("[web] voice tts stream session=%s: %v", sessionID, err)
+				w.Log.Error("web voice tts stream", "session", sessionID, "err", err)
 			}
 		})
 		if err != nil && err != context.Canceled {
-			w.Log.Printf("[web] voice STT: %v", err)
+			w.Log.Error("web voice STT", "err", err)
 		}
 	}()
 	<-r.Context().Done()

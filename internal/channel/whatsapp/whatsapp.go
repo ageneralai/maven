@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	"log/slog"
+
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	qrterminal "github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -43,7 +44,7 @@ type WhatsAppChannel struct {
 	handlerID      uint32
 }
 
-func NewWhatsApp(cfg config.WhatsAppConfig, lg mavenlog.PrintLogger, msgBus *bus.MessageBus) (*WhatsAppChannel, error) {
+func NewWhatsApp(cfg config.WhatsAppConfig, lg *slog.Logger, msgBus *bus.MessageBus) (*WhatsAppChannel, error) {
 	storePath := strings.TrimSpace(cfg.StorePath)
 	if storePath == "" {
 		storePath = filepath.Join(config.ConfigDir(), "whatsapp-store.db")
@@ -108,7 +109,7 @@ func (w *WhatsAppChannel) Start(ctx context.Context) error {
 		w.client.Disconnect()
 	}()
 
-	w.Log.Printf("[whatsapp] connected")
+	w.Log.Info("whatsapp connected")
 	return nil
 }
 
@@ -132,7 +133,7 @@ func (w *WhatsAppChannel) Stop() error {
 		w.storeContainer = nil
 	}
 
-	w.Log.Printf("[whatsapp] stopped")
+	w.Log.Info("whatsapp stopped")
 	return nil
 }
 
@@ -188,13 +189,13 @@ func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow
 
 			switch evt.Event {
 			case whatsmeow.QRChannelEventCode:
-				w.Log.Printf("[whatsapp] scan the QR code below to login")
+				w.Log.Info("whatsapp scan QR code to login")
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 			default:
 				if evt.Error != nil {
-					w.Log.Printf("[whatsapp] login event=%s error=%v", evt.Event, evt.Error)
+					w.Log.Error("whatsapp login event", "event", evt.Event, "err", evt.Error)
 				} else {
-					w.Log.Printf("[whatsapp] login event=%s", evt.Event)
+					w.Log.Info("whatsapp login event", "event", evt.Event)
 				}
 			}
 		}
@@ -216,7 +217,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 	rawSender := evt.Info.Sender.String()
 	sender := evt.Info.Sender.ToNonAD().String()
 	if !w.IsAllowed(sender) && !w.IsAllowed(rawSender) {
-		w.Log.Printf("[whatsapp] rejected message from %s", sender)
+		w.Log.Info("whatsapp rejected message", "sender", sender)
 		return
 	}
 
@@ -259,7 +260,7 @@ func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.C
 		data, err := w.client.Download(ctx, image)
 		cancel()
 		if err != nil {
-			w.Log.Printf("[whatsapp] download image failed: %v", err)
+			w.Log.Warn("whatsapp download image failed", "err", err)
 		} else if len(data) > 0 {
 			mediaType := strings.TrimSpace(image.GetMimetype())
 			if mediaType == "" {

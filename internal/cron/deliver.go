@@ -3,9 +3,10 @@ package cron
 import (
 	"context"
 
+	"log/slog"
+
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/manager"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 // Deliver performs proactive cron output delivery to the message bus when a job
@@ -13,7 +14,7 @@ import (
 type Deliver struct {
 	Bus      *bus.MessageBus
 	Channels *manager.ChannelManager
-	Log      mavenlog.PrintLogger
+	Log      *slog.Logger
 }
 
 // AfterSuccessfulRun enqueues outbound text for jobs with deliver=true, unless the
@@ -28,7 +29,7 @@ func (d *Deliver) AfterSuccessfulRun(ctx context.Context, job CronJob, output st
 	ch := d.Channels.GetChannel(job.Payload.Channel)
 	if ch != nil && ch.Capabilities().ReactiveOnly {
 		if d.Log != nil {
-			d.Log.Printf("[cron] deliver skipped: channel %q is reactive-only", job.Payload.Channel)
+			d.Log.Info("cron deliver skipped: channel is reactive-only", "channel", job.Payload.Channel)
 		}
 		return
 	}

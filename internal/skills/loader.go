@@ -10,7 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
+
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"gopkg.in/yaml.v3"
@@ -26,7 +27,7 @@ type skillFrontmatter struct {
 	Keywords    []string `yaml:"keywords"`
 }
 
-func LoadSkills(skillDir string, lg mavenlog.PrintLogger) ([]api.SkillRegistration, error) {
+func LoadSkills(skillDir string, lg *slog.Logger) ([]api.SkillRegistration, error) {
 	skillDir = strings.TrimSpace(skillDir)
 	if skillDir == "" {
 		return nil, nil
@@ -71,7 +72,7 @@ func LoadSkills(skillDir string, lg mavenlog.PrintLogger) ([]api.SkillRegistrati
 	return registrations, nil
 }
 
-func parseSkillFile(path string, lg mavenlog.PrintLogger) (api.SkillRegistration, bool, error) {
+func parseSkillFile(path string, lg *slog.Logger) (api.SkillRegistration, bool, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -82,7 +83,7 @@ func parseSkillFile(path string, lg mavenlog.PrintLogger) (api.SkillRegistration
 	meta, body, err := parseFrontmatter(content)
 	if err != nil {
 		if errors.Is(err, errInvalidSkillYAML) {
-			lg.Printf("[skills] warning: skip invalid YAML skill %s: %v", path, err)
+			lg.Warn("skills skipping invalid YAML skill", "path", path, "err", err)
 			return api.SkillRegistration{}, true, nil
 		}
 		return api.SkillRegistration{}, false, fmt.Errorf("parse skill %q: %w", path, err)

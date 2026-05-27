@@ -20,23 +20,23 @@ func (t *TelegramChannel) loadSlashCommands() {
 	t.slashCommands = make(map[string]Command)
 	root := t.telegramRoot()
 	if root == "" {
-		t.Log.Printf("[telegram] skip slash command load: telegram root is not configured")
+		t.Log.Info("telegram skip slash command load: telegram root is not configured")
 		return
 	}
 	dir := filepath.Join(root, "slashes")
 	cmds, err := LoadCommands(dir)
 	if err != nil {
-		t.Log.Printf("[telegram] load slash commands: %v", err)
+		t.Log.Error("telegram load slash commands", "err", err)
 		return
 	}
 	for _, cmd := range cmds {
 		t.slashCommands[cmd.Name] = cmd
 	}
 	if len(t.slashCommands) > 0 {
-		t.Log.Printf("[telegram] loaded %d slash commands from %s", len(t.slashCommands), dir)
+		t.Log.Info("telegram loaded slash commands", "count", len(t.slashCommands), "dir", dir)
 		return
 	}
-	t.Log.Printf("[telegram] no slash commands found in %s", dir)
+	t.Log.Info("telegram no slash commands found", "dir", dir)
 }
 
 func (t *TelegramChannel) registeredBotCommands() []telego.BotCommand {
@@ -95,7 +95,7 @@ func (t *TelegramChannel) sendBotReply(chatID int64, text string) {
 		return
 	}
 	if _, err := t.bot.SendMessage(context.Background(), tu.Message(tu.ID(chatID), text)); err != nil {
-		t.Log.Printf("[telegram] sendMessage failed: %v", err)
+		t.Log.Error("telegram sendMessage failed", "err", err)
 	}
 }
 

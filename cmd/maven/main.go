@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,10 +17,10 @@ import (
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/gateway"
+	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/version"
 	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
-	"github.com/ageneralai/maven/internal/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -168,6 +169,7 @@ func init() {
 }
 
 func main() {
+	slog.SetDefault(mavenlog.Std())
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -395,7 +397,7 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
+	registrations, err := skills.LoadSkills(skillDir, slog.Default())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -470,7 +472,7 @@ func runSkillsInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	skillDir := resolveSkillsDir(cfg)
-	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
+	registrations, err := skills.LoadSkills(skillDir, slog.Default())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -616,7 +618,7 @@ func runSkillsCheck(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingSkillFile)
 
-	registrations, err := skills.LoadSkills(skillDir, mavenlog.Std())
+	registrations, err := skills.LoadSkills(skillDir, slog.Default())
 	if err != nil {
 		return fmt.Errorf("load skills: %w", err)
 	}
@@ -662,9 +664,9 @@ func loadRuntimeSkills(cfg *config.Config) []api.SkillRegistration {
 		return nil
 	}
 
-	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), mavenlog.Std())
+	skillRegs, err := skills.LoadSkills(resolveSkillsDir(cfg), slog.Default())
 	if err != nil {
-		mavenlog.Std().Printf("[agent] skills load warning: %v", err)
+		slog.Warn("agent skills load warning", "err", err)
 		return nil
 	}
 	return skillRegs

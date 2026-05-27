@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
@@ -30,7 +31,7 @@ func (r *runtimeAdapter) Close() {
 }
 
 // NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (internal/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).
-func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (Runtime, error) {
+func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore, lg *slog.Logger) (Runtime, error) {
 	var provider api.ModelFactory
 	switch cfg.Provider.Type {
 	case "openai":
@@ -49,7 +50,7 @@ func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRe
 		}
 	}
 	taskHolder := &task.RuntimeHolder{}
-	customTools := tcron.Tools(cronSvc)
+	customTools := tcron.Tools(cronSvc, lg)
 	customTools = append(customTools, task.Tools(cfg.Tools.Task, taskHolder)...)
 	customTools = append(customTools, pluginTools...)
 	rt, err := api.New(context.Background(), api.Options{

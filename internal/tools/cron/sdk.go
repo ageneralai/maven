@@ -3,24 +3,31 @@ package cron
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	svcron "github.com/ageneralai/maven/internal/cron"
 )
 
-func Tools(s *svcron.Service) []tool.Tool {
+func Tools(s *svcron.Service, lg *slog.Logger) []tool.Tool {
 	if s == nil {
 		return nil
 	}
+	if lg == nil {
+		lg = slog.Default()
+	}
 	return []tool.Tool{
-		&scheduleTool{svc: s},
+		&scheduleTool{svc: s, log: lg},
 		&listTool{svc: s},
 		&removeTool{svc: s},
 	}
 }
 
-type scheduleTool struct{ svc *svcron.Service }
+type scheduleTool struct {
+	svc *svcron.Service
+	log *slog.Logger
+}
 
 func (t *scheduleTool) Name() string { return "cron-schedule" }
 
@@ -36,6 +43,7 @@ func (t *scheduleTool) Schema() *tool.JSONSchema { return cronScheduleToolSchema
 func (t *scheduleTool) Execute(ctx context.Context, params map[string]interface{}) (*tool.ToolResult, error) {
 	job, err := AddFromToolMap(t.svc, ctx, params, time.Now())
 	if err != nil {
+		t.log.Error("cron-schedule failed", "err", err, "params", params)
 		return &tool.ToolResult{Success: false, Output: err.Error()}, nil
 	}
 	return &tool.ToolResult{Success: true, Output: FormatJobAdded(job)}, nil

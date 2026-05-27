@@ -33,19 +33,19 @@ func (w *WebChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		w.Log.Printf("[web] websocket accept error: %v", err)
+		w.Log.Error("web websocket accept error", "err", err)
 		return
 	}
 
 	clientID := fmt.Sprintf("web-%d", w.nextID.Add(1))
 	client := &wsClient{conn: conn, id: clientID}
 	w.clients.Store(clientID, client)
-	w.Log.Printf("[web] client connected: %s", clientID)
+	w.Log.Info("web client connected", "client", clientID)
 
 	defer func() {
 		w.clients.Delete(clientID)
 		_ = conn.CloseNow()
-		w.Log.Printf("[web] client disconnected: %s", clientID)
+		w.Log.Info("web client disconnected", "client", clientID)
 	}()
 
 	for {
@@ -61,7 +61,7 @@ func (w *WebChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if !w.IsAllowed(clientID) {
-			w.Log.Printf("[web] rejected message from %s", clientID)
+			w.Log.Debug("web rejected message", "client", clientID)
 			continue
 		}
 		_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{

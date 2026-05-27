@@ -7,10 +7,11 @@ import (
 	"strings"
 	"sync"
 
+	"log/slog"
+
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -37,7 +38,7 @@ type MatrixChannel struct {
 	syncWG     sync.WaitGroup
 }
 
-func NewMatrixChannel(cfg config.MatrixConfig, workspace string, lg mavenlog.PrintLogger, b *bus.MessageBus) (*MatrixChannel, error) {
+func NewMatrixChannel(cfg config.MatrixConfig, workspace string, lg *slog.Logger, b *bus.MessageBus) (*MatrixChannel, error) {
 	userID, err := parseUserID(cfg.UserID)
 	if err != nil {
 		return nil, err
@@ -96,9 +97,9 @@ func (m *MatrixChannel) Start(ctx context.Context) error {
 	m.syncWG.Add(1)
 	go func() {
 		defer m.syncWG.Done()
-		m.Log.Printf("[matrix] sync started as %s", m.userID)
+		m.Log.Info("matrix sync started", "user_id", m.userID)
 		if err := m.client.SyncWithContext(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			m.Log.Printf("[matrix] sync stopped: %v", err)
+			m.Log.Error("matrix sync stopped", "err", err)
 		}
 	}()
 	return nil
@@ -109,7 +110,7 @@ func (m *MatrixChannel) Stop() error {
 		m.cancel()
 	}
 	m.syncWG.Wait()
-	m.Log.Printf("[matrix] stopped")
+	m.Log.Info("matrix stopped")
 	return nil
 }
 

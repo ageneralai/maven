@@ -18,8 +18,9 @@ import (
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	"log/slog"
+
 	"github.com/ageneralai/maven/pkg/httpc"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 const wecomChannelName = "wecom"
@@ -342,7 +343,7 @@ var defaultWeComClientFactory WeComClientFactory = func(cfg config.WeComConfig) 
 	return newDefaultWeComClient(cfg, http.DefaultClient)
 }
 
-func NewWeComChannel(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*WeComChannel, error) {
+func NewWeComChannel(cfg config.WeComConfig, lg *slog.Logger, b *bus.MessageBus) (*WeComChannel, error) {
 	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
 	if err != nil {
 		return nil, fmt.Errorf("wecom proxy: %w", err)
@@ -358,7 +359,7 @@ func NewWeComChannel(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.Mes
 	return ch, nil
 }
 
-func NewWeComChannelWithFactory(cfg config.WeComConfig, lg mavenlog.PrintLogger, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
+func NewWeComChannelWithFactory(cfg config.WeComConfig, lg *slog.Logger, b *bus.MessageBus, factory WeComClientFactory) (*WeComChannel, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("wecom token is required")
 	}
@@ -404,9 +405,9 @@ func (w *WeComChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		w.Log.Printf("[wecom] callback server listening on :%d", port)
+		w.Log.Info("wecom callback server listening", "port", port)
 		if err := w.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			w.Log.Printf("[wecom] server error: %v", err)
+			w.Log.Error("wecom server error", "err", err)
 		}
 	}()
 
@@ -428,7 +429,7 @@ func (w *WeComChannel) Stop() error {
 	if w.client != nil {
 		w.client.Close()
 	}
-	w.Log.Printf("[wecom] stopped")
+	w.Log.Info("wecom stopped")
 	return nil
 }
 
@@ -656,7 +657,7 @@ func (w *WeComChannel) buildEncryptedReply(timestamp, nonce, receiveID string, p
 func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	var message weComInboundMessage
 	if err := json.Unmarshal([]byte(plaintext), &message); err != nil {
-		w.Log.Printf("[wecom] unmarshal plaintext json error: %v", err)
+		w.Log.Error("wecom unmarshal message error", "err", err)
 		return
 	}
 
@@ -666,13 +667,13 @@ func (w *WeComChannel) processDecryptedMessage(plaintext string) {
 	}
 
 	if !w.allowMessageFrom(senderID) {
-		w.Log.Printf("[wecom] rejected message from %s", senderID)
+		w.Log.Info("wecom rejected message", "sender", senderID)
 		return
 	}
 
 	messageID := strings.TrimSpace(message.MsgID)
 	if messageID != "" && w.msgCache.Seen(messageID) {
-		w.Log.Printf("[wecom] duplicate message dropped: %s", messageID)
+		w.Log.Debug("wecom duplicate message dropped", "msg_id", messageID)
 		return
 	}
 
@@ -736,7 +737,7 @@ func (w *WeComChannel) extractWeComContentBlocks(message weComInboundMessage) []
 
 	block, err := w.buildWeComImageContentBlock(context.Background(), message)
 	if err != nil {
-		w.Log.Printf("[wecom] process image message warning: %v", err)
+		w.Log.Warn("wecom process image warning", "err", err)
 	}
 	if block == nil {
 		return nil
@@ -818,7 +819,7 @@ func normalizeWeComMediaType(value string) string {
 	return strings.TrimSpace(contentType)
 }
 
-func extractWeComContent(message weComInboundMessage, lg mavenlog.PrintLogger) string {
+func extractWeComContent(message weComInboundMessage, lg *slog.Logger) string {
 	switch strings.ToLower(strings.TrimSpace(message.MsgType)) {
 	case "text":
 		return strings.TrimSpace(message.Text.Content)
@@ -838,7 +839,7 @@ func extractWeComContent(message weComInboundMessage, lg mavenlog.PrintLogger) s
 		}
 		return strings.TrimSpace(strings.Join(parts, "\n"))
 	default:
-		lg.Printf("[wecom] unsupported message type: %s", strings.TrimSpace(message.MsgType))
+		lg.Warn("wecom unsupported message type", "msg_type", strings.TrimSpace(message.MsgType))
 		return ""
 	}
 }

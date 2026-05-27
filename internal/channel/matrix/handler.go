@@ -20,12 +20,12 @@ func (m *MatrixChannel) handleMessageEvent(ctx context.Context, evt *event.Event
 	}
 	roomID := evt.RoomID.String()
 	if !m.isRoomAllowed(roomID) {
-		m.Log.Printf("[matrix] rejected room %s", roomID)
+		m.Log.Debug("matrix rejected room", "room", roomID)
 		return
 	}
 	senderID := evt.Sender.String()
 	if !m.IsAllowed(senderID) {
-		m.Log.Printf("[matrix] rejected message from %s", senderID)
+		m.Log.Debug("matrix rejected message", "sender", senderID)
 		return
 	}
 	msg := evt.Content.AsMessage()
@@ -63,10 +63,10 @@ func (m *MatrixChannel) handleMemberEvent(ctx context.Context, evt *event.Event)
 		return
 	}
 	if _, err := m.client.JoinRoomByID(ctx, evt.RoomID); err != nil {
-		m.Log.Printf("[matrix] join room %s after invite: %v", evt.RoomID, err)
+		m.Log.Error("matrix join room after invite", "room", evt.RoomID, "err", err)
 		return
 	}
-	m.Log.Printf("[matrix] joined room %s (invited by %s)", evt.RoomID, evt.Sender)
+	m.Log.Info("matrix joined room", "room", evt.RoomID, "invited_by", evt.Sender)
 }
 
 func (m *MatrixChannel) isRoomAllowed(roomID string) bool {

@@ -3,8 +3,9 @@ package channel
 import (
 	"context"
 
+	"log/slog"
+
 	"github.com/ageneralai/maven/internal/bus"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 // CapabilitySet declares optional channel behavior. ReactiveOnly means outbound
@@ -30,10 +31,10 @@ type BaseChannel struct {
 	name      string
 	Bus       *bus.MessageBus
 	allowFrom map[string]bool
-	Log       mavenlog.PrintLogger
+	Log       *slog.Logger
 }
 
-func NewBaseChannel(name string, b *bus.MessageBus, allowFrom []string, log mavenlog.PrintLogger) BaseChannel {
+func NewBaseChannel(name string, b *bus.MessageBus, allowFrom []string, log *slog.Logger) BaseChannel {
 	af := make(map[string]bool, len(allowFrom))
 	for _, id := range allowFrom {
 		af[id] = true

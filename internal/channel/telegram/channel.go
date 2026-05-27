@@ -10,10 +10,11 @@ import (
 
 	"github.com/ageneralai/maven/pkg/httpc"
 
+	"log/slog"
+
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
@@ -39,7 +40,7 @@ type TelegramChannel struct {
 	slashCommands map[string]Command
 }
 
-func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg mavenlog.PrintLogger, b *bus.MessageBus) (*TelegramChannel, error) {
+func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Logger, b *bus.MessageBus) (*TelegramChannel, error) {
 	if cfg.Token == "" {
 		return nil, fmt.Errorf("telegram token is required")
 	}
@@ -101,7 +102,7 @@ func (t *TelegramChannel) initBot() error {
 	if err != nil {
 		return fmt.Errorf("telegram getMe: %w", err)
 	}
-	t.Log.Printf("[telegram] authorized as @%s", me.Username)
+	t.Log.Info("telegram authorized", "username", me.Username)
 	return nil
 }
 
@@ -129,7 +130,7 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 		}
 	}()
 
-	t.Log.Printf("[telegram] polling started")
+	t.Log.Info("telegram polling started")
 	return nil
 }
 
@@ -137,7 +138,7 @@ func (t *TelegramChannel) Stop() error {
 	if t.cancel != nil {
 		t.cancel()
 	}
-	t.Log.Printf("[telegram] stopped")
+	t.Log.Info("telegram stopped")
 	return nil
 }
 
@@ -156,6 +157,6 @@ func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
 		return err
 	}
 
-	t.Log.Printf("[telegram] registered %d bot commands", len(commands))
+	t.Log.Info("telegram bot commands registered", "count", len(commands))
 	return nil
 }

@@ -14,20 +14,21 @@ import (
 	"github.com/ageneralai/maven/internal/channel/wecom"
 	"github.com/ageneralai/maven/internal/channel/whatsapp"
 	"github.com/ageneralai/maven/internal/config"
+	"log/slog"
+
 	"github.com/ageneralai/maven/pkg/plugin"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 type ChannelManager struct {
 	mu       sync.RWMutex
 	channels map[string]chann.Channel
 	bus      *bus.MessageBus
-	log      mavenlog.PrintLogger
+	log      *slog.Logger
 	plugins  *plugin.Registry
 	runner   web.StreamRunner
 }
 
-func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
+func NewChannelManager(b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
 	return &ChannelManager{
 		channels: make(map[string]chann.Channel),
 		bus:      b,
@@ -37,7 +38,7 @@ func NewChannelManager(b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plug
 	}
 }
 
-func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg mavenlog.PrintLogger, plugins *plugin.Registry, runner web.StreamRunner) (map[string]chann.Channel, error) {
+func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) (map[string]chann.Channel, error) {
 	out := make(map[string]chann.Channel)
 	ws := cfg.Agent.Workspace
 	chcfg := cfg.Channels
@@ -109,7 +110,7 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 		c := ch
 		m.bus.SetOutboundSubscriber(n, func(msg bus.OutboundMessage) {
 			if err := c.Send(context.Background(), msg); err != nil {
-				m.log.Printf("[channel-mgr] send to %s failed: %v", n, err)
+				m.log.Error("channel send failed", "channel", n, "err", err)
 			}
 		})
 	}
@@ -126,7 +127,7 @@ func (m *ChannelManager) startAll(ctx context.Context, byName map[string]chann.C
 		wg.Add(1)
 		go func(name string, ch chann.Channel) {
 			defer wg.Done()
-			m.log.Printf("[channel-mgr] starting %s", name)
+			m.log.Info("starting channel", "channel", name)
 			if err := ch.Start(ctx); err != nil {
 				errCh <- fmt.Errorf("%s: %w", name, err)
 			}
@@ -160,10 +161,10 @@ func (m *ChannelManager) StopAll() error {
 	}
 	m.mu.RUnlock()
 	for _, name := range names {
-		m.log.Printf("[channel-mgr] stopping %s", name)
+		m.log.Info("stopping channel", "channel", name)
 		if ch := snap[name]; ch != nil {
 			if err := ch.Stop(); err != nil {
-				m.log.Printf("[channel-mgr] error stopping %s: %v", name, err)
+				m.log.Error("channel stop error", "channel", name, "err", err)
 			}
 		}
 		m.bus.SetOutboundSubscriber(name, nil)

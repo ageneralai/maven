@@ -15,9 +15,10 @@ import (
 	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/pkg/events"
 	"github.com/ageneralai/maven/pkg/executor"
+	"log/slog"
+
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
 )
 
@@ -41,7 +42,7 @@ func (e errPostActionHandle) Unwrap() error {
 // turn; Reload drains under Lock for the pointer swap only; applyChannels runs outside
 // the lock so channel I/O does not stall inbound.
 type Pipeline struct {
-	Log           mavenlog.PrintLogger
+	Log           *slog.Logger
 	Bus           *bus.MessageBus
 	Channels      *manager.ChannelManager
 	SlashRegistry *slash.Registry
@@ -52,7 +53,7 @@ type Pipeline struct {
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunText.
-func New(log mavenlog.PrintLogger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts *agent.PostActionHandler) *Pipeline {
+func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts *agent.PostActionHandler) *Pipeline {
 	return &Pipeline{Log: log, Bus: b, rt: rt, Sessions: sessions, Posts: posts}
 }
 
@@ -145,7 +146,7 @@ func (p *Pipeline) Run(ctx context.Context) {
 }
 
 func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string, err error) {
-	p.Log.Printf("[pipeline] %s/%s error: %v", chName, chatID, err)
+	p.Log.Error("pipeline turn error", "channel", chName, "chat_id", chatID, "err", err)
 	// TODO(mvp): add dead-letter or delivery-failure counters before external launch; callers cannot observe PublishOutbound failures.
 	pubErr := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: chName,
@@ -153,7 +154,7 @@ func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string
 		Content: userMsg,
 	})
 	if pubErr != nil {
-		p.Log.Printf("[pipeline] %s/%s error reply publish failed: %v", chName, chatID, pubErr)
+		p.Log.Error("pipeline error reply publish failed", "channel", chName, "chat_id", chatID, "err", pubErr)
 	}
 }
 
@@ -236,7 +237,7 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 }
 
 func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
-	p.Log.Printf("[pipeline] inbound from %s/%s: %s", msg.Channel, msg.SenderID, stringutil.Truncate(msg.Content, 80))
+	p.Log.Debug("pipeline inbound", "channel", msg.Channel, "sender", msg.SenderID, "content", stringutil.Truncate(msg.Content, 80))
 	if p.handleBuiltin(ctx, msg) {
 		return
 	}

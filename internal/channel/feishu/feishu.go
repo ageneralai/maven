@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
+	"log/slog"
+
 	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/httpc"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 const feishuChannelName = "feishu"
@@ -167,7 +168,7 @@ type FeishuChannel struct {
 	imageDownloader FeishuImageDownloader
 }
 
-func NewFeishuChannel(cfg config.FeishuConfig, lg mavenlog.PrintLogger, b *bus.MessageBus) (*FeishuChannel, error) {
+func NewFeishuChannel(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBus) (*FeishuChannel, error) {
 	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
 	if err != nil {
 		return nil, fmt.Errorf("feishu proxy: %w", err)
@@ -186,7 +187,7 @@ func NewFeishuChannel(cfg config.FeishuConfig, lg mavenlog.PrintLogger, b *bus.M
 	return ch, nil
 }
 
-func NewFeishuChannelWithFactory(cfg config.FeishuConfig, lg mavenlog.PrintLogger, b *bus.MessageBus, factory FeishuClientFactory) (*FeishuChannel, error) {
+func NewFeishuChannelWithFactory(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBus, factory FeishuClientFactory) (*FeishuChannel, error) {
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		return nil, fmt.Errorf("feishu app_id and app_secret are required")
 	}
@@ -221,9 +222,9 @@ func (f *FeishuChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		f.Log.Printf("[feishu] webhook server listening on :%d", port)
+		f.Log.Info("feishu webhook server listening", "port", port)
 		if err := f.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			f.Log.Printf("[feishu] server error: %v", err)
+			f.Log.Error("feishu server error", "err", err)
 		}
 	}()
 
@@ -242,7 +243,7 @@ func (f *FeishuChannel) Stop() error {
 	if f.server != nil {
 		f.server.Close()
 	}
-	f.Log.Printf("[feishu] stopped")
+	f.Log.Info("feishu stopped")
 	return nil
 }
 
@@ -323,7 +324,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	senderID := event.Event.Sender.SenderID.OpenID
 	if !f.IsAllowed(senderID) {
-		f.Log.Printf("[feishu] rejected message from %s", senderID)
+		f.Log.Info("feishu rejected message", "sender", senderID)
 		return
 	}
 
@@ -334,7 +335,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		event.Event.Message.Content,
 	)
 	if err != nil {
-		f.Log.Printf("[feishu] parse message error: %v", err)
+		f.Log.Error("feishu parse message error", "err", err)
 		return
 	}
 	if content == "" && len(contentBlocks) == 0 {
@@ -391,7 +392,7 @@ func (f *FeishuChannel) parseFeishuInboundMessage(ctx context.Context, messageTy
 
 		block, err := f.buildFeishuImageContentBlock(ctx, imageKey)
 		if err != nil {
-			f.Log.Printf("[feishu] image download warning: %v", err)
+			f.Log.Warn("feishu image download warning", "err", err)
 		}
 		if block == nil {
 			return "[image]", nil, map[string]any{"image_key": imageKey}, nil

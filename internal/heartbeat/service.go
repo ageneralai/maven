@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
+
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/internal/health"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/stringutil"
 	"golang.org/x/sync/semaphore"
 )
@@ -29,11 +30,11 @@ type Service struct {
 	exec      executor.TurnExecutor
 	sem       *semaphore.Weighted
 	interval  time.Duration
-	log       mavenlog.PrintLogger
+	log       *slog.Logger
 	rep       health.HealthReporter
 }
 
-func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log mavenlog.PrintLogger, opts ...Option) *Service {
+func New(workspace string, exec executor.TurnExecutor, interval time.Duration, log *slog.Logger, opts ...Option) *Service {
 	if exec == nil {
 		panic("heartbeat: TurnExecutor is required")
 	}
@@ -59,7 +60,7 @@ func (s *Service) buildPrompt() string {
 	data, err := os.ReadFile(hbPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			s.log.Printf("[heartbeat] read error: %v", err)
+			s.log.Error("heartbeat read error", "err", err)
 		}
 		return ""
 	}
@@ -69,14 +70,14 @@ func (s *Service) buildPrompt() string {
 func (s *Service) Start(ctx context.Context) error {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
-	s.log.Printf("[heartbeat] started, interval=%s", s.interval)
+	s.log.Info("heartbeat started", "interval", s.interval)
 	for {
 		select {
 		case <-ticker.C:
 			s.rep.Pulse(health.SignalHeartbeatTick)
 			s.tick(ctx)
 		case <-ctx.Done():
-			s.log.Printf("[heartbeat] stopped")
+			s.log.Info("heartbeat stopped")
 			return nil
 		}
 	}
@@ -84,7 +85,7 @@ func (s *Service) Start(ctx context.Context) error {
 
 func (s *Service) tick(ctx context.Context) {
 	if !s.sem.TryAcquire(1) {
-		s.log.Printf("[heartbeat] skipped: previous tick still running")
+		s.log.Debug("heartbeat skipped: previous tick still running")
 		return
 	}
 	go func() {
@@ -98,16 +99,16 @@ func (s *Service) execute(ctx context.Context) {
 	if prompt == "" {
 		return
 	}
-	s.log.Printf("[heartbeat] triggering with prompt (%d chars)", len(prompt))
+	s.log.Debug("heartbeat triggering", "prompt_len", len(prompt))
 	sessionID := SessionKey()
 	result, err := s.exec.RunTurn(ctx, prompt, sessionID)
 	if err != nil {
-		s.log.Printf("[heartbeat] error: %v", err)
+		s.log.Error("heartbeat error", "err", err)
 		return
 	}
 	if strings.Contains(result, "HEARTBEAT_OK") {
-		s.log.Printf("[heartbeat] nothing to do")
+		s.log.Debug("heartbeat nothing to do")
 	} else {
-		s.log.Printf("[heartbeat] result: %s", stringutil.Truncate(result, 200))
+		s.log.Info("heartbeat result", "output", stringutil.Truncate(result, 200))
 	}
 }

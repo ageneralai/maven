@@ -119,7 +119,7 @@ func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		if pid, ok := placeholderID.(int); ok && pid != 0 {
 			content := ToTelegramHTML(msg.Content)
 			if err := t.editMessage(chatID, pid, content, telego.ModeHTML); err != nil {
-				t.Log.Printf("[telegram] edit placeholder failed: %v", err)
+				t.Log.Error("telegram edit placeholder failed", "err", err)
 			} else {
 				return nil
 			}

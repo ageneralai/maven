@@ -24,7 +24,7 @@ import (
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
 	mavoice "github.com/ageneralai/maven/internal/voice"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/plugin"
@@ -32,7 +32,7 @@ import (
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
-type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (agent.Runtime, error)
+type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore, lg *slog.Logger) (agent.Runtime, error)
 
 // Options for creating a Gateway.
 type Options struct {
@@ -42,8 +42,8 @@ type Options struct {
 }
 
 // DefaultRuntimeFactory wires agentsdk-go with the given skills, cron command/tool registration, and gateway plugin tools.
-func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore) (agent.Runtime, error) {
-	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc, pluginTools, sessionStore)
+func DefaultRuntimeFactory(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, cronSvc *cron.Service, pluginTools []tool.Tool, sessionStore api.SessionStore, lg *slog.Logger) (agent.Runtime, error) {
+	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, cronSvc, pluginTools, sessionStore, lg)
 }
 
 // Gateway wires channels, bus, cron, heartbeat, and the inbound pipeline. Business logic lives in internal/pipeline.
@@ -63,7 +63,7 @@ type Gateway struct {
 	sessions       *mavsession.Router
 	historyStore   *mavsession.Store
 	signalChan     chan os.Signal
-	logger         mavenlog.PrintLogger
+	logger         *slog.Logger
 	liveness       health.HealthReporter
 	hbCancel       context.CancelFunc
 	applyMu        sync.Mutex
@@ -84,7 +84,7 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 	}
 	regs, err := skills.LoadSkills(skillDir, g.logger)
 	if err != nil {
-		g.logger.Printf("[gateway] skills load warning: %v", err)
+		g.logger.Warn("gateway skills load warning", "err", err)
 	}
 	return regs
 }
@@ -92,7 +92,7 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 // NewWithOptions creates a Gateway with a custom runtime factory (for tests).
 // Pipeline runtime is unset until Apply; Run calls Apply before starting cron/pipeline goroutines.
 func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
-	g := &Gateway{cfg: cfg, logger: mavenlog.Std()}
+	g := &Gateway{cfg: cfg, logger: slog.Default()}
 	g.bus = bus.NewMessageBus(config.DefaultBufSize, g.logger)
 	g.mem = memory.NewMemoryStore(cfg.Agent.Workspace)
 	router, routerErr := mavsession.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
@@ -144,7 +144,7 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 	if g.plugins != nil {
 		pluginTools = g.plugins.Tools(cfg)
 	}
-	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools, g.historyStore)
+	return g.runtimeFactory(cfg, sysPrompt, skillRegs, g.cron, pluginTools, g.historyStore, g.logger)
 }
 
 func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt agent.Runtime) error {
@@ -196,7 +196,7 @@ func (g *Gateway) startHeartbeat(ctx context.Context) {
 	g.hbCancel = cancel
 	go func() {
 		if err := g.hb.Start(hbCtx); err != nil {
-			g.logger.Printf("[gateway] heartbeat error: %v", err)
+			g.logger.Error("gateway heartbeat error", "err", err)
 		}
 	}()
 }
@@ -215,9 +215,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 	if err := g.Apply(ctx, g.cfg); err != nil {
 		return fmt.Errorf("initial apply: %w", err)
 	}
-	g.logger.Printf("[gateway] channels started: %v", g.channelMgr.EnabledChannels())
+	g.logger.Info("gateway channels started", "channels", g.channelMgr.EnabledChannels())
 	if err := g.cron.Start(ctx); err != nil {
-		g.logger.Printf("[gateway] cron start warning: %v", err)
+		g.logger.Warn("gateway cron start warning", "err", err)
 	}
 	g.pipeWg.Add(1)
 	go func() {
@@ -225,7 +225,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 		g.pipe.Run(ctx)
 	}()
 	g.liveness.Pulse(health.SignalGatewayReady)
-	g.logger.Printf("[gateway] running on %s:%d", g.cfg.Gateway.Host, g.cfg.Gateway.Port)
+	g.logger.Info("gateway running", "host", g.cfg.Gateway.Host, "port", g.cfg.Gateway.Port)
 	debounce := time.Duration(g.cfg.Gateway.ReloadDebounceMs) * time.Millisecond
 	var reloadCh <-chan struct{}
 	var stopReload func()
@@ -242,30 +242,30 @@ func (g *Gateway) Run(ctx context.Context) error {
 		if !g.cfg.Gateway.HotReload {
 			select {
 			case <-ctx.Done():
-				g.logger.Printf("[gateway] shutting down...")
+				g.logger.Info("gateway shutting down")
 				return g.Shutdown()
 			case <-sigCh:
-				g.logger.Printf("[gateway] shutting down...")
+				g.logger.Info("gateway shutting down")
 				return g.Shutdown()
 			}
 		}
 		select {
 		case <-ctx.Done():
-			g.logger.Printf("[gateway] shutting down...")
+			g.logger.Info("gateway shutting down")
 			return g.Shutdown()
 		case <-sigCh:
-			g.logger.Printf("[gateway] shutting down...")
+			g.logger.Info("gateway shutting down")
 			return g.Shutdown()
 		case <-reloadCh:
 			newCfg, lerr := config.LoadConfig()
 			if lerr != nil {
-				g.logger.Printf("[gateway] reload load config: %v", lerr)
+				g.logger.Error("gateway reload load config error", "err", lerr)
 				continue
 			}
 			if aerr := g.Apply(ctx, newCfg); aerr != nil {
-				g.logger.Printf("[gateway] reload apply: %v", aerr)
+				g.logger.Error("gateway reload apply error", "err", aerr)
 			} else {
-				g.logger.Printf("[gateway] reloaded; gateway %s:%d; channels: %v", newCfg.Gateway.Host, newCfg.Gateway.Port, g.channelMgr.EnabledChannels())
+				g.logger.Info("gateway reloaded", "host", newCfg.Gateway.Host, "port", newCfg.Gateway.Port, "channels", g.channelMgr.EnabledChannels())
 			}
 		}
 	}
@@ -278,7 +278,7 @@ func (g *Gateway) Shutdown() error {
 	g.cron.Stop()
 	if g.plugins != nil {
 		if err := g.plugins.Stop(); err != nil {
-			g.logger.Printf("[gateway] plugins stop: %v", err)
+			g.logger.Error("gateway plugins stop error", "err", err)
 		}
 	}
 	_ = g.channelMgr.StopAll()
@@ -290,6 +290,6 @@ func (g *Gateway) Shutdown() error {
 	if g.bus != nil {
 		g.bus.Close()
 	}
-	g.logger.Printf("[gateway] shutdown complete")
+	g.logger.Info("gateway shutdown complete")
 	return nil
 }

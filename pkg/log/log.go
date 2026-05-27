@@ -1,18 +1,19 @@
 package log
 
 import (
-	stdlog "log"
+	"log/slog"
+	"os"
+
+	"golang.org/x/term"
 )
 
-// PrintLogger is printf-style logging only — a stepping stone until structured
-// logging (Priority 3). Std() implements it via the standard library log package.
-type PrintLogger interface {
-	Printf(format string, v ...any)
+// Std returns a *slog.Logger with a text handler for TTY or JSON handler otherwise.
+func Std() *slog.Logger {
+	var handler slog.Handler
+	if term.IsTerminal(int(os.Stderr.Fd())) {
+		handler = slog.NewTextHandler(os.Stderr, nil)
+	} else {
+		handler = slog.NewJSONHandler(os.Stderr, nil)
+	}
+	return slog.New(handler)
 }
-
-type stdLogger struct{}
-
-func (stdLogger) Printf(format string, v ...any) { stdlog.Printf(format, v...) }
-
-// Std returns a PrintLogger that delegates to the standard library log package.
-func Std() PrintLogger { return stdLogger{} }
