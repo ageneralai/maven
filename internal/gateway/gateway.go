@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,7 +27,6 @@ import (
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/pkg/plugin"
 	"github.com/ageneralai/maven/pkg/prompt"
-	"log/slog"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.

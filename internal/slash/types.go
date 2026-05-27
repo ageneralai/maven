@@ -13,10 +13,10 @@ type Definition struct {
 
 // Result is a handler outcome. Non-empty trimmed Output skips the model; Metadata is merged into api.Request.
 type Result struct {
-	Command     string
-	Output      string
-	Metadata    map[string]any
-	PostAction  PostAction
+	Command    string
+	Output     string
+	Metadata   map[string]any
+	PostAction PostAction
 }
 
 // Invocation is one parsed /command from user text (aligned with former agentsdk-go/pkg/runtime/commands).

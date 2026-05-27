@@ -138,7 +138,7 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 }
 
 func (m *ChannelManager) startAll(ctx context.Context, byName map[string]channel.Channel) error {
-	g, ctx := errgroup.WithContext(ctx)
+	var g errgroup.Group
 	for name, ch := range byName {
 		n, c := name, ch
 		g.Go(func() error {

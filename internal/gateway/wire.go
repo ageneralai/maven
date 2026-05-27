@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -16,7 +17,6 @@ import (
 	mavsession "github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
 	mavoice "github.com/ageneralai/maven/internal/voice"
-	"log/slog"
 	"github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/pkg/memory"

@@ -88,6 +88,40 @@ func TestChannelManager_StopAll_Empty(t *testing.T) {
 	}
 }
 
+// ctxCaptureChannel is a minimal Channel that records the ctx passed to Start.
+type ctxCaptureChannel struct {
+	name        string
+	capturedCtx context.Context
+}
+
+func (c *ctxCaptureChannel) Name() string { return c.name }
+func (c *ctxCaptureChannel) Start(ctx context.Context) error {
+	c.capturedCtx = ctx
+	return nil
+}
+func (c *ctxCaptureChannel) Stop() error                                        { return nil }
+func (c *ctxCaptureChannel) Send(_ context.Context, _ bus.OutboundMessage) error { return nil }
+func (c *ctxCaptureChannel) Capabilities() channel.CapabilitySet                { return channel.CapabilitySet{} }
+
+func TestChannelManager_StartAll_CtxNotCancelledAfterReturn(t *testing.T) {
+	b := bus.New(10, mgrTestLog)
+	ch := &ctxCaptureChannel{name: "live"}
+	m := &ChannelManager{
+		channels: map[string]channel.Channel{"live": ch},
+		bus:      b,
+		log:      mgrTestLog,
+	}
+	if err := m.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll error: %v", err)
+	}
+	if ch.capturedCtx == nil {
+		t.Fatal("Start was not called")
+	}
+	if err := ch.capturedCtx.Err(); err != nil {
+		t.Fatalf("ctx cancelled after StartAll returned: %v", err)
+	}
+}
+
 func TestChannelManager_StartAll_Error(t *testing.T) {
 	b := bus.New(10, mgrTestLog)
 	mock := &mockManagedChannel{name: "mock", startErr: fmt.Errorf("start failed")}
