@@ -92,7 +92,6 @@ type WeComConfig struct {
 }
 
 type ToolsConfig struct {
-	BraveAPIKey         string        `json:"braveApiKey,omitempty"`
 	ExecTimeout         int           `json:"execTimeout"`
 	RestrictToWorkspace bool          `json:"restrictToWorkspace"`
 	ACP                 ACPToolConfig  `json:"acp,omitempty"`
