@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewMemoryStore(t *testing.T) {
+	t.Parallel()
 	ms := NewMemoryStore("/tmp/test-workspace")
 	if ms == nil {
 		t.Fatal("NewMemoryStore returned nil")
@@ -19,6 +20,7 @@ func TestNewMemoryStore(t *testing.T) {
 }
 
 func TestLongTermMemory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -47,6 +49,7 @@ func TestLongTermMemory(t *testing.T) {
 }
 
 func TestDailyJournal(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -77,6 +80,7 @@ func TestDailyJournal(t *testing.T) {
 }
 
 func TestGetRecentMemories(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -109,6 +113,7 @@ func TestGetRecentMemories(t *testing.T) {
 }
 
 func TestGetRecentMemories_Limit(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -137,6 +142,7 @@ func TestGetRecentMemories_Limit(t *testing.T) {
 }
 
 func TestGetMemoryContext(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -161,6 +167,7 @@ func TestGetMemoryContext(t *testing.T) {
 }
 
 func TestGetMemoryContext_WithRecentMemories(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -190,6 +197,7 @@ func TestGetMemoryContext_WithRecentMemories(t *testing.T) {
 }
 
 func TestGetRecentMemories_EmptyFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -215,6 +223,7 @@ func TestGetRecentMemories_EmptyFiles(t *testing.T) {
 }
 
 func TestGetRecentMemories_NoLimit(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	ms := NewMemoryStore(tmpDir)
 
@@ -243,6 +252,7 @@ func TestGetRecentMemories_NoLimit(t *testing.T) {
 }
 
 func TestMemoryDir(t *testing.T) {
+	t.Parallel()
 	ms := NewMemoryStore("/test/workspace")
 	expected := "/test/workspace/memory"
 	if ms.memoryDir() != expected {
@@ -251,6 +261,7 @@ func TestMemoryDir(t *testing.T) {
 }
 
 func TestTodayFile(t *testing.T) {
+	t.Parallel()
 	ms := NewMemoryStore("/test/workspace")
 	today := time.Now().Format("2006-01-02")
 	expected := "/test/workspace/memory/" + today + ".md"

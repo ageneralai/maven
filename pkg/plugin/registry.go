@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/voice"
 )
@@ -15,12 +14,14 @@ type Registry struct {
 	plugins []Plugin
 }
 
+// NewRegistry copies plugins into registration order for gateway wiring.
 func NewRegistry(plugins ...Plugin) *Registry {
 	cp := make([]Plugin, len(plugins))
 	copy(cp, plugins)
 	return &Registry{plugins: cp}
 }
 
+// Tools aggregates enabled plugin tools in registration order.
 func (r *Registry) Tools(cfg *config.Config) []tool.Tool {
 	if r == nil || cfg == nil {
 		return nil
@@ -34,23 +35,7 @@ func (r *Registry) Tools(cfg *config.Config) []tool.Tool {
 	return out
 }
 
-func (r *Registry) Channels(cfg *config.Config) []channel.Channel {
-	if r == nil || cfg == nil {
-		return nil
-	}
-	var out []channel.Channel
-	for _, p := range r.plugins {
-		if !p.Enabled(cfg) {
-			continue
-		}
-		chs := p.Channels(cfg)
-		if chs != nil {
-			out = append(out, chs...)
-		}
-	}
-	return out
-}
-
+// TTSProvider returns the first enabled plugin TTS implementation, if any.
 func (r *Registry) TTSProvider(cfg *config.Config) voice.TTSProvider {
 	if r == nil || cfg == nil {
 		return nil
@@ -66,6 +51,7 @@ func (r *Registry) TTSProvider(cfg *config.Config) voice.TTSProvider {
 	return nil
 }
 
+// STTProvider returns the first enabled plugin STT implementation, if any.
 func (r *Registry) STTProvider(cfg *config.Config) voice.STTProvider {
 	if r == nil || cfg == nil {
 		return nil

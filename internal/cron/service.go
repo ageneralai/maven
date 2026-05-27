@@ -13,18 +13,17 @@ import (
 
 	"log/slog"
 
-	"github.com/adhocore/gronx"
 	"github.com/ageneralai/maven/internal/sessionid"
+	"github.com/ageneralai/maven/internal/scheduling"
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/pkg/stringutil"
-	"golang.org/x/sync/semaphore"
 )
 
 type Service struct {
 	storePath string
 	exec      executor.TurnExecutor
 	deliver   *Deliver
-	sem       *semaphore.Weighted
+	lane      *scheduling.Lane
 	log       *slog.Logger
 	mu        sync.RWMutex
 	jobs      []CronJob
@@ -45,7 +44,7 @@ func NewService(storePath string, exec executor.TurnExecutor, maxConcurrent int,
 		storePath: storePath,
 		exec:      exec,
 		deliver:   deliver,
-		sem:       semaphore.NewWeighted(int64(maxConcurrent)),
+		lane:      scheduling.NewLane(int64(maxConcurrent)),
 		log:       lg,
 		stopChan:  make(chan struct{}),
 		wakeChan:  make(chan struct{}, 1),
@@ -99,25 +98,14 @@ func (s *Service) ensureNextRunLocked(now int64) {
 }
 
 func computeNextScheduleRun(sch Schedule, fromMs int64) (int64, error) {
-	switch sch.Kind {
-	case "at":
-		if sch.AtMs >= fromMs {
-			return sch.AtMs, nil
-		}
-		return 0, nil
-	case "every":
-		if sch.EveryMs <= 0 {
-			return 0, nil
-		}
-		return fromMs + sch.EveryMs, nil
-	case "cron":
-		next, err := gronx.NextTickAfter(sch.Expr, time.UnixMilli(fromMs), false)
-		if err != nil {
-			return 0, err
-		}
-		return next.UnixMilli(), nil
+	next, err := sch.Next(time.UnixMilli(fromMs))
+	if err != nil {
+		return 0, err
 	}
-	return 0, nil
+	if next.IsZero() {
+		return 0, nil
+	}
+	return next.UnixMilli(), nil
 }
 
 func (s *Service) nextDelayLocked() time.Duration {
@@ -201,7 +189,7 @@ func (s *Service) checkAndFire(ctx context.Context) {
 		if !s.isDue(j, now) {
 			continue
 		}
-		if j.Schedule.Kind == "at" {
+		if IsAtSchedule(j.Schedule) {
 			j.Enabled = false
 		}
 		due = append(due, *j)
@@ -231,11 +219,11 @@ func (s *Service) fire(ctx context.Context, job CronJob) {
 		s.mu.Unlock()
 		return
 	}
-	if err := s.sem.Acquire(ctx, 1); err != nil {
+	if err := s.lane.Acquire(ctx); err != nil {
 		return
 	}
-	defer s.sem.Release(1)
-	sessionID := sessionid.New(sessionid.KindCron, job.ID)
+	defer s.lane.Release()
+	sessionID := sessionid.New(sessionid.KindCron, job.ID).String()
 	out, err := s.exec.RunTurn(ctx, job.Payload.Message, sessionID)
 	doneMs := time.Now().UnixMilli()
 	s.mu.Lock()
@@ -258,13 +246,13 @@ func (s *Service) fire(ctx context.Context, job CronJob) {
 		j.State.LastError = ""
 		s.log.Info("cron job result", "job", j.Name, "output", stringutil.Truncate(out, 100))
 	}
-	if j.Schedule.Kind == "at" {
+	if IsAtSchedule(j.Schedule) {
 		j.Enabled = false
 		j.State.NextRunAtMs = 0
 	}
 	if j.DeleteAfterRun {
 		s.jobs = append(s.jobs[:idx], s.jobs[idx+1:]...)
-	} else if j.Schedule.Kind != "at" {
+	} else if !IsAtSchedule(j.Schedule) {
 		next, err := computeNextScheduleRun(j.Schedule, j.State.LastRunAtMs)
 		if err != nil {
 			s.log.Error("cron job invalid expr after run", "job", j.Name, "err", err)
@@ -323,6 +311,9 @@ func (s *Service) Stop() {
 }
 
 func (s *Service) AddJob(name string, schedule Schedule, payload Payload) (*CronJob, error) {
+	if err := schedule.Validate(); err != nil {
+		return nil, fmt.Errorf("cron schedule: %w", err)
+	}
 	s.mu.Lock()
 	job := NewCronJob(name, schedule, payload)
 	now := time.Now().UnixMilli()

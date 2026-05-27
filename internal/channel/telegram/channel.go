@@ -12,8 +12,9 @@ import (
 
 	"log/slog"
 
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -22,8 +23,11 @@ import (
 const telegramChannelName = "telegram"
 
 type TelegramChannel struct {
-	chann.BaseChannel
-	token      string
+	name           string
+	log            *slog.Logger
+	bus            *bus.MessageBus
+	allow          allowlist.Matcher
+	token          string
 	bot        *telego.Bot
 	proxy      string
 	httpClient *http.Client
@@ -33,7 +37,7 @@ type TelegramChannel struct {
 	streaming  bool
 	workspace  string // workspace root for file saving
 	rootDir    string // telegram assets root, default <workspace>/.telegram
-	caps       chann.CapabilitySet
+	caps           channel.CapabilitySet
 
 	mgMu     sync.Mutex
 	mgBuffer map[string]*mediaGroup
@@ -42,16 +46,16 @@ type TelegramChannel struct {
 }
 
 func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Logger, b *bus.MessageBus) (*TelegramChannel, error) {
-	if cfg.Token == "" {
-		return nil, fmt.Errorf("telegram token is required")
-	}
 	feedback := cfg.Feedback
 	if feedback == "" {
 		feedback = "normal"
 	}
 	tc := &TelegramChannel{
-		BaseChannel: chann.NewBaseChannel(telegramChannelName, b, cfg.AllowFrom, lg),
-		token:       cfg.Token,
+		name:      telegramChannelName,
+		log:       lg,
+		bus:       b,
+		allow:     allowlist.NewMatcher(cfg.AllowFrom),
+		token:     cfg.Token,
 		proxy:       cfg.Proxy,
 		httpClient:  http.DefaultClient,
 		feedback:    feedback,
@@ -59,7 +63,7 @@ func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Lo
 		rootDir:     strings.TrimSpace(cfg.RootDir),
 		workspace:   strings.TrimSpace(workspace),
 		runCtx:      context.Background(),
-		caps: chann.CapabilitySet{
+		caps: channel.CapabilitySet{
 			Reactions:  true,
 			FileUpload: true,
 		},
@@ -67,7 +71,15 @@ func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Lo
 	return tc, nil
 }
 
-func (t *TelegramChannel) Capabilities() chann.CapabilitySet { return t.caps }
+func (t *TelegramChannel) Name() string {
+	return t.name
+}
+
+func (t *TelegramChannel) IsAllowed(senderID string) bool {
+	return t.allow.Allow(senderID)
+}
+
+func (t *TelegramChannel) Capabilities() channel.CapabilitySet { return t.caps }
 
 // PreProcessInbound implements InboundPreprocessor for gateway/pipeline use.
 func (t *TelegramChannel) PreProcessInbound(ctx context.Context, chatID int64, hints bus.RoutingHints) {
@@ -104,7 +116,7 @@ func (t *TelegramChannel) initBot(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("telegram getMe: %w", err)
 	}
-	t.Log.Info("telegram authorized", "username", me.Username)
+	t.log.Info("telegram authorized", "username", me.Username)
 	return nil
 }
 
@@ -133,7 +145,7 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 		}
 	}()
 
-	t.Log.Info("telegram polling started")
+	t.log.Info("telegram polling started")
 	return nil
 }
 
@@ -141,7 +153,7 @@ func (t *TelegramChannel) Stop() error {
 	if t.cancel != nil {
 		t.cancel()
 	}
-	t.Log.Info("telegram stopped")
+	t.log.Info("telegram stopped")
 	return nil
 }
 
@@ -160,12 +172,12 @@ func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
 		return err
 	}
 
-	t.Log.Info("telegram bot commands registered", "count", len(commands))
+	t.log.Info("telegram bot commands registered", "count", len(commands))
 	return nil
 }
 
 var (
-	_ chann.Channel             = (*TelegramChannel)(nil)
-	_ chann.StreamChannel       = (*TelegramChannel)(nil)
-	_ chann.InboundPreprocessor = (*TelegramChannel)(nil)
+	_ channel.Channel             = (*TelegramChannel)(nil)
+	_ channel.StreamChannel       = (*TelegramChannel)(nil)
+	_ channel.InboundPreprocessor = (*TelegramChannel)(nil)
 )

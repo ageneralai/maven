@@ -3,6 +3,7 @@ package voice
 import "testing"
 
 func TestTakeCompleteSentences(t *testing.T) {
+	t.Parallel()
 	buf := "Hello there. Next bit! Final?"
 	got := TakeCompleteSentences(&buf)
 	if len(got) != 3 {

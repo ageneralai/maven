@@ -8,27 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ageneralai/maven/internal/session"
+	"github.com/ageneralai/maven/internal/slashkind"
 	"gopkg.in/yaml.v3"
-)
-
-type CommandType string
-
-type SessionMode string
-
-const (
-	CommandTypeLocal    CommandType = "local"
-	CommandTypeAgent    CommandType = "agent"
-	CommandTypePipeline CommandType = "pipeline"
-
-	SessionModeCurrent  SessionMode = "current"
-	SessionModeIsolated SessionMode = "isolated"
 )
 
 type Command struct {
 	Name        string
 	Description string
-	Type        CommandType
-	Session     SessionMode
+	Type        slashkind.CommandKind
+	Session     session.SessionMode
 	Prompt      string
 	Handler     string
 	PassThrough bool
@@ -106,31 +95,29 @@ func parseCommandFile(path string) (Command, bool, error) {
 		return Command{}, false, fmt.Errorf("parse command %q: missing command name", path)
 	}
 
-	cmdType := CommandTypeAgent
+	cmdType := slashkind.CommandKindAgent
 	if meta.Type != "" {
-		cmdType = CommandType(strings.TrimSpace(meta.Type))
-	}
-	if cmdType != CommandTypeLocal && cmdType != CommandTypeAgent && cmdType != CommandTypePipeline {
-		return Command{}, false, fmt.Errorf("parse command %q: unsupported type %q", path, meta.Type)
+		if err := cmdType.UnmarshalText([]byte(strings.TrimSpace(meta.Type))); err != nil {
+			return Command{}, false, fmt.Errorf("parse command %q: unsupported type %q", path, meta.Type)
+		}
 	}
 
-	sessionMode := SessionModeCurrent
+	sessionMode := session.SessionModeCurrent
 	if meta.Session != "" {
-		sessionMode = SessionMode(strings.TrimSpace(meta.Session))
-	}
-	if sessionMode != SessionModeCurrent && sessionMode != SessionModeIsolated {
-		return Command{}, false, fmt.Errorf("parse command %q: unsupported session %q", path, meta.Session)
+		if err := sessionMode.UnmarshalText([]byte(strings.TrimSpace(meta.Session))); err != nil {
+			return Command{}, false, fmt.Errorf("parse command %q: unsupported session %q", path, meta.Session)
+		}
 	}
 
-	if cmdType == CommandTypeLocal {
+	if cmdType == slashkind.CommandKindLocal {
 		if meta.PassThrough {
 			return Command{}, false, fmt.Errorf("parse command %q: local commands cannot enable passthrough", path)
 		}
-		if sessionMode != SessionModeCurrent {
+		if sessionMode != session.SessionModeCurrent {
 			return Command{}, false, fmt.Errorf("parse command %q: local commands cannot override session mode", path)
 		}
 	}
-	if cmdType == CommandTypeAgent && meta.PassThrough {
+	if cmdType == slashkind.CommandKindAgent && meta.PassThrough {
 		return Command{}, false, fmt.Errorf("parse command %q: passthrough is only supported for pipeline commands", path)
 	}
 

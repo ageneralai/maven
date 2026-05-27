@@ -56,15 +56,15 @@ func Add(s *svcron.Service, p AddParams, now time.Time) (*svcron.CronJob, error)
 	var sch svcron.Schedule
 	switch {
 	case pp.Expr != "":
-		sch = svcron.Schedule{Kind: "cron", Expr: pp.Expr}
+		sch = svcron.CronSchedule{Expr: pp.Expr}
 	case pp.In != "":
 		d, err := time.ParseDuration(pp.In)
 		if err != nil {
 			return nil, fmt.Errorf("in: %w", err)
 		}
-		sch = svcron.Schedule{Kind: "at", AtMs: now.UnixMilli() + d.Round(time.Millisecond).Milliseconds()}
+		sch = svcron.AtSchedule{At: now.Add(d.Round(time.Millisecond))}
 	default:
-		sch = svcron.Schedule{Kind: "at", AtMs: pp.AtMs}
+		sch = svcron.AtSchedule{At: time.UnixMilli(pp.AtMs)}
 	}
 	if pp.Deliver && (pp.Channel == "" || pp.To == "") {
 		return nil, fmt.Errorf("deliver requires channel and to, or use deliver_to_incoming_chat in the current chat session")

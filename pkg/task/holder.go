@@ -12,6 +12,7 @@ type RuntimeHolder struct {
 	rt *api.Runtime
 }
 
+// Set stores the SDK runtime used by the Task tool after api.New.
 func (h *RuntimeHolder) Set(rt *api.Runtime) {
 	if h == nil {
 		return
@@ -21,6 +22,7 @@ func (h *RuntimeHolder) Set(rt *api.Runtime) {
 	h.mu.Unlock()
 }
 
+// Get returns the bound runtime, or nil when unset or holder is nil.
 func (h *RuntimeHolder) Get() *api.Runtime {
 	if h == nil {
 		return nil

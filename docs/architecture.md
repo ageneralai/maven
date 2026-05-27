@@ -411,11 +411,12 @@ Heartbeat (`internal/heartbeat`) runs periodic unattended checks.
 
 ## 12. Configuration
 
-Configuration (`internal/config`) merges three layers:
+Configuration (`internal/config`) merges two layers:
 
 1. **Defaults** — Hard-coded sensible defaults
 2. **JSON file** — `~/.maven/config.json`
-3. **Environment variables** — Override file values (e.g., `MAVEN_API_KEY`, `MAVEN_TELEGRAM_TOKEN`)
+
+API keys and channel credentials live in the config file (or are injected by OneCLI proxy). Process-level proxy settings (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`) are read by the standard library transport.
 
 Validation enforces required fields for enabled components and cross-section consistency.
 

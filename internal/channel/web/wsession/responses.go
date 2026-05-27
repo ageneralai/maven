@@ -1,4 +1,4 @@
-package web
+package wsession
 
 import (
 	"strings"
@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	HeaderMavenSessionID     = "Maven-Session-Id"
-	responseSessionTTL       = 30 * time.Minute
+	responseSessionTTL        = 30 * time.Minute
 	maxResponseSessionEntries = 500
 )
 
@@ -24,12 +23,12 @@ var (
 	responseSessions  = map[string]responseSessionEntry{}
 )
 
-func isMavenResponseID(id string) bool {
+func IsMavenResponseID(id string) bool {
 	id = strings.TrimSpace(id)
 	return strings.HasPrefix(id, "resp_") && len(id) > len("resp_")
 }
 
-func storeMavenResponseSession(responseID, sessionID string) {
+func StoreMavenResponseSession(responseID, sessionID string) {
 	responseID = strings.TrimSpace(responseID)
 	sessionID = mavsession.ChatSessionID(mavsession.WebChannelName, sessionID)
 	if responseID == "" || sessionID == "" {
@@ -90,8 +89,12 @@ func evictMavenResponseSessionsLocked() {
 	}
 }
 
-func resetMavenResponseSessionsForTest() {
+func ResetMavenResponseSessionsForTest() {
 	responseSessionMu.Lock()
 	responseSessions = map[string]responseSessionEntry{}
 	responseSessionMu.Unlock()
+}
+
+func LookupMavenResponseSession(responseID string) (string, bool) {
+	return lookupMavenResponseSession(responseID)
 }

@@ -5,26 +5,25 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel/webhook"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
-var wecomTestLog = mavenlog.Std()
+var wecomTestLog = slog.New(slog.DiscardHandler)
 
 func TestNewWeComChannel_Valid(t *testing.T) {
 	b := bus.New(10, wecomTestLog)
@@ -41,11 +40,9 @@ func TestNewWeComChannel_Valid(t *testing.T) {
 	}
 }
 
-func TestNewWeComChannel_MissingRequiredConfig(t *testing.T) {
-	b := bus.New(10, wecomTestLog)
-	_, err := NewWeComChannel(config.WeComConfig{}, wecomTestLog, b)
-	if err == nil {
-		t.Fatal("expected error for empty config")
+func TestWeComConfig_Validate_MissingRequired(t *testing.T) {
+	if err := (config.WeComConfig{Enabled: true}).Validate(); err == nil {
+		t.Fatal("expected error for empty wecom config")
 	}
 }
 
@@ -418,11 +415,7 @@ func testPKCS7Pad(src []byte, blockSize int) []byte {
 }
 
 func testWeComSignature(token, timestamp, nonce, data string) string {
-	items := []string{token, timestamp, nonce, data}
-	sort.Strings(items)
-	s := strings.Join(items, "")
-	sum := sha1.Sum([]byte(s))
-	return fmt.Sprintf("%x", sum)
+	return webhook.Signature(token, timestamp, nonce, data)
 }
 
 func TestWeComClient_Send_IntegrationShape(t *testing.T) {

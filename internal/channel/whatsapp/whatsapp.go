@@ -13,8 +13,9 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"log/slog"
 
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/config"
 	qrterminal "github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
@@ -36,7 +37,10 @@ const (
 )
 
 type WhatsAppChannel struct {
-	chann.BaseChannel
+	name           string
+	log            *slog.Logger
+	bus            *bus.MessageBus
+	allow          allowlist.Matcher
 	cfg            config.WhatsAppConfig
 	client         *whatsmeow.Client
 	storeContainer *sqlstore.Container
@@ -70,7 +74,10 @@ func NewWhatsApp(cfg config.WhatsAppConfig, lg *slog.Logger, msgBus *bus.Message
 	client := whatsmeow.NewClient(deviceStore, waLog.Noop)
 
 	ch := &WhatsAppChannel{
-		BaseChannel:    chann.NewBaseChannel(whatsappChannelName, msgBus, cfg.AllowFrom, lg),
+		name:           whatsappChannelName,
+		log:            lg,
+		bus:            msgBus,
+		allow:          allowlist.NewMatcher(cfg.AllowFrom),
 		cfg:            cfg,
 		client:         client,
 		storeContainer: container,
@@ -82,7 +89,11 @@ func NewWhatsApp(cfg config.WhatsAppConfig, lg *slog.Logger, msgBus *bus.Message
 }
 
 func (w *WhatsAppChannel) Name() string {
-	return whatsappChannelName
+	return w.name
+}
+
+func (w *WhatsAppChannel) IsAllowed(senderID string) bool {
+	return w.allow.Allow(senderID)
 }
 
 func (w *WhatsAppChannel) Start(ctx context.Context) error {
@@ -112,7 +123,7 @@ func (w *WhatsAppChannel) Start(ctx context.Context) error {
 		w.client.Disconnect()
 	}()
 
-	w.Log.Info("whatsapp connected")
+	w.log.Info("whatsapp connected")
 	return nil
 }
 
@@ -136,7 +147,7 @@ func (w *WhatsAppChannel) Stop() error {
 		w.storeContainer = nil
 	}
 
-	w.Log.Info("whatsapp stopped")
+	w.log.Info("whatsapp stopped")
 	return nil
 }
 
@@ -176,8 +187,8 @@ func (w *WhatsAppChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	return nil
 }
 
-func (w *WhatsAppChannel) Capabilities() chann.CapabilitySet {
-	return chann.CapabilitySet{FileUpload: true}
+func (w *WhatsAppChannel) Capabilities() channel.CapabilitySet {
+	return channel.CapabilitySet{FileUpload: true}
 }
 
 func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow.QRChannelItem) {
@@ -192,13 +203,13 @@ func (w *WhatsAppChannel) consumeQR(ctx context.Context, qrChan <-chan whatsmeow
 
 			switch evt.Event {
 			case whatsmeow.QRChannelEventCode:
-				w.Log.Info("whatsapp scan QR code to login")
+				w.log.Info("whatsapp scan QR code to login")
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 			default:
 				if evt.Error != nil {
-					w.Log.Error("whatsapp login event", "event", evt.Event, "err", evt.Error)
+					w.log.Error("whatsapp login event", "event", evt.Event, "err", evt.Error)
 				} else {
-					w.Log.Info("whatsapp login event", "event", evt.Event)
+					w.log.Info("whatsapp login event", "event", evt.Event)
 				}
 			}
 		}
@@ -220,7 +231,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 	rawSender := evt.Info.Sender.String()
 	sender := evt.Info.Sender.ToNonAD().String()
 	if !w.IsAllowed(sender) && !w.IsAllowed(rawSender) {
-		w.Log.Info("whatsapp rejected message", "sender", sender)
+		w.log.Info("whatsapp rejected message", "sender", sender)
 		return
 	}
 
@@ -229,7 +240,7 @@ func (w *WhatsAppChannel) handleMessage(evt *events.Message) {
 		return
 	}
 
-	_ = w.Bus.PublishInbound(w.runCtx, bus.InboundMessage{
+	_ = w.bus.PublishInbound(w.runCtx, bus.InboundMessage{
 		Channel:       whatsappChannelName,
 		SenderID:      sender,
 		ChatID:        evt.Info.Chat.String(),
@@ -262,7 +273,7 @@ func (w *WhatsAppChannel) extractContent(evt *events.Message) (string, []model.C
 		data, err := w.client.Download(ctx, image)
 		cancel()
 		if err != nil {
-			w.Log.Warn("whatsapp download image failed", "err", err)
+			w.log.Warn("whatsapp download image failed", "err", err)
 		} else if len(data) > 0 {
 			mediaType := strings.TrimSpace(image.GetMimetype())
 			if mediaType == "" {
@@ -313,4 +324,4 @@ func isDigitsOnly(val string) bool {
 	return true
 }
 
-var _ chann.Channel = (*WhatsAppChannel)(nil)
+var _ channel.Channel = (*WhatsAppChannel)(nil)

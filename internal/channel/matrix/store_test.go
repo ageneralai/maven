@@ -9,6 +9,7 @@ import (
 )
 
 func TestFileSyncStore_PersistsNextBatch(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	workspace := filepath.Join(dir, "ws")
 	userID := id.UserID("@agent:example.org")
@@ -41,6 +42,7 @@ func TestFileSyncStore_PersistsNextBatch(t *testing.T) {
 }
 
 func TestFileSyncStore_GeneratesDeviceID(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	userID := id.UserID("@agent:example.org")
 	store, err := openFileSyncStore(dir, userID, "")

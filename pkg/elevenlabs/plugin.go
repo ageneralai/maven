@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/httpc"
 	"github.com/ageneralai/maven/pkg/plugin"
@@ -35,8 +34,6 @@ func (Plugin) Enabled(cfg *config.Config) bool {
 }
 
 func (Plugin) Tools(*config.Config) []tool.Tool { return nil }
-
-func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
 
 func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "elevenlabs") {

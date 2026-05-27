@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/ageneralai/maven/pkg/stringutil"
 )
 
 type toolStatus int
@@ -64,20 +66,8 @@ func (c *StatusCard) AppendToolOutput(toolUseID, text string) {
 	}
 	c.tools[idx].output += text
 	if r := utf8.RuneCountInString(c.tools[idx].output); r > maxToolOutputRunes {
-		c.tools[idx].output = truncateTailRunes(c.tools[idx].output, maxToolOutputRunes)
+		c.tools[idx].output = stringutil.TruncateRunesTail(c.tools[idx].output, maxToolOutputRunes, "… ")
 	}
-}
-
-func truncateTailRunes(s string, maxRunes int) string {
-	if maxRunes < 4 {
-		maxRunes = 4
-	}
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	tail := string(runes[len(runes)-maxRunes+3:])
-	return "… " + tail
 }
 
 func (c *StatusCard) SetIteration(n int) {

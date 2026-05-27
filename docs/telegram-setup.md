@@ -35,11 +35,7 @@ Edit `~/.maven/config.json`:
 }
 ```
 
-### Option B: Environment variable
-
-```bash
-export MAVEN_TELEGRAM_TOKEN="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-```
+Set `channels.telegram.token` in `~/.maven/config.json` (see Step 3).
 
 ## Step 3: Configuration reference
 

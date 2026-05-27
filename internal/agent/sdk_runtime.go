@@ -10,13 +10,16 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/internal/cron"
-	"github.com/ageneralai/maven/pkg/task"
 	tcron "github.com/ageneralai/maven/internal/tools/cron"
+	"github.com/ageneralai/maven/pkg/task"
 )
 
 type runtimeAdapter struct {
 	rt *api.Runtime
 }
+
+// api.Runtime does not satisfy Runtime: Close() is error-returning on *api.Runtime.
+var _ Runtime = (*runtimeAdapter)(nil)
 
 func (r *runtimeAdapter) Run(ctx context.Context, req api.Request) (*api.Response, error) {
 	return r.rt.Run(ctx, req)

@@ -42,8 +42,7 @@ make setup
 # Or initialize config and workspace manually
 make onboard
 
-# Set your API key
-export MAVEN_API_KEY=your-api-key
+# Set your API key in ~/.maven/config.json (see `make onboard`)
 
 # Run agent (single message)
 ./maven agent -m "Hello"
@@ -229,10 +228,10 @@ Validation rules are enforced in `config.Validate()` when `enabled` is true.
 
 ### Provider Types
 
-| Type | Config | Env Vars |
-|------|--------|----------|
-| `anthropic` (default) | `"type": "anthropic"` | `MAVEN_API_KEY`, `ANTHROPIC_API_KEY` |
-| `openai` | `"type": "openai"` | `OPENAI_API_KEY` |
+| Type | Config |
+|------|--------|
+| `anthropic` (default) | `"type": "anthropic"` |
+| `openai` | `"type": "openai"` |
 
 When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
 
@@ -240,22 +239,12 @@ When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
 
 | Variable | Description |
 |----------|-------------|
-| `MAVEN_API_KEY` | API key (any provider) |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `OPENAI_API_KEY` | OpenAI API key (auto-sets type to openai) |
-| `MAVEN_BASE_URL` | Custom API base URL |
-| `MAVEN_TELEGRAM_TOKEN` | Telegram bot token |
-| `MAVEN_FEISHU_APP_ID` | Feishu app ID |
-| `MAVEN_FEISHU_APP_SECRET` | Feishu app secret |
-| `MAVEN_WECOM_TOKEN` | WeCom intelligent bot callback token |
-| `MAVEN_WECOM_ENCODING_AES_KEY` | WeCom intelligent bot callback EncodingAESKey |
-| `MAVEN_WECOM_RECEIVE_ID` | Optional receive ID for strict decrypt validation |
 | `HTTPS_PROXY` | HTTP(S) proxy for all outbound traffic (LLM, channels, tools) |
 | `HTTP_PROXY` | HTTP proxy (fallback when `HTTPS_PROXY` unset) |
 | `NO_PROXY` | Comma-separated hosts to bypass the proxy |
 | `SSL_CERT_FILE` | CA bundle for TLS trust (required for MITM proxies such as OneCLI) |
 
-> Prefer environment variables over config files for sensitive values like API keys.
+Set provider keys, channel tokens, and other settings in `~/.maven/config.json` (see `make onboard`).
 
 ### Networking (proxy / OneCLI)
 
@@ -331,7 +320,7 @@ See [docs/telegram-setup.md](docs/telegram-setup.md) for detailed setup guide.
 
 Quick steps:
 1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
-2. Set `token` in config or `MAVEN_TELEGRAM_TOKEN` env var
+2. Set `channels.telegram.token` in `~/.maven/config.json`
 3. For progressive replies in **private** chats, set `"streaming": true` under `channels.telegram` (see **Telegram** under Configuration above); your model endpoint must stream tokens
 4. Run `make gateway`
 
@@ -412,8 +401,6 @@ Features:
 docker build -t maven .
 
 docker run -d \
-  -e MAVEN_API_KEY=your-api-key \
-  -e MAVEN_TELEGRAM_TOKEN=your-token \
   -e HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@host.docker.internal:10255 \
   -e SSL_CERT_FILE=/etc/proxy/ca.pem \
   -p 18790:18790 \

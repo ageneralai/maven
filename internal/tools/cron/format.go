@@ -14,17 +14,7 @@ func FormatJobAdded(job *svcron.CronJob) string {
 		return ""
 	}
 	j := *job
-	var sched string
-	switch j.Schedule.Kind {
-	case "cron":
-		sched = fmt.Sprintf("cron expr=%q", j.Schedule.Expr)
-	case "at":
-		sched = fmt.Sprintf("at ms=%d (%s)", j.Schedule.AtMs, time.UnixMilli(j.Schedule.AtMs).UTC().Format(time.RFC3339))
-	case "every":
-		sched = fmt.Sprintf("every %d ms", j.Schedule.EveryMs)
-	default:
-		sched = fmt.Sprintf("kind=%s", j.Schedule.Kind)
-	}
+	sched := formatSchedule(j.Schedule)
 	del := ""
 	if j.Payload.Deliver {
 		del = fmt.Sprintf(" deliver→ %s:%s", j.Payload.Channel, j.Payload.To)
@@ -37,22 +27,37 @@ func FormatJobLine(j svcron.CronJob) string {
 	if j.Enabled {
 		en = "on"
 	}
-	var sched string
-	switch j.Schedule.Kind {
-	case "cron":
-		sched = fmt.Sprintf("expr=%q", j.Schedule.Expr)
-	case "at":
-		sched = fmt.Sprintf("at=%s", time.UnixMilli(j.Schedule.AtMs).UTC().Format(time.RFC3339))
-	case "every":
-		sched = fmt.Sprintf("everyMs=%d", j.Schedule.EveryMs)
-	default:
-		sched = fmt.Sprintf("kind=%s", j.Schedule.Kind)
-	}
 	d := ""
 	if j.Payload.Deliver {
 		d = fmt.Sprintf(" →%s:%s", j.Payload.Channel, j.Payload.To)
 	}
-	return fmt.Sprintf("%s name=%q enabled=%s %s msg=%q%s", j.ID, j.Name, en, sched, j.Payload.Message, d)
+	return fmt.Sprintf("%s name=%q enabled=%s %s msg=%q%s", j.ID, j.Name, en, formatScheduleLine(j.Schedule), j.Payload.Message, d)
+}
+
+func formatSchedule(s svcron.Schedule) string {
+	switch v := s.(type) {
+	case svcron.CronSchedule:
+		return fmt.Sprintf("cron expr=%q", v.Expr)
+	case svcron.AtSchedule:
+		return fmt.Sprintf("at ms=%d (%s)", v.At.UnixMilli(), v.At.UTC().Format(time.RFC3339))
+	case svcron.EverySchedule:
+		return fmt.Sprintf("every %d ms", v.Interval.Milliseconds())
+	default:
+		return fmt.Sprintf("schedule=%T", s)
+	}
+}
+
+func formatScheduleLine(s svcron.Schedule) string {
+	switch v := s.(type) {
+	case svcron.CronSchedule:
+		return fmt.Sprintf("expr=%q", v.Expr)
+	case svcron.AtSchedule:
+		return fmt.Sprintf("at=%s", v.At.UTC().Format(time.RFC3339))
+	case svcron.EverySchedule:
+		return fmt.Sprintf("everyMs=%d", v.Interval.Milliseconds())
+	default:
+		return fmt.Sprintf("schedule=%T", s)
+	}
 }
 
 func FormatList(jobs []svcron.CronJob) string {

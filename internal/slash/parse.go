@@ -81,9 +81,7 @@ func parseLine(line string) (Invocation, error) {
 
 func parseFlag(token string) (key, value string, hasValue bool) {
 	trimmed := strings.TrimPrefix(token, "--")
-	if idx := strings.Index(trimmed, "="); idx >= 0 {
-		key = trimmed[:idx]
-		value = trimmed[idx+1:]
+	if key, value, ok := strings.Cut(trimmed, "="); ok {
 		return strings.TrimSpace(key), value, true
 	}
 	return strings.TrimSpace(trimmed), "", false

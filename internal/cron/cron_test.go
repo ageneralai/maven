@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/pkg/executor"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 )
 
-var testLG = mavenlog.Std()
+var testLG = slog.New(slog.DiscardHandler)
 
 func mustNewService(t *testing.T, storePath string, exec executor.TurnExecutor, maxConcurrent int) *Service {
 	t.Helper()
@@ -37,7 +37,7 @@ func TestNewService_NilExecutor(t *testing.T) {
 }
 
 func TestNewCronJob(t *testing.T) {
-	job := NewCronJob("test", Schedule{Kind: "cron", Expr: "0 * * * *"}, Payload{Message: "hello"})
+	job := NewCronJob("test", CronSchedule{Expr: "0 * * * *"}, Payload{Message: "hello"})
 	if job.ID == "" {
 		t.Error("job ID should not be empty")
 	}
@@ -60,7 +60,7 @@ func TestEnableJobCron(t *testing.T) {
 	if err := s.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	j, err := s.AddJob("c", Schedule{Kind: "cron", Expr: "0 0 * * * *"}, Payload{Message: "x"})
+	j, err := s.AddJob("c", CronSchedule{Expr: "0 0 * * * *"}, Payload{Message: "x"})
 	if err != nil {
 		t.Fatalf("AddJob: %v", err)
 	}
@@ -91,10 +91,10 @@ func TestAddJobEveryAt(t *testing.T) {
 	if err := s.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if _, err := s.AddJob("e", Schedule{Kind: "every", EveryMs: 1000}, Payload{}); err != nil {
+	if _, err := s.AddJob("e", EverySchedule{Interval: time.Second}, Payload{}); err != nil {
 		t.Fatalf("AddJob every: %v", err)
 	}
-	if _, err := s.AddJob("a", Schedule{Kind: "at", AtMs: time.Now().UnixMilli() + 60000}, Payload{}); err != nil {
+	if _, err := s.AddJob("a", AtSchedule{At: time.Now().Add(60 * time.Second)}, Payload{}); err != nil {
 		t.Fatalf("AddJob at: %v", err)
 	}
 	jobs := s.ListJobs()
@@ -128,7 +128,7 @@ func TestAtJobPersistsDisabledBeforeFire(t *testing.T) {
 	}}
 	s := mustNewService(t, storePath, exec, 1)
 	at := time.Now().UnixMilli()
-	if _, err := s.AddJob("one", Schedule{Kind: "at", AtMs: at}, Payload{Message: "m"}); err != nil {
+	if _, err := s.AddJob("one", AtSchedule{At: time.UnixMilli(at)}, Payload{Message: "m"}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -146,11 +146,18 @@ func TestAtJobPersistsDisabledBeforeFire(t *testing.T) {
 	}
 }
 
+func TestService_AddJob_InvalidSchedule(t *testing.T) {
+	s := newTestService(t)
+	if _, err := s.AddJob("bad", CronSchedule{Expr: "not-a-cron"}, Payload{Message: "x"}); err == nil {
+		t.Fatal("expected schedule validation error")
+	}
+}
+
 func TestService_AddAndListJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "jobs.json")
 	s := mustNewService(t, storePath, executor.Nop{}, 1)
-	job, err := s.AddJob("job1", Schedule{Kind: "every", EveryMs: 60000}, Payload{Message: "tick"})
+	job, err := s.AddJob("job1", EverySchedule{Interval: 60 * time.Second}, Payload{Message: "tick"})
 	if err != nil {
 		t.Fatalf("AddJob error: %v", err)
 	}
@@ -176,7 +183,7 @@ func TestService_AddAndListJobs(t *testing.T) {
 
 func TestService_RemoveJob(t *testing.T) {
 	s := newTestService(t)
-	job, _ := s.AddJob(" rm-test", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "x"})
+	job, _ := s.AddJob(" rm-test", EverySchedule{Interval: time.Second}, Payload{Message: "x"})
 	if !s.RemoveJob(job.ID) {
 		t.Error("RemoveJob returned false")
 	}
@@ -190,7 +197,7 @@ func TestService_RemoveJob(t *testing.T) {
 
 func TestService_EnableJob(t *testing.T) {
 	s := newTestService(t)
-	job, _ := s.AddJob("toggle", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "x"})
+	job, _ := s.AddJob("toggle", EverySchedule{Interval: time.Second}, Payload{Message: "x"})
 	updated, err := s.EnableJob(job.ID, false)
 	if err != nil {
 		t.Fatalf("EnableJob error: %v", err)
@@ -225,10 +232,10 @@ func TestService_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	storePath := filepath.Join(tmpDir, "jobs.json")
 	s1 := mustNewService(t, storePath, executor.Nop{}, 1)
-	if _, err := s1.AddJob("persist1", Schedule{Kind: "every", EveryMs: 1000}, Payload{Message: "p1"}); err != nil {
+	if _, err := s1.AddJob("persist1", EverySchedule{Interval: time.Second}, Payload{Message: "p1"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s1.AddJob("persist2", Schedule{Kind: "every", EveryMs: 2000}, Payload{Message: "p2"}); err != nil {
+	if _, err := s1.AddJob("persist2", EverySchedule{Interval: 2 * time.Second}, Payload{Message: "p2"}); err != nil {
 		t.Fatal(err)
 	}
 	s2 := mustNewService(t, storePath, executor.Nop{}, 1)
@@ -249,7 +256,7 @@ func TestService_ExecutePath_Error(t *testing.T) {
 		return "", context.Canceled
 	}}
 	s := mustNewService(t, filepath.Join(t.TempDir(), "jobs.json"), exec, 1)
-	job, _ := s.AddJob("err", Schedule{Kind: "every", EveryMs: 500}, Payload{Message: "x"})
+	job, _ := s.AddJob("err", EverySchedule{Interval: 500 * time.Millisecond}, Payload{Message: "x"})
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := s.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -283,7 +290,7 @@ func TestService_RemoveCronJob(t *testing.T) {
 	if err := s.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	job, err := s.AddJob("rc", Schedule{Kind: "cron", Expr: "0 0 * * * *"}, Payload{Message: "x"})
+	job, err := s.AddJob("rc", CronSchedule{Expr: "0 0 * * * *"}, Payload{Message: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +308,7 @@ func TestService_CronJobWithInvalidExpr(t *testing.T) {
 	storePath := filepath.Join(tmpDir, "jobs.json")
 	jobs := []CronJob{{
 		ID: "bad-cron", Name: "invalid-cron", Enabled: true,
-		Schedule: Schedule{Kind: "cron", Expr: "invalid"},
+		Schedule: CronSchedule{Expr: "invalid"},
 		Payload:  Payload{Message: "x"},
 	}}
 	data, _ := json.MarshalIndent(jobs, "", "  ")

@@ -7,17 +7,17 @@ import (
 	"testing"
 	"time"
 
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
 
-var waTestLog = mavenlog.Std()
+var waTestLog = slog.New(slog.DiscardHandler)
 
 func TestNewWhatsApp_Valid(t *testing.T) {
 	b := bus.New(10, waTestLog)
@@ -46,7 +46,7 @@ func TestNewWhatsApp_Valid(t *testing.T) {
 }
 
 func TestWhatsAppChannel_Name(t *testing.T) {
-	ch := &WhatsAppChannel{}
+	ch := &WhatsAppChannel{name: whatsappChannelName}
 	if ch.Name() != whatsappChannelName {
 		t.Errorf("Name = %q, want %s", ch.Name(), whatsappChannelName)
 	}
@@ -87,7 +87,7 @@ func TestWhatsAppChannel_AllowFrom(t *testing.T) {
 
 	dispatched := func(allowFrom []string, sender types.JID) bool {
 		b := bus.New(1, waTestLog)
-		ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, allowFrom, waTestLog), runCtx: context.Background()}
+		ch := &WhatsAppChannel{name: whatsappChannelName, log: waTestLog, bus: b, allow: allowlist.NewMatcher(allowFrom), runCtx: context.Background()}
 		ch.handleMessage(makeEvent(sender))
 
 		select {
@@ -207,7 +207,7 @@ func TestWhatsAppChannel_ParseJID(t *testing.T) {
 
 func TestWhatsAppChannel_Stop_NotStarted(t *testing.T) {
 	b := bus.New(1, waTestLog)
-	ch := &WhatsAppChannel{BaseChannel: chann.NewBaseChannel(whatsappChannelName, b, nil, waTestLog)}
+	ch := &WhatsAppChannel{name: whatsappChannelName, log: waTestLog, bus: b, allow: allowlist.NewMatcher(nil)}
 	if err := ch.Stop(); err != nil {
 		t.Fatalf("Stop error: %v", err)
 	}

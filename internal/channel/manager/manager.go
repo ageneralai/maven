@@ -2,12 +2,11 @@ package manager
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/ageneralai/maven/internal/bus"
-	chann "github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/channel/feishu"
 	"github.com/ageneralai/maven/internal/channel/matrix"
 	"github.com/ageneralai/maven/internal/channel/telegram"
@@ -18,11 +17,12 @@ import (
 	"log/slog"
 
 	"github.com/ageneralai/maven/pkg/plugin"
+	"golang.org/x/sync/errgroup"
 )
 
 type ChannelManager struct {
 	mu       sync.RWMutex
-	channels map[string]chann.Channel
+	channels map[string]channel.Channel
 	bus      *bus.MessageBus
 	log      *slog.Logger
 	plugins  *plugin.Registry
@@ -31,7 +31,7 @@ type ChannelManager struct {
 
 func New(b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) *ChannelManager {
 	return &ChannelManager{
-		channels: make(map[string]chann.Channel),
+		channels: make(map[string]channel.Channel),
 		bus:      b,
 		log:      lg,
 		plugins:  plugins,
@@ -39,8 +39,16 @@ func New(b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner we
 	}
 }
 
-func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) (map[string]chann.Channel, error) {
-	out := make(map[string]chann.Channel)
+func (m *ChannelManager) SetStreamRunner(r web.StreamRunner) {
+	m.runner = r
+}
+
+func (m *ChannelManager) SetPlugins(p *plugin.Registry) {
+	m.plugins = p
+}
+
+func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg *slog.Logger, plugins *plugin.Registry, runner web.StreamRunner) (map[string]channel.Channel, error) {
+	out := make(map[string]channel.Channel)
 	ws := cfg.Agent.Workspace
 	chcfg := cfg.Channels
 	if chcfg.Telegram.Enabled {
@@ -89,30 +97,38 @@ func buildChannelMap(cfg *config.Config, b *bus.MessageBus, lg *slog.Logger, plu
 }
 
 func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
+	if err := cfg.Channels.Validate(); err != nil {
+		return err
+	}
+	next, err := buildChannelMap(cfg, m.bus, m.log, m.plugins, m.runner)
+	if err != nil {
+		return err
+	}
 	m.mu.Lock()
 	old := m.channels
+	m.mu.Unlock()
 	oldNames := make([]string, 0, len(old))
 	for n := range old {
 		oldNames = append(oldNames, n)
 	}
-	m.mu.Unlock()
 	for _, n := range oldNames {
 		if ch := old[n]; ch != nil {
 			_ = ch.Stop()
 		}
 		m.bus.SetOutboundSubscriber(n, nil)
 	}
-	next, err := buildChannelMap(cfg, m.bus, m.log, m.plugins, m.runner)
-	if err != nil {
-		return err
-	}
 	for name, ch := range next {
 		n := name
 		c := ch
-		m.bus.SetOutboundSubscriber(n, func(msg bus.OutboundMessage) {
+		m.bus.SetOutboundSubscriber(n, func(msg bus.OutboundMessage) error {
 			if err := c.Send(ctx, msg); err != nil {
 				m.log.Error("channel send failed", "channel", n, "err", err)
+				return channel.WrapDeliveryFailed(err)
 			}
+			return nil
 		})
 	}
 	m.mu.Lock()
@@ -121,31 +137,24 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 	return m.startAll(ctx, next)
 }
 
-func (m *ChannelManager) startAll(ctx context.Context, byName map[string]chann.Channel) error {
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(byName))
+func (m *ChannelManager) startAll(ctx context.Context, byName map[string]channel.Channel) error {
+	g, ctx := errgroup.WithContext(ctx)
 	for name, ch := range byName {
-		wg.Add(1)
-		go func(name string, ch chann.Channel) {
-			defer wg.Done()
-			m.log.Info("starting channel", "channel", name)
-			if err := ch.Start(ctx); err != nil {
-				errCh <- fmt.Errorf("%s: %w", name, err)
+		n, c := name, ch
+		g.Go(func() error {
+			m.log.Info("starting channel", "channel", n)
+			if err := c.Start(ctx); err != nil {
+				return fmt.Errorf("%s: %w", n, err)
 			}
-		}(name, ch)
+			return nil
+		})
 	}
-	wg.Wait()
-	close(errCh)
-	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
+	return g.Wait()
 }
 
 func (m *ChannelManager) StartAll(ctx context.Context) error {
 	m.mu.RLock()
-	snap := make(map[string]chann.Channel, len(m.channels))
+	snap := make(map[string]channel.Channel, len(m.channels))
 	for k, v := range m.channels {
 		snap[k] = v
 	}
@@ -155,7 +164,7 @@ func (m *ChannelManager) StartAll(ctx context.Context) error {
 
 func (m *ChannelManager) StopAll() error {
 	m.mu.RLock()
-	snap := make(map[string]chann.Channel, len(m.channels))
+	snap := make(map[string]channel.Channel, len(m.channels))
 	names := make([]string, 0, len(m.channels))
 	for n, ch := range m.channels {
 		snap[n] = ch
@@ -172,7 +181,7 @@ func (m *ChannelManager) StopAll() error {
 		m.bus.SetOutboundSubscriber(name, nil)
 	}
 	m.mu.Lock()
-	m.channels = make(map[string]chann.Channel)
+	m.channels = make(map[string]channel.Channel)
 	m.mu.Unlock()
 	return nil
 }
@@ -187,7 +196,7 @@ func (m *ChannelManager) EnabledChannels() []string {
 	return names
 }
 
-func (m *ChannelManager) GetChannel(name string) chann.Channel {
+func (m *ChannelManager) GetChannel(name string) channel.Channel {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.channels[name]

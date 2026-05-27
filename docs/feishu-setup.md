@@ -69,20 +69,7 @@ Edit `~/.maven/config.json`:
 }
 ```
 
-### Option B: Environment variables
-
-```bash
-export MAVEN_FEISHU_APP_ID="cli_a5xxxxx"
-export MAVEN_FEISHU_APP_SECRET="your-app-secret"
-```
-
-> `verificationToken` and `port` are config-file only.
-
-### Option C: Interactive setup
-
-```bash
-make setup
-```
+Or run `make setup` for interactive config.
 
 ## Configuration reference
 

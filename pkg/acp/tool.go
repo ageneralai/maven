@@ -43,6 +43,7 @@ type delegateTaskTool struct {
 	agents    map[string]config.ACPAgent
 }
 
+// NewDelegateTaskTool builds DelegateTask for agents with non-empty commands.
 func NewDelegateTaskTool(workspace string, restrict bool, agents map[string]config.ACPAgent) *delegateTaskTool {
 	cp := make(map[string]config.ACPAgent, len(agents))
 	for k, v := range agents {

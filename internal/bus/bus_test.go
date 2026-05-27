@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ageneralai/maven/internal/health"
+	"github.com/ageneralai/maven/internal/health/healthtest"
 	"github.com/ageneralai/maven/pkg/events"
 	"github.com/ageneralai/maven/pkg/events/eventsfake"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 )
 
-var testLG = mavenlog.Std()
+var testLG = slog.New(slog.DiscardHandler)
 
 func TestNewMessageBus_Capacity(t *testing.T) {
 	b := New(10, testLG)
@@ -44,7 +46,7 @@ func TestPublishInbound_InvalidChannel(t *testing.T) {
 	b := New(10, testLG)
 	defer b.Close()
 	err := b.PublishInbound(context.Background(), InboundMessage{Channel: "   ", ChatID: "x"})
-	if err != ErrInvalidInbound {
+	if !errors.Is(err, ErrInvalidInbound) {
 		t.Fatalf("err = %v want ErrInvalidInbound", err)
 	}
 	if err := b.PublishInbound(context.Background(), InboundMessage{Channel: "ok", ChatID: "y"}); err != nil {
@@ -56,7 +58,7 @@ func TestPublishOutbound_InvalidChannel(t *testing.T) {
 	b := New(10, testLG)
 	defer b.Close()
 	err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: ""})
-	if err != ErrInvalidOutbound {
+	if !errors.Is(err, ErrInvalidOutbound) {
 		t.Fatalf("err = %v want ErrInvalidOutbound", err)
 	}
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "ok", ChatID: "z"}); err != nil {
@@ -89,11 +91,12 @@ func TestSubscribeAndDispatch(t *testing.T) {
 	var received OutboundMessage
 	var mu sync.Mutex
 	done := make(chan struct{})
-	b.SetOutboundSubscriber("test-channel", func(msg OutboundMessage) {
+	b.SetOutboundSubscriber("test-channel", func(msg OutboundMessage) error {
 		mu.Lock()
 		received = msg
 		mu.Unlock()
 		close(done)
+		return nil
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -124,15 +127,20 @@ func TestSetOutboundSubscriber_Replaces(t *testing.T) {
 	b := New(10, testLG)
 	defer b.Close()
 	var first, second int
-	b.SetOutboundSubscriber("c", func(OutboundMessage) { first++ })
-	b.SetOutboundSubscriber("c", func(OutboundMessage) { second++ })
+	b.SetOutboundSubscriber("c", func(OutboundMessage) error { first++; return nil })
+	done := make(chan struct{})
+	b.SetOutboundSubscriber("c", func(OutboundMessage) error {
+		second++
+		close(done)
+		return nil
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	go b.DispatchOutbound(ctx)
 	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "c", Content: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(20 * time.Millisecond)
+	<-done
 	cancel()
 	if first != 0 || second != 1 {
 		t.Fatalf("first=%d second=%d want 0,1", first, second)
@@ -180,7 +188,7 @@ func TestPublish_ContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := b.PublishOutbound(ctx, OutboundMessage{Channel: "x", Content: "b"})
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("want Canceled got %v", err)
 	}
 }
@@ -194,7 +202,7 @@ func TestPublishOutbound_BufferFull_Deadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	err := b.PublishOutbound(ctx, OutboundMessage{Channel: "a", ChatID: "1", Content: "y"})
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("want DeadlineExceeded got %v", err)
 	}
 }
@@ -235,43 +243,86 @@ func TestClose_IdempotentWithDispatch(t *testing.T) {
 	b.Close()
 }
 
-func TestWithEventPublisher_PublishFailureEmits(t *testing.T) {
-	capture := &eventsfake.CapturePublisher{}
-	b := New(1, testLG, WithEventPublisher(capture))
-	defer b.Close()
-	if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "a", ChatID: "1", Content: "x"}); err != nil {
-		t.Fatal(err)
+func TestWithEventPublisher_EmitsEvents(t *testing.T) {
+	tests := []struct {
+		name string
+		buf  int
+		run  func(t *testing.T, b *MessageBus)
+		want []eventsfake.WantEvent
+	}{
+		{
+			name: "publish_failure_outbound",
+			buf:  1,
+			run: func(t *testing.T, b *MessageBus) {
+				t.Helper()
+				if err := b.PublishOutbound(context.Background(), OutboundMessage{Channel: "a", ChatID: "1", Content: "x"}); err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+				defer cancel()
+				_ = b.PublishOutbound(ctx, OutboundMessage{Channel: "a", ChatID: "1", Content: "y"})
+			},
+			want: []eventsfake.WantEvent{{
+				Type:  events.EventBusPublishFailure,
+				Attrs: map[string]string{"stream": "outbound", "channel": "a"},
+			}},
+		},
+		{
+			name: "close",
+			buf:  10,
+			run: func(t *testing.T, b *MessageBus) {
+				t.Helper()
+				b.Close()
+			},
+			want: []eventsfake.WantEvent{{Type: events.EventBusClosed}},
+		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	_ = b.PublishOutbound(ctx, OutboundMessage{Channel: "a", ChatID: "1", Content: "y"})
-	evts := capture.Snapshot()
-	var found bool
-	for _, e := range evts {
-		if e.Type == events.EventBusPublishFailure && e.Attrs["stream"] == "outbound" && e.Attrs["channel"] == "a" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("want %s event with outbound/a, got %#v", events.EventBusPublishFailure, evts)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cap := &eventsfake.CapturePublisher{}
+			b := New(tt.buf, testLG, WithEventPublisher(cap))
+			if tt.name != "close" {
+				defer b.Close()
+			}
+			tt.run(t, b)
+			eventsfake.AssertContainsPublished(t, cap, tt.want)
+		})
 	}
 }
 
-func TestWithEventPublisher_CloseEmits(t *testing.T) {
+func TestDispatch_SubscriberErrorEmitsDeliveryFailed(t *testing.T) {
 	capture := &eventsfake.CapturePublisher{}
-	b := New(10, testLG, WithEventPublisher(capture))
-	b.Close()
+	var rec healthtest.PulseRecorder
+	b := New(10, testLG, WithEventPublisher(capture), WithHealthReporter(&rec))
+	defer b.Close()
+	sendErr := errors.New("telegram down")
+	b.SetOutboundSubscriber("telegram", func(OutboundMessage) error {
+		return sendErr
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go b.DispatchOutbound(ctx)
+	if err := b.PublishOutbound(context.Background(), OutboundMessage{
+		Channel: "telegram",
+		ChatID:  "1",
+		Content: "hi",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(30 * time.Millisecond)
 	evts := capture.Snapshot()
 	var found bool
 	for _, e := range evts {
-		if e.Type == events.EventBusClosed {
+		if e.Type == events.EventOutboundDeliveryFailed && e.Attrs["channel"] == "telegram" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("want %s event, got %#v", events.EventBusClosed, evts)
+		t.Fatalf("want %s for telegram, got %#v", events.EventOutboundDeliveryFailed, evts)
+	}
+	if !rec.Has(health.SignalDeliveryFailed) {
+		t.Fatalf("want %s pulse", health.SignalDeliveryFailed)
 	}
 }
 
@@ -314,7 +365,7 @@ func TestWithStreamDelegate_OnStreamBegin_OnStreamEnd(t *testing.T) {
 	}
 	wantErr := errors.New("boom")
 	b.OnStreamEnd(sctx, h, wantErr)
-	if d.ends != 1 || d.last != wantErr {
+	if d.ends != 1 || !errors.Is(d.last, wantErr) {
 		t.Fatalf("ends = %d last = %v", d.ends, d.last)
 	}
 }

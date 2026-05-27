@@ -1,4 +1,4 @@
-package web
+package wsession
 
 import (
 	"fmt"
@@ -8,14 +8,16 @@ import (
 	mavsession "github.com/ageneralai/maven/internal/session"
 )
 
-func resolveMavenSessionID(r *http.Request, previousResponseID string) (string, error) {
+const HeaderMavenSessionID = "Maven-Session-Id"
+
+func ResolveMavenSessionID(r *http.Request, previousResponseID string) (string, error) {
 	headerSession := strings.TrimSpace(r.Header.Get(HeaderMavenSessionID))
 	if headerSession == "" {
 		headerSession = strings.TrimSpace(r.URL.Query().Get("session"))
 	}
 	prev := strings.TrimSpace(previousResponseID)
 	if prev != "" {
-		if !isMavenResponseID(prev) {
+		if !IsMavenResponseID(prev) {
 			return "", fmt.Errorf("invalid previous_response_id")
 		}
 		mapped, ok := lookupMavenResponseSession(prev)

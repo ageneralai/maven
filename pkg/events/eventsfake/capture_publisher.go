@@ -14,6 +14,7 @@ type CapturePublisher struct {
 	evts []events.Event
 }
 
+// Publish appends e to the recorded slice.
 func (c *CapturePublisher) Publish(_ context.Context, e events.Event) {
 	c.mu.Lock()
 	c.evts = append(c.evts, e)

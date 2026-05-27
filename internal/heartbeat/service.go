@@ -3,18 +3,16 @@ package heartbeat
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"log/slog"
 
 	"github.com/ageneralai/maven/internal/health"
+	"github.com/ageneralai/maven/internal/scheduling"
 	"github.com/ageneralai/maven/internal/sessionid"
 	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/pkg/stringutil"
-	"golang.org/x/sync/semaphore"
 )
 
 // Option configures Service after required fields are set.
@@ -30,7 +28,8 @@ func WithHealthReporter(r health.HealthReporter) Option {
 type Service struct {
 	workspace string
 	exec      executor.TurnExecutor
-	sem       *semaphore.Weighted
+	lane      *scheduling.Lane
+	trigger   Trigger
 	interval  time.Duration
 	log       *slog.Logger
 	rep       health.HealthReporter
@@ -46,7 +45,7 @@ func New(workspace string, exec executor.TurnExecutor, interval time.Duration, l
 	s := &Service{
 		workspace: workspace,
 		exec:      exec,
-		sem:       semaphore.NewWeighted(1),
+		lane:      scheduling.NewLane(1),
 		interval:  interval,
 		log:       log,
 		rep:       health.NoOp{},
@@ -54,19 +53,8 @@ func New(workspace string, exec executor.TurnExecutor, interval time.Duration, l
 	for _, o := range opts {
 		o(s)
 	}
+	s.trigger = triggerOrDefault(workspace, log, s.trigger)
 	return s, nil
-}
-
-func (s *Service) buildPrompt() string {
-	hbPath := filepath.Join(s.workspace, "HEARTBEAT.md")
-	data, err := os.ReadFile(hbPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			s.log.Error("heartbeat read error", "err", err)
-		}
-		return ""
-	}
-	return strings.TrimSpace(string(data))
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -86,23 +74,23 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s *Service) tick(ctx context.Context) {
-	if !s.sem.TryAcquire(1) {
+	if !s.lane.TryAcquire() {
 		s.log.Debug("heartbeat skipped: previous tick still running")
 		return
 	}
 	go func() {
-		defer s.sem.Release(1)
+		defer s.lane.Release()
 		s.execute(ctx)
 	}()
 }
 
 func (s *Service) execute(ctx context.Context) {
-	prompt := s.buildPrompt()
+	prompt := s.trigger.Prompt()
 	if prompt == "" {
 		return
 	}
 	s.log.Debug("heartbeat triggering", "prompt_len", len(prompt))
-	sessionID := sessionid.New(sessionid.KindHeartbeat, "")
+	sessionID := sessionid.New(sessionid.KindHeartbeat, "").String()
 	result, err := s.exec.RunTurn(ctx, prompt, sessionID)
 	if err != nil {
 		s.log.Error("heartbeat error", "err", err)

@@ -23,12 +23,10 @@ import (
 	mavsession "github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/skills"
 	"github.com/ageneralai/maven/internal/slash"
-	mavoice "github.com/ageneralai/maven/internal/voice"
-	"log/slog"
 	"github.com/ageneralai/maven/pkg/memory"
-	"github.com/ageneralai/maven/pkg/acp"
 	"github.com/ageneralai/maven/pkg/plugin"
 	"github.com/ageneralai/maven/pkg/prompt"
+	"log/slog"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
@@ -36,6 +34,7 @@ type RuntimeFactory func(cfg *config.Config, sysPrompt string, skillRegs []api.S
 
 // Options for creating a Gateway.
 type Options struct {
+	Logger         *slog.Logger
 	RuntimeFactory RuntimeFactory
 	SignalChan     chan os.Signal
 	HealthReporter health.HealthReporter
@@ -69,9 +68,9 @@ type Gateway struct {
 	applyMu        sync.Mutex
 }
 
-// New creates a Gateway with default options.
-func New(cfg *config.Config) (*Gateway, error) {
-	return NewWithOptions(cfg, Options{})
+// New creates a Gateway. lg must be non-nil.
+func New(cfg *config.Config, lg *slog.Logger) (*Gateway, error) {
+	return NewWithOptions(cfg, Options{Logger: lg})
 }
 
 func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
@@ -92,52 +91,31 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 // NewWithOptions creates a Gateway with a custom runtime factory (for tests).
 // Pipeline runtime is unset until Apply; Run calls Apply before starting cron/pipeline goroutines.
 func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
-	g := &Gateway{cfg: cfg, logger: slog.Default()}
-	g.bus = bus.New(config.DefaultBufSize, g.logger)
-	g.mem = memory.NewMemoryStore(cfg.Agent.Workspace)
-	router, routerErr := mavsession.New(filepath.Join(cfg.Agent.Workspace, ".maven", "session-router.json"))
-	if routerErr != nil {
-		return nil, routerErr
-	}
-	g.sessions = router
-	histStore, err := mavsession.NewStore(filepath.Join(config.ConfigDir(), "sessions"))
+	core, err := wireCore(cfg, opts)
 	if err != nil {
-		return nil, fmt.Errorf("session store: %w", err)
+		return nil, err
 	}
-	g.historyStore = histStore
-	factory := opts.RuntimeFactory
-	if factory == nil {
-		factory = DefaultRuntimeFactory
-	}
-	g.runtimeFactory = factory
-	plugs := []plugin.Plugin{acp.NewPlugin()}
-	plugs = append(plugs, mavoice.VoicePlugins()...)
-	g.plugins = plugin.NewRegistry(plugs...)
-	var pipe *pipeline.Pipeline
-	exec := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return pipe }}
-	pipeRunner := &pipelineStreamRunner{pipeFn: func() *pipeline.Pipeline { return pipe }}
-	g.channelMgr = manager.New(g.bus, g.logger, g.plugins, pipeRunner)
-	cronDeliver := &cron.Deliver{Bus: g.bus, Channels: g.channelMgr, Log: g.logger}
-	cronSvc, err := cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), exec, cfg.Gateway.Cron.MaxConcurrentRuns, g.logger, cronDeliver)
+	planes, err := wirePlanes(core)
 	if err != nil {
-		return nil, fmt.Errorf("cron service: %w", err)
+		return nil, err
 	}
-	g.cron = cronSvc
-	g.signalChan = opts.SignalChan
-	liveness := health.OrHealthReporter(opts.HealthReporter)
-	g.liveness = liveness
-	sessRes := &mavsession.SessionResolver{Router: g.sessions}
-	posts := agent.NewPostActionHandler(g.sessions, cfg.Agent.Workspace)
-	pipe = pipeline.New(g.logger, g.bus, nil, sessRes, posts)
-	pipe.Channels = g.channelMgr
-	pipe.SlashRegistry = slash.BuiltIns(g.cron)
-	g.pipe = pipe
-	hb, err := heartbeat.New(cfg.Agent.Workspace, exec, 0, g.logger, heartbeat.WithHealthReporter(liveness))
-	if err != nil {
-		return nil, fmt.Errorf("heartbeat: %w", err)
-	}
-	g.hb = hb
-	return g, nil
+	wireBackground(core, planes)
+	return &Gateway{
+		cfg:            core.cfg,
+		logger:         core.logger,
+		bus:            core.bus,
+		sessions:       core.sessions,
+		historyStore:   core.historyStore,
+		mem:            core.mem,
+		liveness:       core.liveness,
+		signalChan:     core.signalChan,
+		runtimeFactory: core.runtimeFactory,
+		channelMgr:     planes.channelMgr,
+		pipe:           planes.pipe,
+		cron:           planes.cron,
+		hb:             planes.hb,
+		plugins:        planes.plugins,
+	}, nil
 }
 
 func (g *Gateway) validateReload(cfg *config.Config) error {
@@ -182,7 +160,11 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("channels apply: %w", err)
 	}
 	g.cfg = cfg
-	g.pipe.SlashRegistry = slash.BuiltIns(g.cron)
+	slashReg, err := slash.BuiltIns(g.cron)
+	if err != nil {
+		return fmt.Errorf("slash builtins: %w", err)
+	}
+	g.pipe.SlashRegistry = slashReg
 	g.startHeartbeat(ctx)
 	return nil
 }

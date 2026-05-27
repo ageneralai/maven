@@ -9,9 +9,11 @@ import (
 
 	"log/slog"
 
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -30,7 +32,10 @@ type matrixSender interface {
 }
 
 type MatrixChannel struct {
-	chann.BaseChannel
+	name       string
+	log        *slog.Logger
+	bus        *bus.MessageBus
+	allow      allowlist.Matcher
 	userID     id.UserID
 	client     matrixSender
 	allowRooms map[string]bool
@@ -42,12 +47,6 @@ func NewMatrixChannel(cfg config.MatrixConfig, workspace string, lg *slog.Logger
 	userID, err := parseUserID(cfg.UserID)
 	if err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(cfg.Homeserver) == "" {
-		return nil, fmt.Errorf("matrix homeserver is required")
-	}
-	if strings.TrimSpace(cfg.AccessToken) == "" {
-		return nil, fmt.Errorf("matrix access token is required")
 	}
 	ws := strings.TrimSpace(workspace)
 	if ws == "" {
@@ -66,10 +65,13 @@ func NewMatrixChannel(cfg config.MatrixConfig, workspace string, lg *slog.Logger
 		client.DeviceID = id.DeviceID(deviceID)
 	}
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, b, cfg.AllowFrom, lg),
-		userID:      userID,
-		client:      client,
-		allowRooms:  buildAllowRooms(cfg.AllowRooms),
+		name:       matrixChannelName,
+		log:        lg,
+		bus:        b,
+		allow:      allowlist.NewMatcher(cfg.AllowFrom),
+		userID:     userID,
+		client:     client,
+		allowRooms: buildAllowRooms(cfg.AllowRooms),
 	}
 	if err := ch.registerSyncHandlers(client); err != nil {
 		return nil, err
@@ -91,8 +93,16 @@ func (m *MatrixChannel) registerSyncHandlers(client *mautrix.Client) error {
 	return nil
 }
 
-func (m *MatrixChannel) Capabilities() chann.CapabilitySet {
-	return chann.CapabilitySet{}
+func (m *MatrixChannel) Name() string {
+	return m.name
+}
+
+func (m *MatrixChannel) IsAllowed(senderID string) bool {
+	return m.allow.Allow(senderID)
+}
+
+func (m *MatrixChannel) Capabilities() channel.CapabilitySet {
+	return channel.CapabilitySet{}
 }
 
 func (m *MatrixChannel) Start(ctx context.Context) error {
@@ -100,9 +110,9 @@ func (m *MatrixChannel) Start(ctx context.Context) error {
 	m.syncWG.Add(1)
 	go func() {
 		defer m.syncWG.Done()
-		m.Log.Info("matrix sync started", "user_id", m.userID)
+		m.log.Info("matrix sync started", "user_id", m.userID)
 		if err := m.client.SyncWithContext(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			m.Log.Error("matrix sync stopped", "err", err)
+			m.log.Error("matrix sync stopped", "err", err)
 		}
 	}()
 	return nil
@@ -113,7 +123,7 @@ func (m *MatrixChannel) Stop() error {
 		m.cancel()
 	}
 	m.syncWG.Wait()
-	m.Log.Info("matrix stopped")
+	m.log.Info("matrix stopped")
 	return nil
 }
 
@@ -126,7 +136,7 @@ func (m *MatrixChannel) Send(ctx context.Context, msg bus.OutboundMessage) error
 	if content == "" {
 		return nil
 	}
-	for _, chunk := range chunkText(content, matrixSendChunkSize) {
+	for _, chunk := range stringutil.ChunkRunes(content, matrixSendChunkSize) {
 		if _, err := m.client.SendText(ctx, roomID, chunk); err != nil {
 			return fmt.Errorf("matrix send to %s: %w", roomID, err)
 		}

@@ -8,6 +8,7 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	if cfg == nil {
 		t.Fatal("DefaultConfig returned nil")
@@ -51,16 +52,10 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {
-	// Override config dir to a temp location
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
-
-	// Clear any env overrides
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -76,11 +71,6 @@ func TestLoadConfig_FromFile(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
-
-	// Clear env overrides
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
 
 	// Create config file
 	cfgDir := filepath.Join(tmpDir, ".maven")
@@ -114,80 +104,6 @@ func TestLoadConfig_FromFile(t *testing.T) {
 	}
 	if cfg.Provider.APIKey != "sk-test-key" {
 		t.Errorf("apiKey = %q, want sk-test-key", cfg.Provider.APIKey)
-	}
-}
-
-func TestLoadConfig_EnvOverrides(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	tests := []struct {
-		name    string
-		envKey  string
-		envVal  string
-		wantKey string
-	}{
-		{"MAVEN_API_KEY", "MAVEN_API_KEY", "maven-key", "maven-key"},
-		{"ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY", "anthropic-key", "anthropic-key"},
-		{"ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_AUTH_TOKEN", "auth-token", "auth-token"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("MAVEN_API_KEY", "")
-			t.Setenv("ANTHROPIC_API_KEY", "")
-			t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-			t.Setenv(tt.envKey, tt.envVal)
-
-			cfg, err := LoadConfig()
-			if err != nil {
-				t.Fatalf("LoadConfig error: %v", err)
-			}
-			if cfg.Provider.APIKey != tt.wantKey {
-				t.Errorf("apiKey = %q, want %q", cfg.Provider.APIKey, tt.wantKey)
-			}
-		})
-	}
-}
-
-func TestLoadConfig_EnvPriority(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	// MAVEN_API_KEY takes priority over ANTHROPIC_API_KEY
-	t.Setenv("MAVEN_API_KEY", "maven-wins")
-	t.Setenv("ANTHROPIC_API_KEY", "anthropic-loses")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "token-loses")
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig error: %v", err)
-	}
-	if cfg.Provider.APIKey != "maven-wins" {
-		t.Errorf("apiKey = %q, want maven-wins", cfg.Provider.APIKey)
-	}
-}
-
-func TestLoadConfig_BaseURLEnv(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_API_KEY", "key")
-	t.Setenv("ANTHROPIC_BASE_URL", "http://localhost:8080")
-	t.Setenv("MAVEN_BASE_URL", "")
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig error: %v", err)
-	}
-	if cfg.Provider.BaseURL != "http://localhost:8080" {
-		t.Errorf("baseURL = %q, want http://localhost:8080", cfg.Provider.BaseURL)
 	}
 }
 
@@ -269,68 +185,6 @@ func TestLoadConfig_EmptyWorkspace(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_TelegramToken(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_TELEGRAM_TOKEN", "test-telegram-token")
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig error: %v", err)
-	}
-	if cfg.Channels.Telegram.Token != "test-telegram-token" {
-		t.Errorf("telegram token = %q, want test-telegram-token", cfg.Channels.Telegram.Token)
-	}
-}
-
-func TestLoadConfig_MAVENBaseURL(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_BASE_URL", "http://maven.local")
-	t.Setenv("ANTHROPIC_BASE_URL", "http://anthropic.local")
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig error: %v", err)
-	}
-	// MAVEN_BASE_URL takes priority
-	if cfg.Provider.BaseURL != "http://maven.local" {
-		t.Errorf("baseURL = %q, want http://maven.local", cfg.Provider.BaseURL)
-	}
-}
-
-func TestLoadConfig_WeComEnvOverrides(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_WECOM_TOKEN", "wecom-token")
-	t.Setenv("MAVEN_WECOM_ENCODING_AES_KEY", "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG")
-	t.Setenv("MAVEN_WECOM_RECEIVE_ID", "wecom-receive-id")
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig error: %v", err)
-	}
-
-	if cfg.Channels.WeCom.Token != "wecom-token" {
-		t.Errorf("wecom token = %q, want wecom-token", cfg.Channels.WeCom.Token)
-	}
-	if cfg.Channels.WeCom.EncodingAESKey != "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" {
-		t.Errorf("wecom aes key = %q, want configured value", cfg.Channels.WeCom.EncodingAESKey)
-	}
-	if cfg.Channels.WeCom.ReceiveID != "wecom-receive-id" {
-		t.Errorf("wecom receiveId = %q, want wecom-receive-id", cfg.Channels.WeCom.ReceiveID)
-	}
-}
-
 func validTestConfig() *Config {
 	cfg := DefaultConfig()
 	cfg.Provider.APIKey = "test-api-key"
@@ -338,6 +192,7 @@ func validTestConfig() *Config {
 }
 
 func TestConfig_Validate_GatewayPort(t *testing.T) {
+	t.Parallel()
 	cfg := validTestConfig()
 	cfg.Gateway.Port = 0
 	if err := cfg.Validate(); err == nil {
@@ -346,6 +201,7 @@ func TestConfig_Validate_GatewayPort(t *testing.T) {
 }
 
 func TestConfig_Validate_GatewayCronMaxConcurrentRuns(t *testing.T) {
+	t.Parallel()
 	cfg := validTestConfig()
 	cfg.Gateway.Cron.MaxConcurrentRuns = -1
 	if err := cfg.Validate(); err == nil {
@@ -358,6 +214,7 @@ func TestConfig_Validate_GatewayCronMaxConcurrentRuns(t *testing.T) {
 }
 
 func TestConfig_Validate_AutoCompactThreshold(t *testing.T) {
+	t.Parallel()
 	cfg := validTestConfig()
 	cfg.AutoCompact.Enabled = true
 	cfg.AutoCompact.Threshold = 1.5
@@ -367,12 +224,14 @@ func TestConfig_Validate_AutoCompactThreshold(t *testing.T) {
 }
 
 func TestProviderConfig_Validate(t *testing.T) {
+	t.Parallel()
 	if err := (ProviderConfig{}).Validate(); err == nil {
 		t.Fatal("expected missing api key error")
 	}
 }
 
 func TestAgentConfig_Validate(t *testing.T) {
+	t.Parallel()
 	cfg := AgentConfig{Workspace: "/tmp", MaxTokens: 100, MaxToolIterations: 1, Temperature: 0.5}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid agent config: %v", err)
@@ -384,6 +243,7 @@ func TestAgentConfig_Validate(t *testing.T) {
 }
 
 func TestGatewayConfig_Validate(t *testing.T) {
+	t.Parallel()
 	cfg := GatewayConfig{Host: "127.0.0.1", Port: 8080}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid gateway config: %v", err)
@@ -394,7 +254,57 @@ func TestGatewayConfig_Validate(t *testing.T) {
 	}
 }
 
+func TestWeComConfig_Validate_EncodingAESKeyLength(t *testing.T) {
+	t.Parallel()
+	cfg := validTestConfig()
+	cfg.Channels.WeCom = WeComConfig{
+		Enabled:        true,
+		Token:          "token",
+		EncodingAESKey: "short",
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected encodingAESKey length error")
+	}
+	cfg.Channels.WeCom.EncodingAESKey = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid wecom config: %v", err)
+	}
+}
+
+func TestTelegramConfig_Validate_TokenFormat(t *testing.T) {
+	t.Parallel()
+	cfg := validTestConfig()
+	cfg.Channels.Telegram = TelegramConfig{Enabled: true, Token: "bad-token"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected telegram token format error")
+	}
+	cfg.Channels.Telegram.Token = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid telegram token: %v", err)
+	}
+}
+
+func TestMatrixConfig_Validate_UserIDAndHomeserver(t *testing.T) {
+	t.Parallel()
+	cfg := validTestConfig()
+	cfg.Channels.Matrix = MatrixConfig{
+		Enabled:     true,
+		Homeserver:  "not-a-url",
+		AccessToken: "tok",
+		UserID:      "user",
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected matrix validation error")
+	}
+	cfg.Channels.Matrix.Homeserver = "https://matrix.example.org"
+	cfg.Channels.Matrix.UserID = "@user:example.org"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid matrix config: %v", err)
+	}
+}
+
 func TestChannelsConfig_Validate(t *testing.T) {
+	t.Parallel()
 	cfg := ChannelsConfig{Telegram: TelegramConfig{Enabled: true}}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected telegram token error")
@@ -402,6 +312,7 @@ func TestChannelsConfig_Validate(t *testing.T) {
 }
 
 func TestAutoCompactConfig_Validate(t *testing.T) {
+	t.Parallel()
 	cfg := AutoCompactConfig{Enabled: true, Threshold: 0.5, PreserveCount: 1}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid auto compact: %v", err)

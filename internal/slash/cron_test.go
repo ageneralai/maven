@@ -8,10 +8,10 @@ import (
 
 	"github.com/ageneralai/maven/internal/cron"
 	"github.com/ageneralai/maven/pkg/executor"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 )
 
-var testCronLog = mavenlog.Std()
+var testCronLog = slog.New(slog.DiscardHandler)
 
 func TestHandleCronAdd_atDuration(t *testing.T) {
 	dir := t.TempDir()
@@ -31,7 +31,7 @@ func TestHandleCronAdd_atDuration(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Fatalf("jobs len=%d", len(jobs))
 	}
-	if jobs[0].Name != "n1" || jobs[0].Schedule.Kind != "at" {
+	if jobs[0].Name != "n1" || !cron.IsAtSchedule(jobs[0].Schedule) {
 		t.Fatalf("%+v", jobs[0])
 	}
 	if jobs[0].Payload.Message != "ping" {

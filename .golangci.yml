@@ -1,0 +1,67 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - revive
+    - gocritic
+    - errcheck
+    - staticcheck
+    - gosec
+    - unparam
+    - wastedassign
+    - nilnil
+    - errorlint
+    - tagliatelle
+    - forbidigo
+linters-settings:
+  tagliatelle:
+    case:
+      rules:
+        json: camel
+  forbidigo:
+    forbid:
+      - '^slog\.Default\(\)'
+    msg: use injected logger (pkg/log.Std), not slog.Default in internal/
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+  gosec:
+    excludes:
+      - G104
+run:
+  timeout: 5m
+issues:
+  exclude-rules:
+    - path: cmd/
+      linters:
+        - forbidigo
+        - gosec
+        - gocritic
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+    - path: internal/channel/
+      linters:
+        - tagliatelle
+        - gosec
+    - path: internal/config/
+      linters:
+        - tagliatelle
+    - path: pkg/
+      linters:
+        - tagliatelle
+        - gosec
+    - path: internal/testutil/
+      linters:
+        - gosec
+    - path: internal/slash/
+      linters:
+        - gocritic
+    - path: internal/channel/whatsapp/
+      linters:
+        - gocritic
+    - path: internal/channel/telegram/stream_state\.go
+      linters:
+        - unparam

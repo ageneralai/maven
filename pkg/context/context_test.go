@@ -6,6 +6,7 @@ import (
 )
 
 func TestWithInbound_trimAndRetrieve(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "  telegram \n", " 42 ")
 	tc, ok := From(ctx)
 	if !ok || tc.Channel != "telegram" || tc.ChatID != "42" {
@@ -19,6 +20,7 @@ func TestWithInbound_trimAndRetrieve(t *testing.T) {
 }
 
 func TestFrom_missingIncomplete(t *testing.T) {
+	t.Parallel()
 	if _, ok := From(context.Background()); ok {
 		t.Fatal("want no snapshot")
 	}
@@ -31,6 +33,7 @@ func TestFrom_missingIncomplete(t *testing.T) {
 }
 
 func TestWith_overwrites(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "a", "1")
 	ctx = WithInbound(ctx, "b", "2")
 	tc, ok := From(ctx)
@@ -40,6 +43,7 @@ func TestWith_overwrites(t *testing.T) {
 }
 
 func TestWithInbound_preservesMetadata(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "a", "1")
 	ctx = WithMetadata(ctx, map[string]any{"  ping ": true})
 	ctx = WithInbound(ctx, "b", " 2 ")
@@ -56,6 +60,7 @@ func TestWithInbound_preservesMetadata(t *testing.T) {
 }
 
 func TestWith_explicitMetadataClearsPreserve(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "a", "1")
 	ctx = WithMetadata(ctx, map[string]any{"k": 1})
 	ctx = With(ctx, TurnContext{Channel: "a", ChatID: "1", Metadata: map[string]any{"only": struct{}{}}})
@@ -66,6 +71,7 @@ func TestWith_explicitMetadataClearsPreserve(t *testing.T) {
 }
 
 func TestWith_nilMetadataPreserves(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "x", "y")
 	ctx = WithMetadata(ctx, map[string]any{"k": 1})
 	ctx = With(ctx, TurnContext{Channel: "x", ChatID: "y"})
@@ -76,6 +82,7 @@ func TestWith_nilMetadataPreserves(t *testing.T) {
 }
 
 func TestNormalize_metadataKeyTrimSkipsWhitespaceOnlyKeys(t *testing.T) {
+	t.Parallel()
 	ctx := WithInbound(context.Background(), "c", "d")
 	ctx = WithMetadata(ctx, map[string]any{"  hello ": "v", "\t ": "ignored"})
 	tc, ok := From(ctx)

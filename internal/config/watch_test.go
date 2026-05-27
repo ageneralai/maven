@@ -9,6 +9,7 @@ import (
 )
 
 func TestWatchConfigPath_StopIdempotent(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "config.json")
 	_ = os.WriteFile(p, []byte("{}"), 0644)
@@ -24,6 +25,7 @@ func TestWatchConfigPath_StopIdempotent(t *testing.T) {
 }
 
 func TestWatchConfigPath_EmitsOnWrite(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "config.json")
 	if err := os.WriteFile(p, []byte(`{}`), 0644); err != nil {
@@ -45,6 +47,7 @@ func TestWatchConfigPath_EmitsOnWrite(t *testing.T) {
 }
 
 func TestFileModEpoch(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "f")
 	if FileModEpoch(p) != 0 {

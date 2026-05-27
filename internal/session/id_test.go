@@ -5,6 +5,7 @@ import (
 )
 
 func TestChatSessionID(t *testing.T) {
+	t.Parallel()
 	if got := ChatSessionID("telegram", "12345"); got != "telegram-12345" {
 		t.Fatalf("got %q", got)
 	}
@@ -17,6 +18,7 @@ func TestChatSessionID(t *testing.T) {
 }
 
 func TestSessionIDFromRouteKey(t *testing.T) {
+	t.Parallel()
 	if got := SessionIDFromRouteKey("telegram:12345"); got != "telegram-12345" {
 		t.Fatalf("got %q", got)
 	}

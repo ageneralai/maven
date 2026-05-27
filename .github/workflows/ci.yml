@@ -16,11 +16,19 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1.6
+
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests
-        run: go test ./...
+      - name: Vet
+        run: go vet -all ./...
+
+      - name: Test with race detector
+        run: go test -race ./... -count=1
 
       - name: Build
         run: go build -o maven ./cmd/maven

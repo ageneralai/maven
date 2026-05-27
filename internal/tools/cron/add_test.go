@@ -10,12 +10,13 @@ import (
 	svcron "github.com/ageneralai/maven/internal/cron"
 	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/pkg/executor"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 )
 
-var toolTestLog = mavenlog.Std()
+var toolTestLog = slog.New(slog.DiscardHandler)
 
 func TestAddFromToolMap_incomingChat(t *testing.T) {
+	t.Parallel()
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "4242")
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
@@ -36,6 +37,7 @@ func TestAddFromToolMap_incomingChat(t *testing.T) {
 }
 
 func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
+	t.Parallel()
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
@@ -53,6 +55,7 @@ func TestAddFromToolMap_inferIncomingFromGateway(t *testing.T) {
 }
 
 func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
+	t.Parallel()
 	ctx := turnctx.WithInbound(context.Background(), "telegram", "999")
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
@@ -71,6 +74,7 @@ func TestAddFromToolMap_explicitDeliverFalseNoInfer(t *testing.T) {
 }
 
 func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
+	t.Parallel()
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +91,7 @@ func TestAddFromToolMap_incomingChatMissingContext(t *testing.T) {
 }
 
 func TestScheduleToolExecute(t *testing.T) {
+	t.Parallel()
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -111,6 +116,7 @@ func TestScheduleToolExecute(t *testing.T) {
 }
 
 func TestAdd_duplicateScheduleKinds(t *testing.T) {
+	t.Parallel()
 	svc, err := svcron.NewService(filepath.Join(t.TempDir(), "j.json"), executor.Nop{}, 1, toolTestLog, nil)
 	if err != nil {
 		t.Fatal(err)

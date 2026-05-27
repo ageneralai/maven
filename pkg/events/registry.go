@@ -1,10 +1,19 @@
 package events
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
-var defaultPublisher EventPublisher = NoOp{}
+var (
+	defaultMu        sync.RWMutex
+	defaultPublisher EventPublisher = NoOp{}
+)
 
+// SetDefaultPublisher replaces the process-wide event sink; nil resets to NoOp.
 func SetDefaultPublisher(p EventPublisher) {
+	defaultMu.Lock()
+	defer defaultMu.Unlock()
 	if p == nil {
 		defaultPublisher = NoOp{}
 		return
@@ -12,6 +21,10 @@ func SetDefaultPublisher(p EventPublisher) {
 	defaultPublisher = p
 }
 
+// Publish sends an event to the default publisher (see SetDefaultPublisher).
 func Publish(ctx context.Context, e Event) {
-	defaultPublisher.Publish(ctx, e)
+	defaultMu.RLock()
+	p := defaultPublisher
+	defaultMu.RUnlock()
+	p.Publish(ctx, e)
 }

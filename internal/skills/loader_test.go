@@ -11,11 +11,9 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
-
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
-var testLG = mavenlog.Std()
+var testLG = slog.New(slog.DiscardHandler)
 
 func TestLoadSkills_LoadSingleSkill(t *testing.T) {
 	t.Parallel()

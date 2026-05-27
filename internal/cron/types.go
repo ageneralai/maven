@@ -1,15 +1,10 @@
 package cron
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 )
-
-type Schedule struct {
-	Kind    string `json:"kind"`    // "cron" | "every" | "at"
-	Expr    string `json:"expr"`    // cron expression
-	EveryMs int64  `json:"everyMs"` // interval in milliseconds
-	AtMs    int64  `json:"atMs"`    // one-shot timestamp ms
-}
 
 type Payload struct {
 	Message string `json:"message"`
@@ -33,6 +28,41 @@ type CronJob struct {
 	Payload        Payload  `json:"payload"`
 	State          JobState `json:"state"`
 	DeleteAfterRun bool     `json:"deleteAfterRun"`
+}
+
+func (j CronJob) MarshalJSON() ([]byte, error) {
+	type cronJobAlias CronJob
+	raw, err := marshalSchedule(j.Schedule)
+	if err != nil {
+		return nil, err
+	}
+	aux := struct {
+		cronJobAlias
+		Schedule json.RawMessage `json:"schedule"`
+	}{
+		cronJobAlias: cronJobAlias(j),
+		Schedule:     raw,
+	}
+	return json.Marshal(aux)
+}
+
+func (j *CronJob) UnmarshalJSON(data []byte) error {
+	type cronJobAlias CronJob
+	aux := struct {
+		*cronJobAlias
+		Schedule json.RawMessage `json:"schedule"`
+	}{
+		cronJobAlias: (*cronJobAlias)(j),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	sch, err := unmarshalSchedule(aux.Schedule)
+	if err != nil {
+		return err
+	}
+	j.Schedule = sch
+	return nil
 }
 
 func NewCronJob(name string, schedule Schedule, payload Payload) CronJob {

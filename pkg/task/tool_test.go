@@ -5,24 +5,27 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ageneralai/ageneral-agents-go/pkg/middleware"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/config"
 )
 
 func TestTools_DisabledReturnsNil(t *testing.T) {
+	t.Parallel()
 	if got := Tools(config.TaskToolConfig{}, &RuntimeHolder{}); got != nil {
 		t.Fatalf("Tools(enabled=false) = %v, want nil", got)
 	}
 }
 
 func TestNew_NilHolderReturnsNil(t *testing.T) {
+	t.Parallel()
 	if got := New(nil); got != nil {
 		t.Fatalf("New(nil) = %v, want nil", got)
 	}
 }
 
 func TestSchema_RequiredFields(t *testing.T) {
+	t.Parallel()
 	tt := New(&RuntimeHolder{})
 	s := tt.Schema()
 	if len(s.Required) != 2 {
@@ -31,10 +34,12 @@ func TestSchema_RequiredFields(t *testing.T) {
 }
 
 func TestInterface_Compliance(t *testing.T) {
+	t.Parallel()
 	var _ tool.Tool = (*taskTool)(nil)
 }
 
 func TestExecute_UnknownSubagent(t *testing.T) {
+	t.Parallel()
 	tt := &taskTool{holder: &RuntimeHolder{}}
 	_, err := tt.Execute(context.Background(), map[string]any{
 		"name": "shell",
@@ -46,8 +51,12 @@ func TestExecute_UnknownSubagent(t *testing.T) {
 }
 
 func TestExecute_NestedTaskRejected(t *testing.T) {
+	t.Parallel()
 	tt := &taskTool{holder: &RuntimeHolder{}}
-	ctx := context.WithValue(context.Background(), middleware.TraceSessionIDContextKey, "task:550e8400-e29b-41d4-a716-446655440000")
+	ctx := turnctx.WithMetadata(
+		turnctx.WithInbound(context.Background(), "telegram", "1"),
+		map[string]any{"session_id": "task:550e8400-e29b-41d4-a716-446655440000"},
+	)
 	_, err := tt.Execute(ctx, map[string]any{
 		"name": "explore",
 		"goal": "find main",
@@ -58,6 +67,7 @@ func TestExecute_NestedTaskRejected(t *testing.T) {
 }
 
 func TestChildSessionID_Prefix(t *testing.T) {
+	t.Parallel()
 	got := childSessionID("telegram-12345")
 	if !strings.HasPrefix(got, "task:") {
 		t.Fatalf("childSessionID = %q, want task: prefix", got)
@@ -65,6 +75,7 @@ func TestChildSessionID_Prefix(t *testing.T) {
 }
 
 func TestParseModelTier(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"haiku":  "low",
 		"sonnet": "mid",

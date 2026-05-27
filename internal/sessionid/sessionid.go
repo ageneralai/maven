@@ -20,105 +20,99 @@ const (
 	KindTask      Kind = "task"
 )
 
-// Prefix returns the string prefix for a given kind (for HasPrefix checks).
-func Prefix(kind Kind) string {
-	switch kind {
-	case KindCron:
-		return "cron:"
-	case KindHeartbeat:
-		return "heartbeat:"
-	case KindTask:
-		return "task:"
-	default:
-		return ""
-	}
+type SessionID struct {
+	Kind  Kind
+	Owner string
+	Token string
 }
 
-// New returns a session ID for the given kind and seed.
-func New(kind Kind, seed string) string {
+func New(kind Kind, seed string) SessionID {
 	seed = strings.TrimSpace(seed)
 	switch kind {
 	case KindCron:
-		return fmt.Sprintf("cron:%s:%s", seed, uuid.NewString())
+		return SessionID{Kind: KindCron, Owner: seed, Token: uuid.NewString()}
 	case KindHeartbeat:
-		return "heartbeat:" + uuid.NewString()
+		return SessionID{Kind: KindHeartbeat, Token: uuid.NewString()}
 	case KindIsolated:
 		if seed == "" {
 			seed = "session"
 		}
-		return fmt.Sprintf("%s:isolated:%d", seed, time.Now().UnixNano())
+		return SessionID{Kind: KindIsolated, Owner: seed, Token: strconv.FormatInt(time.Now().UnixNano(), 10)}
 	case KindRotated:
 		if seed == "" {
 			seed = "session"
 		}
-		return fmt.Sprintf("%s:rotated:%d", seed, time.Now().UnixNano())
+		return SessionID{Kind: KindRotated, Owner: seed, Token: strconv.FormatInt(time.Now().UnixNano(), 10)}
 	case KindTask:
-		return "task:" + uuid.NewString()
+		return SessionID{Kind: KindTask, Token: uuid.NewString()}
 	default:
-		return seed
+		return SessionID{Kind: KindChat, Owner: seed}
 	}
 }
 
-// Match parses a session ID and returns its kind, seed, and whether it was produced by New.
-func Match(s string) (Kind, string, bool) {
+func (id SessionID) String() string {
+	switch id.Kind {
+	case KindCron:
+		return fmt.Sprintf("cron:%s:%s", id.Owner, id.Token)
+	case KindHeartbeat:
+		return "heartbeat:" + id.Token
+	case KindTask:
+		return "task:" + id.Token
+	case KindIsolated:
+		return fmt.Sprintf("%s:isolated:%s", id.Owner, id.Token)
+	case KindRotated:
+		return fmt.Sprintf("%s:rotated:%s", id.Owner, id.Token)
+	default:
+		return id.Owner
+	}
+}
+
+func MatchesTask(sessionID string) bool {
+	id, err := Parse(sessionID)
+	return err == nil && id.Kind == KindTask
+}
+
+func Parse(s string) (SessionID, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return "", "", false
+		return SessionID{}, fmt.Errorf("session id is empty")
 	}
 	if strings.HasPrefix(s, "cron:") {
 		rest := strings.TrimPrefix(s, "cron:")
-		jobID, id, ok := strings.Cut(rest, ":")
+		jobID, token, ok := strings.Cut(rest, ":")
 		if !ok || jobID == "" {
-			return "", "", false
+			return SessionID{}, fmt.Errorf("invalid cron session id %q", s)
 		}
-		if _, err := uuid.Parse(id); err != nil {
-			return "", "", false
+		if _, err := uuid.Parse(token); err != nil {
+			return SessionID{}, fmt.Errorf("invalid cron session id %q", s)
 		}
-		return KindCron, jobID, true
+		return SessionID{Kind: KindCron, Owner: jobID, Token: token}, nil
 	}
 	if strings.HasPrefix(s, "heartbeat:") {
-		id := strings.TrimPrefix(s, "heartbeat:")
-		if _, err := uuid.Parse(id); err != nil {
-			return "", "", false
+		token := strings.TrimPrefix(s, "heartbeat:")
+		if _, err := uuid.Parse(token); err != nil {
+			return SessionID{}, fmt.Errorf("invalid heartbeat session id %q", s)
 		}
-		return KindHeartbeat, "", true
+		return SessionID{Kind: KindHeartbeat, Token: token}, nil
 	}
 	if strings.HasPrefix(s, "task:") {
-		id := strings.TrimPrefix(s, "task:")
-		if _, err := uuid.Parse(id); err != nil {
-			return "", "", false
+		token := strings.TrimPrefix(s, "task:")
+		if _, err := uuid.Parse(token); err != nil {
+			return SessionID{}, fmt.Errorf("invalid task session id %q", s)
 		}
-		return KindTask, "", true
+		return SessionID{Kind: KindTask, Token: token}, nil
 	}
 	if base, suffix, ok := strings.Cut(s, ":isolated:"); ok {
 		if _, err := strconv.ParseInt(suffix, 10, 64); err != nil {
-			return "", "", false
+			return SessionID{}, fmt.Errorf("invalid isolated session id %q", s)
 		}
-		return KindIsolated, base, true
+		return SessionID{Kind: KindIsolated, Owner: base, Token: suffix}, nil
 	}
 	if base, suffix, ok := strings.Cut(s, ":rotated:"); ok {
 		if _, err := strconv.ParseInt(suffix, 10, 64); err != nil {
-			return "", "", false
+			return SessionID{}, fmt.Errorf("invalid rotated session id %q", s)
 		}
-		return KindRotated, base, true
+		return SessionID{Kind: KindRotated, Owner: base, Token: suffix}, nil
 	}
-	return KindChat, s, true
-}
-
-// MatchesCronJob reports whether sessionID was produced by New(KindCron, jobID).
-func MatchesCronJob(jobID, sessionID string) bool {
-	kind, seed, ok := Match(sessionID)
-	return ok && kind == KindCron && seed == strings.TrimSpace(jobID)
-}
-
-// MatchesHeartbeat reports whether sessionID was produced by New(KindHeartbeat, "").
-func MatchesHeartbeat(sessionID string) bool {
-	kind, _, ok := Match(sessionID)
-	return ok && kind == KindHeartbeat
-}
-
-// MatchesTask reports whether sessionID was produced by New(KindTask, "").
-func MatchesTask(sessionID string) bool {
-	kind, _, ok := Match(sessionID)
-	return ok && kind == KindTask
+	return SessionID{Kind: KindChat, Owner: s}, nil
 }

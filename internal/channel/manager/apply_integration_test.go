@@ -7,11 +7,11 @@ import (
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 )
 
 func TestChannelManager_FeishuEnabled(t *testing.T) {
-	log := mavenlog.Std()
+	log := slog.New(slog.DiscardHandler)
 	b := bus.New(10, log)
 	m := New(b, log, nil, nil)
 	cfg := &config.Config{
@@ -35,7 +35,7 @@ func TestChannelManager_FeishuEnabled(t *testing.T) {
 }
 
 func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
-	log := mavenlog.Std()
+	log := slog.New(slog.DiscardHandler)
 	b := bus.New(10, log)
 	m := New(b, log, nil, nil)
 	cfg := &config.Config{
@@ -51,7 +51,7 @@ func TestChannelManager_FeishuEnabled_MissingConfig(t *testing.T) {
 }
 
 func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
-	log := mavenlog.Std()
+	log := slog.New(slog.DiscardHandler)
 	b := bus.New(10, log)
 	m := New(b, log, nil, nil)
 	cfg := &config.Config{
@@ -67,7 +67,7 @@ func TestChannelManager_WeComEnabled_MissingConfig(t *testing.T) {
 }
 
 func TestChannelManager_WeComEnabled(t *testing.T) {
-	log := mavenlog.Std()
+	log := slog.New(slog.DiscardHandler)
 	b := bus.New(10, log)
 	m := New(b, log, nil, nil)
 	cfg := &config.Config{
@@ -98,7 +98,7 @@ func TestChannelManager_WeComEnabled(t *testing.T) {
 }
 
 func TestNewWhatsApp_Disabled(t *testing.T) {
-	log := mavenlog.Std()
+	log := slog.New(slog.DiscardHandler)
 	b := bus.New(10, log)
 	dir := t.TempDir()
 	m := New(b, log, nil, nil)

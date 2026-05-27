@@ -3,17 +3,14 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
-	chann "github.com/ageneralai/maven/internal/channel"
-	pkgvoice "github.com/ageneralai/maven/pkg/voice"
+	"github.com/ageneralai/maven/internal/channel"
 	"github.com/coder/websocket"
 )
 
@@ -33,21 +30,18 @@ func (w *WebChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		w.Log.Error("web websocket accept error", "err", err)
+		w.log.Error("web websocket accept error", "err", err)
 		return
 	}
-
 	clientID := fmt.Sprintf("web-%d", w.nextID.Add(1))
 	client := &wsClient{conn: conn, id: clientID}
 	w.clients.Store(clientID, client)
-	w.Log.Info("web client connected", "client", clientID)
-
+	w.log.Info("web client connected", "client", clientID)
 	defer func() {
 		w.clients.Delete(clientID)
 		_ = conn.CloseNow()
-		w.Log.Info("web client disconnected", "client", clientID)
+		w.log.Info("web client disconnected", "client", clientID)
 	}()
-
 	for {
 		_, data, err := conn.Read(r.Context())
 		if err != nil {
@@ -61,10 +55,10 @@ func (w *WebChannel) handleWS(wr http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if !w.IsAllowed(clientID) {
-			w.Log.Debug("web rejected message", "client", clientID)
+			w.log.Debug("web rejected message", "client", clientID)
 			continue
 		}
-		_ = w.Bus.PublishInbound(r.Context(), bus.InboundMessage{
+		_ = w.bus.PublishInbound(r.Context(), bus.InboundMessage{
 			Channel:   webChannelName,
 			SenderID:  clientID,
 			ChatID:    clientID,
@@ -94,14 +88,8 @@ func (w *WebChannel) writeToClient(ctx context.Context, chatID string, data []by
 }
 
 func (w *WebChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
-	if _, ok := w.voiceSessions.Load(msg.ChatID); ok {
-		data, err := json.Marshal(wsMessage{Type: "message", Content: msg.Content})
-		if err != nil {
-			return err
-		}
-		writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		return w.writeVoiceClient(writeCtx, msg.ChatID, websocket.MessageText, data)
+	if w.voice != nil && w.voice.HasSession(msg.ChatID) {
+		return w.voice.Send(ctx, msg.ChatID, msg.Content)
 	}
 	data, err := json.Marshal(wsMessage{Type: "message", Content: msg.Content})
 	if err != nil {
@@ -112,32 +100,10 @@ func (w *WebChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	return w.writeToClient(writeCtx, msg.ChatID, data)
 }
 
-func (w *WebChannel) writeVoiceClient(ctx context.Context, chatID string, typ websocket.MessageType, data []byte) error {
-	v, ok := w.voiceSessions.Load(chatID)
-	if !ok {
-		return nil
-	}
-	vc, ok := v.(*voiceClient)
-	if !ok {
-		return nil
-	}
-	vc.writeMu.Lock()
-	defer vc.writeMu.Unlock()
-	return vc.conn.Write(ctx, typ, data)
-}
-
-func streamEventError(ev api.StreamEvent) error {
-	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
-	if msg == "" {
-		msg = "stream error"
-	}
-	return fmt.Errorf("%s", msg)
-}
-
 func (w *WebChannel) SendStream(ctx context.Context, chatID string, metadata map[string]any, events <-chan api.StreamEvent) error {
 	_ = metadata
-	if _, ok := w.voiceSessions.Load(chatID); ok {
-		return w.sendStreamVoice(ctx, chatID, events)
+	if w.voice != nil && w.voice.HasSession(chatID) {
+		return w.voice.SendStream(ctx, chatID, events)
 	}
 	for {
 		select {
@@ -167,100 +133,14 @@ func (w *WebChannel) SendStream(ctx context.Context, chatID string, metadata map
 	}
 }
 
-func (w *WebChannel) sendStreamVoice(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
-	v, ok := w.voiceSessions.Load(chatID)
-	if !ok {
-		return nil
+func streamEventError(ev api.StreamEvent) error {
+	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
+	if msg == "" {
+		msg = "stream error"
 	}
-	vc, ok := v.(*voiceClient)
-	if !ok {
-		return nil
-	}
-	sess := vc.sess
-	conn := vc.conn
-	micAgentCtx := sess.NewAgentCtx()
-	agentCtx, cancelAgent := context.WithCancel(micAgentCtx)
-	defer cancelAgent()
-	go func() {
-		<-ctx.Done()
-		cancelAgent()
-	}()
-	textCh := make(chan string, 8)
-	var wg sync.WaitGroup
-	var drainErr error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(textCh)
-		buf := ""
-		for {
-			select {
-			case <-agentCtx.Done():
-				return
-			case ev, ok := <-events:
-				if !ok {
-					tail := pkgvoice.FlushRemainder(&buf)
-					if tail != "" {
-						select {
-						case textCh <- tail:
-						case <-agentCtx.Done():
-							return
-						}
-					}
-					return
-				}
-				if ev.Type == api.EventError {
-					drainErr = streamEventError(ev)
-					sess.Interrupt()
-					return
-				}
-				if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
-					buf += ev.Delta.Text
-					for _, sent := range pkgvoice.TakeCompleteSentences(&buf) {
-						select {
-						case textCh <- sent:
-						case <-agentCtx.Done():
-							return
-						}
-					}
-				}
-			}
-		}
-	}()
-	writeAudio := func(b []byte) error {
-		writeCtx, cancel := context.WithTimeout(agentCtx, 5*time.Second)
-		defer cancel()
-		vc.writeMu.Lock()
-		defer vc.writeMu.Unlock()
-		return conn.Write(writeCtx, websocket.MessageBinary, b)
-	}
-	ttsErr := sess.RunTTS(agentCtx, textCh, writeAudio)
-	if ttsErr != nil {
-		sess.Interrupt()
-	}
-	wg.Wait()
-	done, err := json.Marshal(wsMessage{Type: "stream_done"})
-	if err != nil {
-		return err
-	}
-	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	vc.writeMu.Lock()
-	defer vc.writeMu.Unlock()
-	if werr := conn.Write(writeCtx, websocket.MessageText, done); werr != nil {
-		if drainErr == nil && ttsErr == nil {
-			return werr
-		}
-	}
-	if drainErr != nil {
-		return drainErr
-	}
-	if ttsErr != nil && !errors.Is(ttsErr, context.Canceled) && !errors.Is(ttsErr, context.DeadlineExceeded) {
-		return ttsErr
-	}
-	return nil
+	return fmt.Errorf("%s", msg)
 }
 
-func (w *WebChannel) Capabilities() chann.CapabilitySet {
-	return chann.CapabilitySet{}
+func (w *WebChannel) Capabilities() channel.CapabilitySet {
+	return channel.CapabilitySet{}
 }

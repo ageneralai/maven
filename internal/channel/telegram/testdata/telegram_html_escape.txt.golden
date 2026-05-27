@@ -1,0 +1,21 @@
+IN: hello
+OUT: hello
+---
+IN: **bold**
+OUT: <b>bold</b>
+---
+IN: `code`
+OUT: <code>code</code>
+---
+IN: a & b
+OUT: a &amp; b
+---
+IN: <tag>
+OUT: &lt;tag&gt;
+---
+IN: ```go
+func main() {}
+```
+OUT: <pre>func main() {}
+</pre>
+---

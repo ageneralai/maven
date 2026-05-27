@@ -89,14 +89,6 @@ Edit `~/.maven/config.json`:
 | `port` | int | Callback HTTP port (default 9886) |
 | `allowFrom` | []string | Optional allowlist; if unset or empty, all users are accepted |
 
-### Environment variables (optional overrides)
-
-```bash
-export MAVEN_WECOM_TOKEN="your-token"
-export MAVEN_WECOM_ENCODING_AES_KEY="your-43-char-encoding-aes-key"
-export MAVEN_WECOM_RECEIVE_ID="optional-receive-id"
-```
-
 ## Step 4: Run and verify
 
 ```bash

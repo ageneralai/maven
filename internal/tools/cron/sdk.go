@@ -14,9 +14,6 @@ func Tools(s *svcron.Service, lg *slog.Logger) []tool.Tool {
 	if s == nil {
 		return nil
 	}
-	if lg == nil {
-		lg = slog.Default()
-	}
 	return []tool.Tool{
 		&scheduleTool{svc: s, log: lg},
 		&listTool{svc: s},

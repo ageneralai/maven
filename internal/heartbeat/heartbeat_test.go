@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -13,10 +14,9 @@ import (
 	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/internal/health/healthtest"
 	"github.com/ageneralai/maven/internal/sessionid"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
-var testLG = mavenlog.Std()
+var testLG = slog.New(slog.DiscardHandler)
 
 func mustNewHeartbeat(t *testing.T, workspace string, exec stubExec, interval time.Duration, opts ...Option) *Service {
 	t.Helper()
@@ -93,15 +93,31 @@ func TestTick_EmptyFile(t *testing.T) {
 func TestTick_WithContent(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeHeartbeatPromptFile(t, tmpDir, "Check tasks")
+	var mu sync.Mutex
 	var receivedPrompt string
 	s := mustNewHeartbeat(t, tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
+		mu.Lock()
 		receivedPrompt = prompt
+		mu.Unlock()
 		return "done", nil
 	}}, time.Second)
 	s.tick(context.Background())
-	time.Sleep(50 * time.Millisecond)
-	if receivedPrompt != "Check tasks" {
-		t.Errorf("prompt = %q, want 'Check tasks'", receivedPrompt)
+	deadline := time.Now().Add(time.Second)
+	for {
+		mu.Lock()
+		got := receivedPrompt
+		mu.Unlock()
+		if got != "" {
+			if got != "Check tasks" {
+				t.Errorf("prompt = %q, want 'Check tasks'", got)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Error("executor did not receive prompt")
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -159,14 +175,17 @@ func TestTick_HandlerError(t *testing.T) {
 func TestTick_HeartbeatOK(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeHeartbeatPromptFile(t, tmpDir, "Check tasks")
-	var called bool
+	var called atomic.Bool
 	s := mustNewHeartbeat(t, tmpDir, stubExec{func(ctx context.Context, prompt, sessionID string) (string, error) {
-		called = true
+		called.Store(true)
 		return "HEARTBEAT_OK - nothing to do", nil
 	}}, time.Second)
 	s.tick(context.Background())
-	time.Sleep(30 * time.Millisecond)
-	if !called {
+	deadline := time.Now().Add(time.Second)
+	for !called.Load() && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !called.Load() {
 		t.Error("executor should be called")
 	}
 }
@@ -230,8 +249,11 @@ func TestHeartbeatFreshSessionPerTick(t *testing.T) {
 	if ids[0] == ids[1] {
 		t.Fatal("expected distinct session ids")
 	}
-	if !sessionid.MatchesHeartbeat(ids[0]) || !sessionid.MatchesHeartbeat(ids[1]) {
-		t.Fatalf("not heartbeat sessions: %v", ids)
+	for _, sid := range ids {
+		parsed, err := sessionid.Parse(sid)
+		if err != nil || parsed.Kind != sessionid.KindHeartbeat {
+			t.Fatalf("not heartbeat session %q: %+v err=%v", sid, parsed, err)
+		}
 	}
 }
 

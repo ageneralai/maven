@@ -11,11 +11,11 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/coder/websocket"
+	"log/slog"
 )
 
-var webTestLog = mavenlog.Std()
+var webTestLog = slog.New(slog.DiscardHandler)
 
 func TestNewWebChannel(t *testing.T) {
 	b := bus.New(10, webTestLog)

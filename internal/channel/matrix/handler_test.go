@@ -8,8 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/ageneralai/maven/internal/bus"
-	chann "github.com/ageneralai/maven/internal/channel"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
+	"log/slog"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -39,12 +40,15 @@ func (m *mockMatrixSender) SyncWithContext(ctx context.Context) error {
 
 func testMatrixChannel(t *testing.T, allowFrom, allowRooms []string) (*MatrixChannel, *bus.MessageBus) {
 	t.Helper()
-	b := bus.New(8, mavenlog.Std())
+	b := bus.New(8, slog.New(slog.DiscardHandler))
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, b, allowFrom, mavenlog.Std()),
-		userID:      "@agent:example.org",
-		client:      &mockMatrixSender{},
-		allowRooms:  buildAllowRooms(allowRooms),
+		name:       matrixChannelName,
+		log:        slog.New(slog.DiscardHandler),
+		bus:        b,
+		allow:      allowlist.NewMatcher(allowFrom),
+		userID:     "@agent:example.org",
+		client:     &mockMatrixSender{},
+		allowRooms: buildAllowRooms(allowRooms),
 	}
 	return ch, b
 }
@@ -154,9 +158,12 @@ func TestHandleMessageEvent_SkipsNonText(t *testing.T) {
 func TestHandleMemberEvent_JoinsInvite(t *testing.T) {
 	mock := &mockMatrixSender{}
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.New(1, mavenlog.Std()), nil, mavenlog.Std()),
-		userID:      "@agent:example.org",
-		client:      mock,
+		name:   matrixChannelName,
+		log:    slog.New(slog.DiscardHandler),
+		bus:    bus.New(1, slog.New(slog.DiscardHandler)),
+		allow:  allowlist.NewMatcher(nil),
+		userID: "@agent:example.org",
+		client: mock,
 	}
 	evt := &event.Event{
 		RoomID: id.RoomID("!room:example.org"),
@@ -176,7 +183,7 @@ func TestHandleMemberEvent_JoinsInvite(t *testing.T) {
 
 func TestChunkText(t *testing.T) {
 	long := strings.Repeat("a", 35000)
-	chunks := chunkText(long, matrixSendChunkSize)
+	chunks := stringutil.ChunkRunes(long, matrixSendChunkSize)
 	if len(chunks) != 2 {
 		t.Fatalf("chunks = %d, want 2", len(chunks))
 	}
@@ -187,7 +194,7 @@ func TestChunkText(t *testing.T) {
 
 func TestChunkText_NewlineRoundTrip(t *testing.T) {
 	original := strings.Repeat("a", matrixSendChunkSize-10) + "\n\n" + strings.Repeat("b", matrixSendChunkSize+50)
-	chunks := chunkText(original, matrixSendChunkSize)
+	chunks := stringutil.ChunkRunes(original, matrixSendChunkSize)
 	if strings.Join(chunks, "") != original {
 		t.Fatalf("chunks do not reconstruct original string byte-for-byte")
 	}
@@ -197,7 +204,7 @@ func TestChunkText_RuneSafe(t *testing.T) {
 	// Each 日 is 3 bytes. Build a string that crosses the chunk boundary mid-rune.
 	rune3 := "日"
 	base := strings.Repeat("a", matrixSendChunkSize-1) + rune3 + strings.Repeat("a", 100)
-	chunks := chunkText(base, matrixSendChunkSize)
+	chunks := stringutil.ChunkRunes(base, matrixSendChunkSize)
 	for i, c := range chunks {
 		if !utf8.ValidString(c) {
 			t.Fatalf("chunk %d is invalid UTF-8", i)
@@ -212,8 +219,11 @@ func TestChunkText_RuneSafe(t *testing.T) {
 func TestMatrixChannel_Send_Chunks(t *testing.T) {
 	mock := &mockMatrixSender{}
 	ch := &MatrixChannel{
-		BaseChannel: chann.NewBaseChannel(matrixChannelName, bus.New(1, mavenlog.Std()), nil, mavenlog.Std()),
-		client:      mock,
+		name:   matrixChannelName,
+		log:    slog.New(slog.DiscardHandler),
+		bus:    bus.New(1, slog.New(slog.DiscardHandler)),
+		allow:  allowlist.NewMatcher(nil),
+		client: mock,
 	}
 	content := strings.Repeat("x", matrixSendChunkSize+100)
 	if err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "!room:example.org", Content: content}); err != nil {

@@ -8,14 +8,14 @@ import (
 
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"log/slog"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
 )
 
 const fakeToken = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"
 
-var channelTestLog = mavenlog.Std()
+var channelTestLog = slog.New(slog.DiscardHandler)
 
 type mockCaller struct {
 	responses       map[string]*ta.Response
@@ -75,11 +75,11 @@ func newTestBot(t *testing.T, caller *mockCaller) *telego.Bot {
 	return bot
 }
 
-func newTestChannel(t *testing.T, cfg config.TelegramConfig) (*TelegramChannel, *mockCaller) {
+func newTestChannel(t *testing.T, cfg config.TelegramConfig) (*TelegramChannel, *mockCaller, *bus.MessageBus) {
 	return newTestChannelWithWorkspace(t, cfg, "")
 }
 
-func newTestChannelWithWorkspace(t *testing.T, cfg config.TelegramConfig, workspace string) (*TelegramChannel, *mockCaller) {
+func newTestChannelWithWorkspace(t *testing.T, cfg config.TelegramConfig, workspace string) (*TelegramChannel, *mockCaller, *bus.MessageBus) {
 	t.Helper()
 	b := bus.New(10, channelTestLog)
 	if cfg.Token == "" {
@@ -92,7 +92,7 @@ func newTestChannelWithWorkspace(t *testing.T, cfg config.TelegramConfig, worksp
 	caller := newMockCaller()
 	bot := newTestBot(t, caller)
 	ch.bot = bot
-	return ch, caller
+	return ch, caller, b
 }
 
 type roundTripFunc func(req *http.Request) (*http.Response, error)

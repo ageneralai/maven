@@ -7,9 +7,7 @@ type PostAction interface {
 
 // CompactRotateAction rotates the chat session after compact and optionally acks the user.
 type CompactRotateAction struct {
-	ResponseMode string
+	ResponseMode CompactResponseMode
 }
 
 func (CompactRotateAction) postAction() {}
-
-const ResponseCompactAck = "compact_ack"

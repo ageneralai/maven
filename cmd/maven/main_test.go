@@ -18,6 +18,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func setupTestHome(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	t.Cleanup(func() { _ = os.Setenv("HOME", origHome) })
+}
+
+func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
+	t.Helper()
+	cfg := config.DefaultConfig()
+	if mutate != nil {
+		mutate(cfg)
+	}
+	if err := config.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+}
+
 func TestWriteIfNotExists_NewFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "test.txt")
@@ -187,12 +206,6 @@ func TestRunOnboard(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -248,12 +261,6 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -283,12 +290,6 @@ func TestRunStatus(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
-
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -336,16 +337,10 @@ func TestRunStatus(t *testing.T) {
 }
 
 func TestRunStatus_WithAPIKey(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Set API key
-	t.Setenv("MAVEN_API_KEY", "sk-ant-test-key-12345678")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
+	setupTestHome(t)
+	writeTestConfig(t, func(cfg *config.Config) {
+		cfg.Provider.APIKey = "sk-ant-test-key-12345678"
+	})
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -372,16 +367,10 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 }
 
 func TestRunStatus_WithShortAPIKey(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Set short API key (< 8 chars)
-	t.Setenv("MAVEN_API_KEY", "short")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
+	setupTestHome(t)
+	writeTestConfig(t, func(cfg *config.Config) {
+		cfg.Provider.APIKey = "short"
+	})
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -422,12 +411,6 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -467,12 +450,6 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -500,11 +477,6 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 func TestRunSkillsList(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -532,11 +504,6 @@ func TestRunSkillsList(t *testing.T) {
 func TestRunSkillsList_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -590,11 +557,6 @@ func TestRunSkillsList_JSON(t *testing.T) {
 func TestRunSkillsInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -625,11 +587,6 @@ func TestRunSkillsInfo(t *testing.T) {
 func TestRunSkillsInfo_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -685,11 +642,6 @@ func TestRunSkillsInfo_JSON(t *testing.T) {
 func TestRunSkillsCheck(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -714,11 +666,6 @@ func TestRunSkillsCheck(t *testing.T) {
 func TestRunSkillsCheck_JSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -764,11 +711,6 @@ func TestRunSkillsCheck_JSON(t *testing.T) {
 func TestRunSkillsCheck_MissingSkillFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	if err := runOnboard(&cobra.Command{}, []string{}); err != nil {
 		t.Fatalf("runOnboard error: %v", err)
 	}
@@ -914,11 +856,6 @@ func TestRunAgent_NoAPIKey(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	err := runAgent(&cobra.Command{}, []string{})
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
@@ -936,11 +873,6 @@ func TestRunGateway_NoAPIKey(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	err := runGateway(&cobra.Command{}, []string{})
 	if err == nil {
 		t.Fatal("expected error when API key is not set")
@@ -965,12 +897,6 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wsDir, "MEMORY.md"), []byte(""), 0644); err != nil {
 		t.Fatal(err)
 	}
-
-	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -1025,11 +951,6 @@ func TestRunAgentWithOptions_SingleMessage(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "Hello from mock!"},
@@ -1068,11 +989,6 @@ func TestRunAgentWithOptions_REPLMode(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	// Clear API key env vars
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "REPL response"},
@@ -1114,11 +1030,6 @@ func TestRunAgentWithOptions_REPLMode_EmptyInput(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	mockRt := &mockRuntime{
 		response: &api.Response{
 			Result: &api.Result{Output: "response"},
@@ -1149,11 +1060,6 @@ func TestRunAgentWithOptions_REPLMode_Error(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
 
 	mockRt := &mockRuntime{
 		err: context.DeadlineExceeded,
@@ -1189,11 +1095,6 @@ func TestRunAgentWithOptions_SingleMessage_Error(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
 	mockRt := &mockRuntime{
 		err: context.DeadlineExceeded,
 	}
@@ -1219,11 +1120,6 @@ func TestRunAgentWithOptions_NilResult(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
-
-	t.Setenv("MAVEN_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
-	t.Setenv("OPENAI_API_KEY", "")
 
 	mockRt := &mockRuntime{
 		response: &api.Response{Result: nil},

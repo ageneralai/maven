@@ -7,7 +7,7 @@ import (
 )
 
 // BuiltIns returns the default slash registry (compact + optional cron commands).
-func BuiltIns(cronSvc *cron.Service) *Registry {
+func BuiltIns(cronSvc *cron.Service) (*Registry, error) {
 	r := NewRegistry()
 	if err := r.Register(
 		Definition{
@@ -16,12 +16,12 @@ func BuiltIns(cronSvc *cron.Service) *Registry {
 		},
 		HandlerFunc(handleCompact),
 	); err != nil {
-		panic(fmt.Sprintf("slash.BuiltIns: compact: %v", err))
+		return nil, fmt.Errorf("slash.BuiltIns: compact: %w", err)
 	}
 	for _, e := range cronHandlers(cronSvc) {
 		if err := r.Register(e.def, e.h); err != nil {
-			panic(fmt.Sprintf("slash.BuiltIns: %s: %v", e.def.Name, err))
+			return nil, fmt.Errorf("slash.BuiltIns: %s: %w", e.def.Name, err)
 		}
 	}
-	return r
+	return r, nil
 }

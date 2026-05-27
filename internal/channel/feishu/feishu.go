@@ -16,8 +16,9 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"log/slog"
 
-	chann "github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/internal/channel"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/httpc"
 )
@@ -96,24 +97,30 @@ func (c *feishuClient) GetTenantAccessToken(ctx context.Context) (string, error)
 	return c.token, nil
 }
 
-func (c *feishuClient) SendMessage(ctx context.Context, chatID, content string) error {
-	token, err := c.GetTenantAccessToken(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Use json.Marshal for proper escaping of content
+func feishuTextMessagePayload(chatID, content string) ([]byte, error) {
 	textJSON, err := json.Marshal(map[string]string{"text": content})
 	if err != nil {
-		return fmt.Errorf("marshal text content: %w", err)
+		return nil, fmt.Errorf("marshal text content: %w", err)
 	}
-
 	payload := map[string]any{
 		"receive_id": chatID,
 		"msg_type":   "text",
 		"content":    string(textJSON),
 	}
 	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal payload: %w", err)
+	}
+	return data, nil
+}
+
+func (c *feishuClient) SendMessage(ctx context.Context, chatID, content string) error {
+	token, err := c.GetTenantAccessToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	data, err := feishuTextMessagePayload(chatID, content)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
 	}
@@ -149,7 +156,10 @@ func (c *feishuClient) SendMessage(ctx context.Context, chatID, content string) 
 type FeishuImageDownloader func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error)
 
 type FeishuChannel struct {
-	chann.BaseChannel
+	name            string
+	log             *slog.Logger
+	bus             *bus.MessageBus
+	allow           allowlist.Matcher
 	cfg             config.FeishuConfig
 	client          *feishuClient
 	httpClient      *http.Client
@@ -159,17 +169,17 @@ type FeishuChannel struct {
 }
 
 func NewFeishuChannel(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBus) (*FeishuChannel, error) {
-	if cfg.AppID == "" || cfg.AppSecret == "" {
-		return nil, fmt.Errorf("feishu app_id and app_secret are required")
-	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Proxy)
 	if err != nil {
 		return nil, fmt.Errorf("feishu proxy: %w", err)
 	}
 	client := newFeishuClient(cfg.AppID, cfg.AppSecret, httpClient)
 	ch := &FeishuChannel{
-		BaseChannel: chann.NewBaseChannel(feishuChannelName, b, cfg.AllowFrom, lg),
-		cfg:         cfg,
+		name:  feishuChannelName,
+		log:   lg,
+		bus:   b,
+		allow: allowlist.NewMatcher(cfg.AllowFrom),
+		cfg:   cfg,
 		client:      client,
 		httpClient:  httpClient,
 	}
@@ -177,6 +187,14 @@ func NewFeishuChannel(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBu
 		return ch.client.downloadImageAsBase64(ctx, tenantAccessToken, imageKey)
 	}
 	return ch, nil
+}
+
+func (f *FeishuChannel) Name() string {
+	return f.name
+}
+
+func (f *FeishuChannel) IsAllowed(senderID string) bool {
+	return f.allow.Allow(senderID)
 }
 
 func (f *FeishuChannel) Start(ctx context.Context) error {
@@ -196,9 +214,9 @@ func (f *FeishuChannel) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		f.Log.Info("feishu webhook server listening", "port", port)
+		f.log.Info("feishu webhook server listening", "port", port)
 		if err := f.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			f.Log.Error("feishu server error", "err", err)
+			f.log.Error("feishu server error", "err", err)
 		}
 	}()
 
@@ -217,7 +235,7 @@ func (f *FeishuChannel) Stop() error {
 	if f.server != nil {
 		f.server.Close()
 	}
-	f.Log.Info("feishu stopped")
+	f.log.Info("feishu stopped")
 	return nil
 }
 
@@ -225,8 +243,8 @@ func (f *FeishuChannel) Send(ctx context.Context, msg bus.OutboundMessage) error
 	return f.client.SendMessage(ctx, msg.ChatID, msg.Content)
 }
 
-func (f *FeishuChannel) Capabilities() chann.CapabilitySet {
-	return chann.CapabilitySet{FileUpload: true}
+func (f *FeishuChannel) Capabilities() channel.CapabilitySet {
+	return channel.CapabilitySet{FileUpload: true}
 }
 
 func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +313,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	senderID := event.Event.Sender.SenderID.OpenID
 	if !f.IsAllowed(senderID) {
-		f.Log.Info("feishu rejected message", "sender", senderID)
+		f.log.Info("feishu rejected message", "sender", senderID)
 		return
 	}
 
@@ -306,7 +324,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		event.Event.Message.Content,
 	)
 	if err != nil {
-		f.Log.Error("feishu parse message error", "err", err)
+		f.log.Error("feishu parse message error", "err", err)
 		return
 	}
 	if content == "" && len(contentBlocks) == 0 {
@@ -318,7 +336,7 @@ func (f *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		metadata[k] = v
 	}
 
-	_ = f.Bus.PublishInbound(r.Context(), bus.InboundMessage{
+	_ = f.bus.PublishInbound(r.Context(), bus.InboundMessage{
 		Channel:       feishuChannelName,
 		SenderID:      senderID,
 		ChatID:        event.Event.Message.ChatID,
@@ -363,7 +381,7 @@ func (f *FeishuChannel) parseFeishuInboundMessage(ctx context.Context, messageTy
 
 		block, err := f.buildFeishuImageContentBlock(ctx, imageKey)
 		if err != nil {
-			f.Log.Warn("feishu image download warning", "err", err)
+			f.log.Warn("feishu image download warning", "err", err)
 		}
 		if block == nil {
 			return "[image]", nil, map[string]any{"image_key": imageKey}, nil
@@ -431,7 +449,6 @@ func (c *feishuClient) downloadImageAsBase64(ctx context.Context, tenantAccessTo
 	if mediaType == "" {
 		mediaType = http.DetectContentType(body)
 	}
-	// TODO: If image_type=message is insufficient, extend this to choose download parameters from conversation context.
 	return base64.StdEncoding.EncodeToString(body), mediaType, nil
 }
 
@@ -446,4 +463,4 @@ func normalizeFeishuMediaType(value string) string {
 	return strings.TrimSpace(contentType)
 }
 
-var _ chann.Channel = (*FeishuChannel)(nil)
+var _ channel.Channel = (*FeishuChannel)(nil)

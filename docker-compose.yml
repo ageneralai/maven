@@ -8,14 +8,6 @@ services:
       - "9886:9886"
     volumes:
       - maven-data:/root/.maven
-    environment:
-      - MAVEN_API_KEY=${MAVEN_API_KEY}
-      - MAVEN_TELEGRAM_TOKEN=${MAVEN_TELEGRAM_TOKEN:-}
-      - MAVEN_FEISHU_APP_ID=${MAVEN_FEISHU_APP_ID:-}
-      - MAVEN_FEISHU_APP_SECRET=${MAVEN_FEISHU_APP_SECRET:-}
-      - MAVEN_WECOM_TOKEN=${MAVEN_WECOM_TOKEN:-}
-      - MAVEN_WECOM_ENCODING_AES_KEY=${MAVEN_WECOM_ENCODING_AES_KEY:-}
-      - MAVEN_WECOM_RECEIVE_ID=${MAVEN_WECOM_RECEIVE_ID:-}
 
   # Optional: expose webhook via cloudflared tunnel
   tunnel:

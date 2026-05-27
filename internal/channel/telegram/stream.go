@@ -50,17 +50,7 @@ func telegramRetryAfter(err error) (time.Duration, bool) {
 	return time.Duration(secs) * time.Second, true
 }
 
-func truncateForTelegramDraftText(s string) string {
-	const maxRunes = 4096
-	n := 0
-	for i := range s {
-		if n == maxRunes {
-			return s[:i]
-		}
-		n++
-	}
-	return s
-}
+const telegramStreamDraftMaxRunes = 4096
 
 func (t *TelegramChannel) sendPlaceholder(ctx context.Context, chatID int64, text, parseMode string, silent bool) (int, error) {
 	if t.bot == nil {
@@ -120,7 +110,7 @@ func (t *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		if pid, ok := placeholderID.(int); ok && pid != 0 {
 			content := ToTelegramHTML(msg.Content)
 			if err := t.editMessage(ctx, chatID, pid, content, telego.ModeHTML); err != nil {
-				t.Log.Error("telegram edit placeholder failed", "err", err)
+				t.log.Error("telegram edit placeholder failed", "err", err)
 			} else {
 				return nil
 			}

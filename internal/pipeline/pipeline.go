@@ -7,12 +7,13 @@ import (
 	"sync"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/agent"
+	"github.com/ageneralai/maven/internal/agent/postaction"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/channel/manager"
 	turnctx "github.com/ageneralai/maven/pkg/context"
+	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/pkg/events"
 	"github.com/ageneralai/maven/pkg/executor"
 	"log/slog"
@@ -38,7 +39,7 @@ func (e errPostActionHandle) Unwrap() error {
 }
 
 // Pipeline runs the inbound loop and owns the agent runtime pointer. turnMu implements
-// drain-safe reload: each handle and each automation RunText holds RLock for the full
+// drain-safe reload: each handle and each automation RunTurn holds RLock for the full
 // turn; Reload drains under Lock for the pointer swap only; applyChannels runs outside
 // the lock so channel I/O does not stall inbound.
 type Pipeline struct {
@@ -47,45 +48,56 @@ type Pipeline struct {
 	Channels      *manager.ChannelManager
 	SlashRegistry *slash.Registry
 	Sessions      session.Resolver
-	Posts         *agent.PostActionHandler
+	Posts         postaction.Handler
+	Liveness      health.HealthReporter
 	turnMu sync.RWMutex
 	rt             agent.Runtime
 }
 
-// New builds a pipeline. rt may be nil only in tests that never run handles or RunText.
-func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts *agent.PostActionHandler) *Pipeline {
+// New builds a pipeline. rt may be nil only in tests that never run handles or RunTurn.
+func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts postaction.Handler) *Pipeline {
 	return &Pipeline{Log: log, Bus: b, rt: rt, Sessions: sessions, Posts: posts}
 }
 
 // CurrentRuntime returns rt without holding the turn lock. Use only when no concurrent
-// handle/RunText is possible (e.g. tests), or for inspection; Shutdown uses TakeRuntimeForShutdown.
+// handle/RunTurn is possible (e.g. tests), or for inspection; Shutdown uses TakeRuntimeForShutdown.
 func (p *Pipeline) CurrentRuntime() agent.Runtime {
 	p.turnMu.RLock()
 	defer p.turnMu.RUnlock()
 	return p.rt
 }
 
-// RunText runs one unattended agent turn (cron, heartbeat) while holding the same turn
-// lock as inbound, so reload cannot Close the runtime mid-call.
-func (p *Pipeline) RunText(ctx context.Context, prompt, sessionID string, contentBlocks []model.ContentBlock) (string, error) {
+// RunTurn implements executor.TurnExecutor.
+func (p *Pipeline) RunTurn(ctx context.Context, prompt, sessionID string) (string, error) {
 	p.turnMu.RLock()
 	defer p.turnMu.RUnlock()
 	rt := p.rt
-	return agent.RunText(ctx, rt, prompt, sessionID, contentBlocks)
+	prompt, blocks := mergePromptAndBlocks(prompt, nil)
+	resp, err := rt.Run(ctx, api.Request{
+		Prompt:        prompt,
+		ContentBlocks: blocks,
+		SessionID:     sessionID,
+	})
+	if err != nil {
+		return "", err
+	}
+	if resp == nil || resp.Result == nil {
+		return "", nil
+	}
+	return resp.Result.Output, nil
 }
 
-// RunTurn implements executor.TurnExecutor.
-func (p *Pipeline) RunTurn(ctx context.Context, prompt, sessionID string) (string, error) {
-	return p.RunText(ctx, prompt, sessionID, nil)
-}
-
-// RunStream runs a streaming agent turn while holding the turn lock, so reload cannot
-// Close the runtime mid-call. Safe to call concurrently with RunText and inbound pipeline.
+// RunStream runs a streaming agent turn while holding the turn lock.
 func (p *Pipeline) RunStream(ctx context.Context, prompt, sessionID string) (<-chan api.StreamEvent, error) {
 	p.turnMu.RLock()
 	defer p.turnMu.RUnlock()
 	rt := p.rt
-	return agent.RunStream(ctx, rt, prompt, sessionID, nil)
+	prompt, blocks := mergePromptAndBlocks(prompt, nil)
+	return rt.RunStream(ctx, api.Request{
+		Prompt:        prompt,
+		ContentBlocks: blocks,
+		SessionID:     sessionID,
+	})
 }
 
 var _ executor.TurnExecutor = (*Pipeline)(nil)
@@ -101,7 +113,7 @@ func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, works
 	old := p.rt
 	p.rt = newRt
 	if p.Posts != nil {
-		p.Posts.Workspace = workspace
+		p.Posts.SetWorkspace(workspace)
 	}
 	p.turnMu.Unlock()
 	if old != nil {
@@ -147,7 +159,6 @@ func (p *Pipeline) Run(ctx context.Context) {
 
 func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string, err error) {
 	p.Log.Error("pipeline turn error", "channel", chName, "chat_id", chatID, "err", err)
-	// TODO(mvp): add dead-letter or delivery-failure counters before external launch; callers cannot observe PublishOutbound failures.
 	pubErr := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: chName,
 		ChatID:  chatID,
@@ -155,17 +166,45 @@ func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string
 	})
 	if pubErr != nil {
 		p.Log.Error("pipeline error reply publish failed", "channel", chName, "chat_id", chatID, "err", pubErr)
+		attrs := map[string]string{
+			"channel": chName,
+			"chat_id": chatID,
+			"error":   pubErr.Error(),
+		}
+		if err != nil {
+			attrs["cause"] = err.Error()
+		}
+		events.Publish(ctx, events.Event{Type: events.EventOutboundDeliveryFailed, Attrs: attrs})
+		if rep := health.OrHealthReporter(p.Liveness); rep != nil {
+			rep.Pulse(health.SignalDeliveryFailed)
+		}
 	}
 }
 
-func (p *Pipeline) turnContext(ctx context.Context, msg bus.InboundMessage) context.Context {
-	msgCtx := turnctx.WithInbound(ctx, msg.Channel, msg.ChatID)
-	if msg.Hints.MessageID != 0 {
-		msgCtx = turnctx.WithMetadata(msgCtx, map[string]any{
-			"message_id": msg.Hints.MessageID,
-		})
+func (p *Pipeline) reportStreamFailed(ctx context.Context, chName, chatID string, err error) {
+	if err == nil {
+		return
 	}
-	return msgCtx
+	events.Publish(ctx, events.Event{
+		Type: events.EventStreamFailed,
+		Attrs: map[string]string{
+			"channel": chName,
+			"chat_id": chatID,
+			"error":   err.Error(),
+		},
+	})
+	if rep := health.OrHealthReporter(p.Liveness); rep != nil {
+		rep.Pulse(health.SignalDeliveryFailed)
+	}
+}
+
+func (p *Pipeline) turnContext(ctx context.Context, msg bus.InboundMessage, sessionKey string) context.Context {
+	msgCtx := turnctx.WithInbound(ctx, msg.Channel, msg.ChatID)
+	meta := map[string]any{"session_id": sessionKey}
+	if msg.Hints.MessageID != 0 {
+		meta["message_id"] = msg.Hints.MessageID
+	}
+	return turnctx.WithMetadata(msgCtx, meta)
 }
 
 func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bool {
@@ -188,32 +227,36 @@ func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bo
 	return true
 }
 
-func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage) (slash.Outcome, error) {
-	msgCtx := p.turnContext(ctx, msg)
+func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, sessionKey, slashName string) (slash.Outcome, error) {
+	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	return slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
 		Text:              msg.Content,
-		ExpectedSlashName: msg.Hints.SlashCommand,
+		ExpectedSlashName: slashName,
 	})
 }
 
 func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channel.StreamChannel) error {
-	msgCtx := p.turnContext(ctx, msg)
+	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
 	streamCtx := p.Bus.OnStreamBegin(msgCtx, streamHints)
-	streamEvents, err := agent.RunStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
+	streamEvents, err := runStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
 	if err != nil {
 		p.Bus.OnStreamEnd(streamCtx, streamHints, err)
 		return err
 	}
 	sendMeta := cloneTransportMeta(msg.TransportMeta)
 	sendErr := ch.SendStream(streamCtx, msg.ChatID, sendMeta, streamEvents)
+	if sendErr != nil {
+		sendErr = channel.WrapDeliveryFailed(sendErr)
+		p.reportStreamFailed(ctx, msg.Channel, msg.ChatID, sendErr)
+	}
 	p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
 	return sendErr
 }
 
 func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, slashOut slash.Outcome) error {
-	msgCtx := p.turnContext(ctx, msg)
-	resp, err := agent.RunResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
+	msgCtx := p.turnContext(ctx, msg, sessionKey)
+	resp, err := runResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
 	if err != nil {
 		return err
 	}
@@ -255,11 +298,12 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			"chat_id": msg.ChatID,
 		},
 	})
-	sessionKey := p.Sessions.ResolveSDKSessionID(msg)
 	var ch channel.Channel
 	if p.Channels != nil {
 		ch = p.Channels.GetChannel(msg.Channel)
 	}
+	plan := classifyTurn(msg, ch)
+	sessionKey := p.Sessions.ResolveSDKSessionID(msg.Channel, msg.ChatID, msg.StableRouteKey(), plan.sessionMode)
 	if ch != nil {
 		if ip, ok := ch.(channel.InboundPreprocessor); ok {
 			if chatInt, err := strconv.ParseInt(msg.ChatID, 10, 64); err == nil {
@@ -267,7 +311,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			}
 		}
 	}
-	slashOut, err := p.runSlash(ctx, msg)
+	slashOut, err := p.runSlash(ctx, msg, sessionKey, plan.slashName)
 	if err != nil {
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		return
@@ -283,7 +327,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		}
 		return
 	}
-	if ch != nil && !msg.Hints.ForceSync {
+	if plan.useStream {
 		if sc, ok := ch.(channel.StreamChannel); ok {
 			if err := p.runStream(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, sc); err != nil {
 				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {

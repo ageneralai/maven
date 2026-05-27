@@ -21,6 +21,6 @@ func handleCompact(_ context.Context, inv Invocation) (Result, error) {
 		Metadata: map[string]any{
 			"api.prepend_prompt": b.String(),
 		},
-		PostAction: CompactRotateAction{ResponseMode: ResponseCompactAck},
+		PostAction: CompactRotateAction{ResponseMode: CompactResponseModeAck},
 	}, nil
 }

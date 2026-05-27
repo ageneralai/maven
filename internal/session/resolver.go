@@ -1,13 +1,12 @@
 package session
 
 import (
-	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/sessionid"
 )
 
 // Resolver maps inbound routing identity to agentsdk SessionID strings.
 type Resolver interface {
-	ResolveSDKSessionID(msg bus.InboundMessage) string
+	ResolveSDKSessionID(channel, chatID, routeKey string, mode SessionMode) string
 }
 
 // SessionResolver maps inbound routing identity to agentsdk SessionID strings.
@@ -15,11 +14,10 @@ type SessionResolver struct {
 	Router *Router
 }
 
-func (r *SessionResolver) ResolveSDKSessionID(msg bus.InboundMessage) string {
-	routeKey := msg.StableRouteKey()
-	base := ChatSessionID(msg.Channel, msg.ChatID)
-	if msg.Hints.SessionMode == bus.SessionModeIsolated {
-		return sessionid.New(sessionid.KindIsolated, base)
+func (r *SessionResolver) ResolveSDKSessionID(channel, chatID, routeKey string, mode SessionMode) string {
+	base := ChatSessionID(channel, chatID)
+	if mode == SessionModeIsolated {
+		return sessionid.New(sessionid.KindIsolated, base).String()
 	}
 	if r == nil || r.Router == nil {
 		return base

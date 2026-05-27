@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/ageneralai/maven/internal/bus"
 	"maunium.net/go/mautrix/event"
@@ -20,12 +19,12 @@ func (m *MatrixChannel) handleMessageEvent(ctx context.Context, evt *event.Event
 	}
 	roomID := evt.RoomID.String()
 	if !m.isRoomAllowed(roomID) {
-		m.Log.Debug("matrix rejected room", "room", roomID)
+		m.log.Debug("matrix rejected room", "room", roomID)
 		return
 	}
 	senderID := evt.Sender.String()
 	if !m.IsAllowed(senderID) {
-		m.Log.Debug("matrix rejected message", "sender", senderID)
+		m.log.Debug("matrix rejected message", "sender", senderID)
 		return
 	}
 	msg := evt.Content.AsMessage()
@@ -40,11 +39,11 @@ func (m *MatrixChannel) handleMessageEvent(ctx context.Context, evt *event.Event
 	if evt.Timestamp > 0 {
 		ts = time.UnixMilli(evt.Timestamp).UTC()
 	}
-	_ = m.Bus.PublishInbound(ctx, bus.InboundMessage{
-		Channel:  matrixChannelName,
-		SenderID: senderID,
-		ChatID:   roomID,
-		Content:  body,
+	_ = m.bus.PublishInbound(ctx, bus.InboundMessage{
+		Channel:   matrixChannelName,
+		SenderID:  senderID,
+		ChatID:    roomID,
+		Content:   body,
 		Timestamp: ts,
 		TransportMeta: map[string]any{
 			"event_id": evt.ID.String(),
@@ -63,10 +62,10 @@ func (m *MatrixChannel) handleMemberEvent(ctx context.Context, evt *event.Event)
 		return
 	}
 	if _, err := m.client.JoinRoomByID(ctx, evt.RoomID); err != nil {
-		m.Log.Error("matrix join room after invite", "room", evt.RoomID, "err", err)
+		m.log.Error("matrix join room after invite", "room", evt.RoomID, "err", err)
 		return
 	}
-	m.Log.Info("matrix joined room", "room", evt.RoomID, "invited_by", evt.Sender)
+	m.log.Info("matrix joined room", "room", evt.RoomID, "invited_by", evt.Sender)
 }
 
 func (m *MatrixChannel) isRoomAllowed(roomID string) bool {
@@ -74,42 +73,6 @@ func (m *MatrixChannel) isRoomAllowed(roomID string) bool {
 		return true
 	}
 	return m.allowRooms[roomID]
-}
-
-func chunkText(text string, maxLen int) []string {
-	if maxLen <= 0 || len(text) <= maxLen {
-		return []string{text}
-	}
-	var chunks []string
-	for len(text) > maxLen {
-		split := strings.LastIndex(text[:maxLen], "\n")
-		if split > 0 {
-			chunks = append(chunks, text[:split])
-			text = text[split:]
-			continue
-		}
-		split = runeAlignedSplit(text, maxLen)
-		chunks = append(chunks, text[:split])
-		text = text[split:]
-	}
-	if text != "" {
-		chunks = append(chunks, text)
-	}
-	return chunks
-}
-
-// runeAlignedSplit returns the largest byte offset <= maxLen that is a valid
-// UTF-8 rune boundary, avoiding splits mid-codepoint.
-func runeAlignedSplit(s string, maxLen int) int {
-	if maxLen >= len(s) {
-		return len(s)
-	}
-	for i := maxLen; i > 0; i-- {
-		if utf8.RuneStart(s[i]) {
-			return i
-		}
-	}
-	return maxLen
 }
 
 func buildAllowRooms(allowRooms []string) map[string]bool {

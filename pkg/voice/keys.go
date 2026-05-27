@@ -9,10 +9,14 @@ import (
 
 // Keys holds provider credentials resolved from environment (and optional OpenAI key from config).
 type Keys struct {
-	Deepgram   string
-	OpenAI     string
+	// Deepgram is the Deepgram API key.
+	Deepgram string
+	// OpenAI is the OpenAI API key used for TTS when selected.
+	OpenAI string
+	// ElevenLabs is the ElevenLabs API key.
 	ElevenLabs string
-	Cartesia   string
+	// Cartesia is the Cartesia API key.
+	Cartesia string
 }
 
 func firstNonEmpty(a, b string) string {

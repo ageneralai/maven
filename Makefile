@@ -67,6 +67,10 @@ tunnel:
 setup:
 	@bash scripts/setup.sh
 
+## Run go vet with all analyzers
+vet:
+	go vet -all ./...
+
 ## Run all tests
 test:
 	go test ./... -count=1
@@ -96,10 +100,13 @@ docker-down:
 clean:
 	rm -f $(BINARY) coverage.out
 
-## Lint (requires golangci-lint)
+## Lint (requires golangci-lint v2)
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "Install: brew install golangci-lint"; exit 1; }
 	golangci-lint run ./...
+
+## CI gate: lint + vet + race tests
+ci: lint vet test-race
 
 ## Help
 help:

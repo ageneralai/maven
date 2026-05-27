@@ -2,16 +2,17 @@ package pipeline
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/agent"
+	"github.com/ageneralai/maven/internal/agent/postaction"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/session"
 	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/pkg/events"
 	"github.com/ageneralai/maven/pkg/events/eventsfake"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
 type stubRuntime struct{}
@@ -31,27 +32,38 @@ func (stubRuntime) Close() {}
 var _ agent.Runtime = stubRuntime{}
 
 func TestHandle_emitsPipelineTurnStartViaRegistry(t *testing.T) {
-	t.Cleanup(func() { events.SetDefaultPublisher(nil) })
-	b := bus.New(10, mavenlog.Std())
-	cap := &eventsfake.CapturePublisher{}
-	events.SetDefaultPublisher(cap)
-	router, _ := session.New("")
-	p := New(mavenlog.Std(), b, stubRuntime{}, &session.SessionResolver{Router: router}, agent.NewPostActionHandler(router, ""))
-	p.handle(context.Background(), bus.InboundMessage{
-		Channel: "telegram",
-		ChatID:  "42",
-		Content: "hi",
-	})
-	evs := cap.Snapshot()
-	if len(evs) != 1 {
-		t.Fatalf("want 1 event, got %d: %+v", len(evs), evs)
+	tests := []struct {
+		name    string
+		msg     bus.InboundMessage
+		want    []eventsfake.WantEvent
+	}{
+		{
+			name: "telegram_chat",
+			msg: bus.InboundMessage{
+				Channel: "telegram",
+				ChatID:  "42",
+				Content: "hi",
+			},
+			want: []eventsfake.WantEvent{{
+				Type: "pipeline.turn_start",
+				Attrs: map[string]string{
+					"channel": "telegram",
+					"chat_id": "42",
+				},
+			}},
+		},
 	}
-	e := evs[0]
-	if e.Type != "pipeline.turn_start" {
-		t.Fatalf("Type: %q", e.Type)
-	}
-	if e.Attrs["channel"] != "telegram" || e.Attrs["chat_id"] != "42" {
-		t.Fatalf("Attrs: %+v", e.Attrs)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { events.SetDefaultPublisher(nil) })
+			b := bus.New(10, slog.New(slog.DiscardHandler))
+			cap := &eventsfake.CapturePublisher{}
+			events.SetDefaultPublisher(cap)
+			router, _ := session.New("")
+			p := New(slog.New(slog.DiscardHandler), b, stubRuntime{}, &session.SessionResolver{Router: router}, postaction.New(router, ""))
+			p.handle(context.Background(), tt.msg)
+			eventsfake.AssertPublished(t, cap, tt.want)
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 )
 
 func TestResolveWorkspacePath_unrestricted(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	outside := filepath.Join(dir, "..", "outside-restrict")
 	got, err := resolveWorkspacePath(dir, false, outside)
@@ -18,6 +19,7 @@ func TestResolveWorkspacePath_unrestricted(t *testing.T) {
 }
 
 func TestResolveWorkspacePath_restrictDeniesEscape(t *testing.T) {
+	t.Parallel()
 	ws := t.TempDir()
 	parent := filepath.Dir(ws)
 	_, err := resolveWorkspacePath(ws, true, parent)
@@ -27,6 +29,7 @@ func TestResolveWorkspacePath_restrictDeniesEscape(t *testing.T) {
 }
 
 func TestResolveWorkspacePath_restrictAllowsInside(t *testing.T) {
+	t.Parallel()
 	ws := t.TempDir()
 	sub := filepath.Join(ws, "pkg")
 	got, err := resolveWorkspacePath(ws, true, sub)

@@ -3,38 +3,35 @@ package channel
 import (
 	"testing"
 
-	"github.com/ageneralai/maven/internal/bus"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
+	"github.com/ageneralai/maven/internal/channel/allowlist"
 )
 
-var channelTestLog = mavenlog.Std()
-
-func TestBaseChannel_Name(t *testing.T) {
-	b := bus.New(10, channelTestLog)
-	ch := NewBaseChannel("test", b, nil, channelTestLog)
-	if ch.Name() != "test" {
-		t.Errorf("Name = %q, want test", ch.Name())
-	}
-}
-
-func TestBaseChannel_IsAllowed_NoFilter(t *testing.T) {
-	b := bus.New(10, channelTestLog)
-	ch := NewBaseChannel("test", b, nil, channelTestLog)
-	if !ch.IsAllowed("anyone") {
+func TestAllowlistMatcher_Allow_NoFilter(t *testing.T) {
+	t.Parallel()
+	m := allowlist.NewMatcher(nil)
+	if !m.Allow("anyone") {
 		t.Error("should allow anyone when allowFrom is empty")
 	}
 }
 
-func TestBaseChannel_IsAllowed_WithFilter(t *testing.T) {
-	b := bus.New(10, channelTestLog)
-	ch := NewBaseChannel("test", b, []string{"user1", "user2"}, channelTestLog)
-	if !ch.IsAllowed("user1") {
+func TestAllowlistMatcher_Allow_WithFilter(t *testing.T) {
+	t.Parallel()
+	m := allowlist.NewMatcher([]string{"user1", "user2"})
+	if !m.Allow("user1") {
 		t.Error("should allow user1")
 	}
-	if !ch.IsAllowed("user2") {
+	if !m.Allow("user2") {
 		t.Error("should allow user2")
 	}
-	if ch.IsAllowed("user3") {
+	if m.Allow("user3") {
 		t.Error("should reject user3")
+	}
+}
+
+func TestAllowlistMatcher_TrimsAndDedups(t *testing.T) {
+	t.Parallel()
+	m := allowlist.NewMatcher([]string{" user1 ", "user1", "", "user2"})
+	if len(m) != 2 {
+		t.Fatalf("len(m) = %d, want 2", len(m))
 	}
 }

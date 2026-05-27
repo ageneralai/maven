@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +15,9 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 )
 
-var feishuTestLog = mavenlog.Std()
+var feishuTestLog = slog.New(slog.DiscardHandler)
 
 func newFeishuTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
@@ -49,22 +49,14 @@ func TestNewFeishuChannel_Valid(t *testing.T) {
 	}
 }
 
-func TestNewFeishuChannel_MissingAppID(t *testing.T) {
-	b := bus.New(10, feishuTestLog)
-	_, err := NewFeishuChannel(config.FeishuConfig{
-		AppSecret: "secret",
-	}, feishuTestLog, b)
-	if err == nil {
+func TestFeishuConfig_Validate_MissingAppID(t *testing.T) {
+	if err := (config.FeishuConfig{Enabled: true, AppSecret: "secret"}).Validate(); err == nil {
 		t.Error("expected error for missing app_id")
 	}
 }
 
-func TestNewFeishuChannel_MissingAppSecret(t *testing.T) {
-	b := bus.New(10, feishuTestLog)
-	_, err := NewFeishuChannel(config.FeishuConfig{
-		AppID: "cli_test",
-	}, feishuTestLog, b)
-	if err == nil {
+func TestFeishuConfig_Validate_MissingAppSecret(t *testing.T) {
+	if err := (config.FeishuConfig{Enabled: true, AppID: "cli_test"}).Validate(); err == nil {
 		t.Error("expected error for missing app_secret")
 	}
 }

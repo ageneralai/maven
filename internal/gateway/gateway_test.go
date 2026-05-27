@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/agent"
+	"github.com/ageneralai/maven/internal/agent/postaction"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel/manager"
 	"github.com/ageneralai/maven/internal/config"
@@ -26,19 +28,18 @@ import (
 	"github.com/ageneralai/maven/internal/slash"
 	"github.com/ageneralai/maven/internal/health/healthtest"
 	"github.com/ageneralai/maven/pkg/executor"
-	mavenlog "github.com/ageneralai/maven/pkg/log"
 	"github.com/ageneralai/maven/pkg/memory"
 	"github.com/ageneralai/maven/pkg/prompt"
 	"log/slog"
 )
 
-var testLG = mavenlog.Std()
+var testLG = slog.New(slog.DiscardHandler)
 
 // mockRuntime implements Runtime interface for testing
 type mockRuntime struct {
 	response *api.Response
 	err      error
-	closed   bool
+	closed   atomic.Bool
 	reqCh    chan api.Request
 }
 
@@ -53,7 +54,7 @@ func (m *mockRuntime) Run(ctx context.Context, req api.Request) (*api.Response, 
 }
 
 func (m *mockRuntime) Close() {
-	m.closed = true
+	m.closed.Store(true)
 }
 
 func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan api.StreamEvent, error) {
@@ -76,8 +77,12 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 var _ agent.Runtime = (*mockRuntime)(nil)
 
 func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
-	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, agent.NewPostActionHandler(router, ws))
-	p.SlashRegistry = slash.BuiltIns(nil)
+	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, postaction.New(router, ws))
+	reg, err := slash.BuiltIns(nil)
+	if err != nil {
+		panic(err)
+	}
+	p.SlashRegistry = reg
 	return p
 }
 
@@ -214,7 +219,7 @@ func TestGateway_Shutdown(t *testing.T) {
 	if err != nil {
 		t.Errorf("Shutdown error: %v", err)
 	}
-	if !mockRt.closed {
+	if !mockRt.closed.Load() {
 		t.Error("runtime should be closed")
 	}
 }
@@ -227,8 +232,8 @@ func TestGateway_RunAgent(t *testing.T) {
 			},
 		},
 	}
-
-	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -239,8 +244,8 @@ func TestGateway_RunAgent(t *testing.T) {
 
 func TestGateway_RunAgent_NilResponse(t *testing.T) {
 	mockRt := &mockRuntime{response: nil}
-
-	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -251,8 +256,8 @@ func TestGateway_RunAgent_NilResponse(t *testing.T) {
 
 func TestGateway_RunAgent_NilResult(t *testing.T) {
 	mockRt := &mockRuntime{response: &api.Response{Result: nil}}
-
-	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
 	}
@@ -407,9 +412,9 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 
 func TestGateway_RunAgent_Error(t *testing.T) {
 	mockRt := &mockRuntime{err: context.DeadlineExceeded}
-
-	_, err := agent.RunText(context.Background(), mockRt, "test", "session1", nil)
-	if err != context.DeadlineExceeded {
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	_, err := pipe.RunTurn(context.Background(), "test", "session1")
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}
 }
@@ -419,13 +424,16 @@ func TestGateway_RunAgent_ContentBlocks(t *testing.T) {
 	mockRt := &mockRuntime{
 		response: &api.Response{Result: &api.Result{Output: "ok"}},
 	}
-
-	result, err := agent.RunText(context.Background(), mockRt, "test", "session1", blocks)
+	resp, err := mockRt.Run(context.Background(), api.Request{
+		Prompt:        "test",
+		ContentBlocks: blocks,
+		SessionID:     "session1",
+	})
 	if err != nil {
 		t.Fatalf("runAgent error: %v", err)
 	}
-	if result != "ok" {
-		t.Fatalf("result = %q, want ok", result)
+	if resp == nil || resp.Result == nil || resp.Result.Output != "ok" {
+		t.Fatalf("result = %+v, want ok", resp)
 	}
 }
 
@@ -636,6 +644,7 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 	}
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	if err != nil {
@@ -675,7 +684,7 @@ func TestGateway_Apply_WorkspaceChangeRejected(t *testing.T) {
 		Channels: config.ChannelsConfig{},
 	}
 	mockRt := &mockRuntime{}
-	g, err := NewWithOptions(cfg1, Options{RuntimeFactory: mockRuntimeFactory(mockRt)})
+	g, err := NewWithOptions(cfg1, Options{Logger: testLG, RuntimeFactory: mockRuntimeFactory(mockRt)})
 	if err != nil {
 		t.Fatalf("NewWithOptions: %v", err)
 	}
@@ -706,6 +715,7 @@ func TestNewWithOptions_RuntimeFactoryError(t *testing.T) {
 	}
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: errorRuntimeFactory(context.DeadlineExceeded),
 	})
 	if err != nil {
@@ -735,6 +745,7 @@ func TestNewWithOptions_ChannelManagerError(t *testing.T) {
 
 	mockRt := &mockRuntime{}
 	_, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	// Channel manager may or may not error with empty token - just ensure we don't panic
@@ -759,6 +770,7 @@ func TestGateway_Run_WithSignalChan(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		SignalChan:     sigCh,
 	})
@@ -788,7 +800,7 @@ func TestGateway_Run_WithSignalChan(t *testing.T) {
 		t.Error("Run did not exit after signal")
 	}
 
-	if !mockRt.closed {
+	if !mockRt.closed.Load() {
 		t.Error("runtime should be closed after shutdown")
 	}
 }
@@ -809,6 +821,7 @@ func TestGateway_Run_HealthReporterGatewayReady(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 	var rec healthtest.PulseRecorder
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		SignalChan:     sigCh,
 		HealthReporter: &rec,
@@ -858,6 +871,7 @@ func TestGateway_Run_ChannelStartError(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 		SignalChan:     sigCh,
 	})
@@ -904,6 +918,7 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	}
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	if err != nil {
@@ -915,12 +930,12 @@ func TestGateway_CronRunTurn(t *testing.T) {
 		t.Fatalf("Apply: %v", err)
 	}
 
-	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{Message: "test message", Deliver: false})
+	j, err := g.cron.AddJob("n", cron.EverySchedule{Interval: time.Hour}, cron.Payload{Message: "test message", Deliver: false})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	sid := sessionid.New(sessionid.KindCron, j.ID)
+	ge := g.pipe
+	sid := sessionid.New(sessionid.KindCron, j.ID).String()
 	result, err := ge.RunTurn(context.Background(), j.Payload.Message, sid)
 	if err != nil {
 		t.Errorf("RunTurn error: %v", err)
@@ -930,7 +945,8 @@ func TestGateway_CronRunTurn(t *testing.T) {
 	}
 	select {
 	case req := <-mockRt.reqCh:
-		if !sessionid.MatchesCronJob(j.ID, req.SessionID) {
+		parsed, err := sessionid.Parse(req.SessionID)
+		if err != nil || parsed.Kind != sessionid.KindCron || parsed.Owner != j.ID {
 			t.Fatalf("SessionID = %q, want cron-isolated key for job %q", req.SessionID, j.ID)
 		}
 	case <-time.After(time.Second):
@@ -955,6 +971,7 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 	}
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	if err != nil {
@@ -966,7 +983,7 @@ func TestGateway_CronRunTurn_WithDelivery(t *testing.T) {
 		t.Fatalf("Apply: %v", err)
 	}
 
-	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{
+	j, err := g.cron.AddJob("n", cron.EverySchedule{Interval: time.Hour}, cron.Payload{
 		Message: "test message", Deliver: true, Channel: "telegram", To: "12345",
 	})
 	if err != nil {
@@ -1009,6 +1026,7 @@ func TestGateway_CronRunTurn_InvalidDeliverPayload(t *testing.T) {
 		},
 	}
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	if err != nil {
@@ -1018,7 +1036,7 @@ func TestGateway_CronRunTurn_InvalidDeliverPayload(t *testing.T) {
 	if err := g.Apply(context.Background(), cfg); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	j, err := g.cron.AddJob("bad", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{
+	j, err := g.cron.AddJob("bad", cron.EverySchedule{Interval: time.Hour}, cron.Payload{
 		Message: "test", Deliver: true, Channel: "telegram", To: "",
 	})
 	if err != nil {
@@ -1044,6 +1062,7 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 	}
 
 	g, err := NewWithOptions(cfg, Options{
+		Logger:         testLG,
 		RuntimeFactory: mockRuntimeFactory(mockRt),
 	})
 	if err != nil {
@@ -1054,13 +1073,12 @@ func TestGateway_CronRunTurn_RuntimeError(t *testing.T) {
 		t.Fatalf("Apply: %v", err)
 	}
 
-	j, err := g.cron.AddJob("n", cron.Schedule{Kind: "every", EveryMs: 3_600_000}, cron.Payload{Message: "test message"})
+	j, err := g.cron.AddJob("n", cron.EverySchedule{Interval: time.Hour}, cron.Payload{Message: "test message"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ge := &gatewayTurnExecutor{pipeFn: func() *pipeline.Pipeline { return g.pipe }}
-	_, err = ge.RunTurn(context.Background(), j.Payload.Message, sessionid.New(sessionid.KindCron, j.ID))
-	if err != context.DeadlineExceeded {
+	_, err = g.pipe.RunTurn(context.Background(), j.Payload.Message, sessionid.New(sessionid.KindCron, j.ID).String())
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}
 }

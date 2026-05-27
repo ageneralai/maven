@@ -13,6 +13,7 @@ import (
 )
 
 func TestServiceFiresJobViaExecutor(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "jobs.json")
 	var ran atomic.Bool
@@ -24,7 +25,7 @@ func TestServiceFiresJobViaExecutor(t *testing.T) {
 		return "out", nil
 	}}
 	s := mustNewService(t, path, exec, 2)
-	j, err := s.AddJob("j", Schedule{Kind: "every", EveryMs: 50}, Payload{Message: "hi"})
+	j, err := s.AddJob("j", EverySchedule{Interval: 50 * time.Millisecond}, Payload{Message: "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,12 +46,14 @@ func TestServiceFiresJobViaExecutor(t *testing.T) {
 	if gotPrompt != "hi" {
 		t.Fatalf("prompt %q", gotPrompt)
 	}
-	if !sessionid.MatchesCronJob(j.ID, gotSID) {
+	sid, err := sessionid.Parse(gotSID)
+	if err != nil || sid.Kind != sessionid.KindCron || sid.Owner != j.ID {
 		t.Fatalf("session %q for job %q", gotSID, j.ID)
 	}
 }
 
 func TestServiceSkipsDoubleFire(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "jobs.json")
 	var calls atomic.Int32
@@ -60,7 +63,7 @@ func TestServiceSkipsDoubleFire(t *testing.T) {
 		return "", nil
 	}}
 	s := mustNewService(t, path, exec, 2)
-	if _, err := s.AddJob("j", Schedule{Kind: "every", EveryMs: 20}, Payload{Message: "x"}); err != nil {
+	if _, err := s.AddJob("j", EverySchedule{Interval: 20 * time.Millisecond}, Payload{Message: "x"}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,6 +83,7 @@ func TestServiceSkipsDoubleFire(t *testing.T) {
 }
 
 func TestServiceSemaphoreBoundsConcurrency(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "jobs.json")
 	var peak atomic.Int32
@@ -98,7 +102,7 @@ func TestServiceSemaphoreBoundsConcurrency(t *testing.T) {
 	}}
 	s := mustNewService(t, path, exec, 1)
 	for i := 0; i < 3; i++ {
-		if _, err := s.AddJob("x", Schedule{Kind: "every", EveryMs: 15}, Payload{Message: "m"}); err != nil {
+		if _, err := s.AddJob("x", EverySchedule{Interval: 15 * time.Millisecond}, Payload{Message: "m"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -115,10 +119,11 @@ func TestServiceSemaphoreBoundsConcurrency(t *testing.T) {
 }
 
 func TestServiceAtomicPersist(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "jobs.json")
 	s := mustNewService(t, path, executor.Nop{}, 1)
-	if _, err := s.AddJob("n", Schedule{Kind: "every", EveryMs: 3600_000}, Payload{Message: "p"}); err != nil {
+	if _, err := s.AddJob("n", EverySchedule{Interval: time.Hour}, Payload{Message: "p"}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)

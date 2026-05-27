@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/config"
 	"github.com/ageneralai/maven/pkg/plugin"
 	"github.com/ageneralai/maven/pkg/voice"
@@ -31,8 +30,6 @@ func (Plugin) Tools(cfg *config.Config) []tool.Tool {
 	}
 	return Tools(cfg.Tools.ACP, cfg.Agent.Workspace, cfg.Tools.RestrictToWorkspace)
 }
-
-func (Plugin) Channels(*config.Config) []channel.Channel { return nil }
 
 func (Plugin) TTSProvider(*config.Config) voice.TTSProvider { return nil }
 

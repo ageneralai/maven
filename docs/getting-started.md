@@ -7,7 +7,6 @@ Maven is a personal AI assistant built on [ageneral-agents-go](https://github.co
 ```bash
 make build
 make setup          # interactive config → ~/.maven/config.json
-export MAVEN_API_KEY=your-api-key
 
 ./maven agent -m "Hello"   # single message
 make run                   # REPL

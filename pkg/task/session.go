@@ -4,30 +4,29 @@ import (
 	"context"
 	"strings"
 
-	"github.com/ageneralai/ageneral-agents-go/pkg/middleware"
+	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/internal/sessionid"
 )
 
-// parentSessionID reads the session id injected by the SDK middleware.
-// TraceSessionIDContextKey is the single source of truth.
-// If the SDK renames or removes this key this function returns "" and
-// childSessionID generates a fresh session — safe but orphaned from parent.
-// TODO: ask SDK owners for a stable exported accessor rather than reading
-// context keys directly.
+const parentSessionMetadataKey = "session_id"
+
 func parentSessionID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if v, ok := ctx.Value(middleware.TraceSessionIDContextKey).(string); ok {
-		return strings.TrimSpace(v)
+	if tc, ok := turnctx.From(ctx); ok && tc.Metadata != nil {
+		if v, ok := tc.Metadata[parentSessionMetadataKey].(string); ok {
+			return strings.TrimSpace(v)
+		}
 	}
 	return ""
 }
 
 func childSessionID(_ string) string {
-	return sessionid.New(sessionid.KindTask, "")
+	return sessionid.New(sessionid.KindTask, "").String()
 }
 
 func isNestedTaskSession(sessionID string) bool {
-	return sessionid.MatchesTask(sessionID)
+	id, err := sessionid.Parse(sessionID)
+	return err == nil && id.Kind == sessionid.KindTask
 }

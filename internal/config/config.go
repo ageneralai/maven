@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var telegramTokenPattern = regexp.MustCompile(`^\d+:[A-Za-z0-9_-]+$`)
 
 const (
 	DefaultModel             = "claude-sonnet-4-5-20250929"
@@ -291,38 +295,81 @@ func (c GatewayConfig) Validate() error {
 }
 
 func (c ChannelsConfig) Validate() error {
-	var errs []error
-	if c.Telegram.Enabled && strings.TrimSpace(c.Telegram.Token) == "" {
-		errs = append(errs, errors.New("channels.telegram.token is required when telegram is enabled"))
+	return errors.Join(
+		c.Telegram.Validate(),
+		c.Feishu.Validate(),
+		c.WeCom.Validate(),
+		c.Matrix.Validate(),
+	)
+}
+
+func (c TelegramConfig) Validate() error {
+	if !c.Enabled {
+		return nil
 	}
-	if c.Feishu.Enabled {
-		if strings.TrimSpace(c.Feishu.AppID) == "" {
-			errs = append(errs, errors.New("channels.feishu.appId is required when feishu is enabled"))
-		}
-		if strings.TrimSpace(c.Feishu.AppSecret) == "" {
-			errs = append(errs, errors.New("channels.feishu.appSecret is required when feishu is enabled"))
-		}
+	token := strings.TrimSpace(c.Token)
+	if token == "" {
+		return errors.New("channels.telegram.token is required when telegram is enabled")
 	}
-	if c.WeCom.Enabled {
-		if strings.TrimSpace(c.WeCom.Token) == "" {
-			errs = append(errs, errors.New("channels.wecom.token is required when wecom is enabled"))
-		}
-		if strings.TrimSpace(c.WeCom.EncodingAESKey) == "" {
-			errs = append(errs, errors.New("channels.wecom.encodingAESKey is required when wecom is enabled"))
-		}
+	if !telegramTokenPattern.MatchString(token) {
+		return errors.New("channels.telegram.token must match \\d+:[A-Za-z0-9_-]+ when telegram is enabled")
 	}
-	if c.Matrix.Enabled {
-		if strings.TrimSpace(c.Matrix.Homeserver) == "" {
-			errs = append(errs, errors.New("channels.matrix.homeserver is required when matrix is enabled"))
-		}
-		if strings.TrimSpace(c.Matrix.AccessToken) == "" {
-			errs = append(errs, errors.New("channels.matrix.accessToken is required when matrix is enabled"))
-		}
-		if strings.TrimSpace(c.Matrix.UserID) == "" {
-			errs = append(errs, errors.New("channels.matrix.userId is required when matrix is enabled"))
-		}
+	return nil
+}
+
+func (c FeishuConfig) Validate() error {
+	if !c.Enabled {
+		return nil
 	}
-	return errors.Join(errs...)
+	if strings.TrimSpace(c.AppID) == "" {
+		return errors.New("channels.feishu.appId is required when feishu is enabled")
+	}
+	if strings.TrimSpace(c.AppSecret) == "" {
+		return errors.New("channels.feishu.appSecret is required when feishu is enabled")
+	}
+	return nil
+}
+
+func (c WeComConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(c.Token) == "" {
+		return errors.New("channels.wecom.token is required when wecom is enabled")
+	}
+	key := strings.TrimSpace(c.EncodingAESKey)
+	if key == "" {
+		return errors.New("channels.wecom.encodingAESKey is required when wecom is enabled")
+	}
+	if len(key) != 43 {
+		return fmt.Errorf("channels.wecom.encodingAESKey must be 43 characters when wecom is enabled, got %d", len(key))
+	}
+	return nil
+}
+
+func (c MatrixConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	homeserver := strings.TrimSpace(c.Homeserver)
+	if homeserver == "" {
+		return errors.New("channels.matrix.homeserver is required when matrix is enabled")
+	}
+	u, err := url.Parse(homeserver)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return errors.New("channels.matrix.homeserver must be a valid URL when matrix is enabled")
+	}
+	if strings.TrimSpace(c.AccessToken) == "" {
+		return errors.New("channels.matrix.accessToken is required when matrix is enabled")
+	}
+	userID := strings.TrimSpace(c.UserID)
+	if userID == "" {
+		return errors.New("channels.matrix.userId is required when matrix is enabled")
+	}
+	if !strings.HasPrefix(userID, "@") {
+		return errors.New("channels.matrix.userId must start with @ when matrix is enabled")
+	}
+	return nil
 }
 
 func (c AutoCompactConfig) Validate() error {
@@ -352,8 +399,7 @@ func LoadConfig() (*Config, error) {
 	return LoadConfigFromPath(ConfigPath())
 }
 
-// LoadConfigFromPath reads and merges JSON at path with the same defaults and
-// environment overrides as LoadConfig.
+// LoadConfigFromPath reads and merges JSON at path with the same defaults as LoadConfig.
 func LoadConfigFromPath(path string) (*Config, error) {
 	cfg := DefaultConfig()
 	data, err := os.ReadFile(path)
@@ -366,53 +412,10 @@ func LoadConfigFromPath(path string) (*Config, error) {
 			return nil, fmt.Errorf("parse config: %w", err)
 		}
 	}
-	applyEnvOverrides(cfg)
 	if cfg.Agent.Workspace == "" {
 		cfg.Agent.Workspace = DefaultConfig().Agent.Workspace
 	}
 	return cfg, nil
-}
-
-func applyEnvOverrides(cfg *Config) {
-	if key := os.Getenv("MAVEN_API_KEY"); key != "" {
-		cfg.Provider.APIKey = key
-	}
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" && cfg.Provider.APIKey == "" {
-		cfg.Provider.APIKey = key
-	}
-	if key := os.Getenv("ANTHROPIC_AUTH_TOKEN"); key != "" && cfg.Provider.APIKey == "" {
-		cfg.Provider.APIKey = key
-	}
-	if key := os.Getenv("OPENAI_API_KEY"); key != "" && cfg.Provider.APIKey == "" {
-		cfg.Provider.APIKey = key
-		if cfg.Provider.Type == "" {
-			cfg.Provider.Type = "openai"
-		}
-	}
-	if url := os.Getenv("MAVEN_BASE_URL"); url != "" {
-		cfg.Provider.BaseURL = url
-	}
-	if url := os.Getenv("ANTHROPIC_BASE_URL"); url != "" && cfg.Provider.BaseURL == "" {
-		cfg.Provider.BaseURL = url
-	}
-	if token := os.Getenv("MAVEN_TELEGRAM_TOKEN"); token != "" {
-		cfg.Channels.Telegram.Token = token
-	}
-	if appID := os.Getenv("MAVEN_FEISHU_APP_ID"); appID != "" {
-		cfg.Channels.Feishu.AppID = appID
-	}
-	if appSecret := os.Getenv("MAVEN_FEISHU_APP_SECRET"); appSecret != "" {
-		cfg.Channels.Feishu.AppSecret = appSecret
-	}
-	if token := os.Getenv("MAVEN_WECOM_TOKEN"); token != "" {
-		cfg.Channels.WeCom.Token = token
-	}
-	if aesKey := os.Getenv("MAVEN_WECOM_ENCODING_AES_KEY"); aesKey != "" {
-		cfg.Channels.WeCom.EncodingAESKey = aesKey
-	}
-	if receiveID := os.Getenv("MAVEN_WECOM_RECEIVE_ID"); receiveID != "" {
-		cfg.Channels.WeCom.ReceiveID = receiveID
-	}
 }
 
 func SaveConfig(cfg *Config) error {

@@ -37,6 +37,7 @@ type taskTool struct {
 	holder *RuntimeHolder
 }
 
+// New returns the Task tool bound to holder, or nil when holder is nil.
 func New(holder *RuntimeHolder) tool.Tool {
 	if holder == nil {
 		return nil

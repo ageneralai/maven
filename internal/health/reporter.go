@@ -4,8 +4,9 @@ package health
 
 // Signal names for HealthReporter.Pulse; treat as stable telemetry keys.
 const (
-	SignalGatewayReady  = "gateway.ready"
-	SignalHeartbeatTick = "heartbeat.tick"
+	SignalGatewayReady     = "gateway.ready"
+	SignalHeartbeatTick    = "heartbeat.tick"
+	SignalDeliveryFailed   = "delivery.failed"
 )
 
 // HealthReporter receives liveness taps (gateway started main loops, heartbeat ticker fired, etc.).

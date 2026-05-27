@@ -9,6 +9,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/bus"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"github.com/mymmrac/telego"
 )
 
@@ -101,7 +102,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 		pid, err := s.t.sendPlaceholder(s.ctx, s.numChatID, text, parseMode, silent)
 		if err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Error("telegram stream placeholder failed", "err", err)
+			s.t.log.Error("telegram stream placeholder failed", "err", err)
 			sm.dirty = true
 			return false
 		}
@@ -109,7 +110,7 @@ func (s *streamState) upsertMessage(sm *streamMsg, text, parseMode string, silen
 	} else {
 		if err := s.t.editMessage(s.ctx, s.numChatID, sm.id, text, parseMode); err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Error("telegram stream edit failed", "err", err)
+			s.t.log.Error("telegram stream edit failed", "err", err)
 			sm.dirty = true
 			return false
 		}
@@ -157,7 +158,7 @@ func (s *streamState) flushContent(now time.Time, force bool) {
 		return
 	}
 	if s.useDraft {
-		draftText := truncateForTelegramDraftText(text)
+		draftText := stringutil.TruncateRunes(text, telegramStreamDraftMaxRunes)
 		params := (&telego.SendMessageDraftParams{}).
 			WithChatID(s.numChatID).
 			WithDraftID(telegramStreamContentDraftID).
@@ -165,7 +166,7 @@ func (s *streamState) flushContent(now time.Time, force bool) {
 			WithParseMode(telego.ModeHTML)
 		if err := s.t.bot.SendMessageDraft(s.ctx, params); err != nil {
 			s.setCooldown(now, err)
-			s.t.Log.Error("telegram sendMessageDraft failed", "err", err)
+			s.t.log.Error("telegram sendMessageDraft failed", "err", err)
 			s.contentMsg.dirty = true
 			return
 		}
@@ -206,7 +207,7 @@ func (s *streamState) tickFlush(now time.Time, forceContent bool) {
 
 func (s *streamState) handleEvent(event api.StreamEvent) {
 	if s.debugLogEvents && event.Type != api.EventContentBlockDelta && event.Type != api.EventContentBlockStop && event.Type != api.EventPing && event.Type != api.EventToolExecutionOutput {
-		s.t.Log.Debug("telegram stream event", "type", event.Type, "name", event.Name)
+		s.t.log.Debug("telegram stream event", "type", event.Type, "name", event.Name)
 	}
 	switch event.Type {
 	case api.EventIterationStart:
@@ -278,7 +279,7 @@ func (s *streamState) handleEvent(event api.StreamEvent) {
 		s.tryUpdateStatus(time.Now())
 	case api.EventError:
 		s.streamErr = strings.TrimSpace(fmt.Sprintf("%v", event.Output))
-		s.t.Log.Error("telegram stream error", "err", s.streamErr)
+		s.t.log.Error("telegram stream error", "err", s.streamErr)
 		s.tryUpdateStatus(time.Now())
 	}
 }
@@ -310,12 +311,12 @@ func (s *streamState) finalizeSend(ctx context.Context) error {
 	}
 	if s.statusMsg.id != 0 {
 		if err := s.t.deleteMessage(s.ctx, s.numChatID, s.statusMsg.id); err != nil {
-			s.t.Log.Error("telegram delete status message failed", "err", err)
+			s.t.log.Error("telegram delete status message failed", "err", err)
 		}
 	}
 	if s.contentMsg.id != 0 {
 		if err := s.t.deleteMessage(s.ctx, s.numChatID, s.contentMsg.id); err != nil {
-			s.t.Log.Error("telegram delete content message failed", "err", err)
+			s.t.log.Error("telegram delete content message failed", "err", err)
 		}
 	}
 	return nil

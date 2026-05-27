@@ -9,6 +9,7 @@ import (
 
 	"log/slog"
 
+	"github.com/ageneralai/maven/internal/health"
 	"github.com/ageneralai/maven/pkg/events"
 )
 
@@ -31,12 +32,13 @@ type MessageBus struct {
 	pubMu     sync.Mutex
 
 	publisher events.EventPublisher
+	liveness  health.HealthReporter
 
 	streamMu sync.RWMutex
 	streamDel StreamDelegate
 
 	mu   sync.RWMutex
-	subs map[string]func(OutboundMessage)
+	subs map[string]func(OutboundMessage) error
 	log  *slog.Logger
 }
 
@@ -49,6 +51,13 @@ func WithEventPublisher(p events.EventPublisher) Option {
 	return func(b *MessageBus) {
 		b.publisher = events.OrPublisher(p)
 		events.SetDefaultPublisher(b.publisher)
+	}
+}
+
+// WithHealthReporter wires delivery-failure pulses; nil behaves like health.NoOp.
+func WithHealthReporter(h health.HealthReporter) Option {
+	return func(b *MessageBus) {
+		b.liveness = health.OrHealthReporter(h)
 	}
 }
 
@@ -68,8 +77,9 @@ func New(bufSize int, log *slog.Logger, opts ...Option) *MessageBus {
 		outbound:  make(chan OutboundMessage, bufSize),
 		done:      make(chan struct{}),
 		log:       log,
-		subs:      make(map[string]func(OutboundMessage)),
+		subs:      make(map[string]func(OutboundMessage) error),
 		publisher: events.NoOp{},
+		liveness:  health.NoOp{},
 		streamDel: noopStreamDelegate{},
 	}
 	for _, o := range opts {
@@ -151,6 +161,23 @@ func busClosedEvent() events.Event {
 	return events.Event{Type: events.EventBusClosed}
 }
 
+func outboundDeliveryFailedEvent(channel, chatID string, err error) events.Event {
+	attrs := map[string]string{
+		"channel": channel,
+		"error":   err.Error(),
+	}
+	if chatID != "" {
+		attrs["chat_id"] = chatID
+	}
+	return events.Event{Type: events.EventOutboundDeliveryFailed, Attrs: attrs}
+}
+
+func (b *MessageBus) reportOutboundDeliveryFailure(channel, chatID string, err error) {
+	b.log.Error("bus outbound delivery failed", "channel", channel, "chat_id", chatID, "err", err)
+	b.publisher.Publish(context.Background(), outboundDeliveryFailedEvent(channel, chatID, err))
+	b.liveness.Pulse(health.SignalDeliveryFailed)
+}
+
 // Close shuts down the bus: rejects new publishes with [ErrBusClosed], unblocks blocked
 // publishers via the internal done signal, waits for every in-flight [publishEnqueue]
 // goroutine (each holds a [sync.WaitGroup] count from publish to select completion), then
@@ -176,8 +203,8 @@ func (b *MessageBus) Close() {
 }
 
 // SetOutboundSubscriber registers the single outbound handler for channel (trimmed for map keys).
-// Passing nil removes the subscriber.
-func (b *MessageBus) SetOutboundSubscriber(channel string, fn func(OutboundMessage)) {
+// Passing nil removes the subscriber. Non-nil handlers should return channel Send errors.
+func (b *MessageBus) SetOutboundSubscriber(channel string, fn func(OutboundMessage) error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	channel = strings.TrimSpace(channel)
@@ -207,7 +234,9 @@ func (b *MessageBus) DispatchOutbound(ctx context.Context) {
 							b.log.Error("bus outbound subscriber panic", "recover", rec)
 						}
 					}()
-					cb(msg)
+					if err := cb(msg); err != nil {
+						b.reportOutboundDeliveryFailure(msg.Channel, msg.ChatID, err)
+					}
 				}()
 			} else {
 				b.log.Warn("bus dropping message, no subscriber", "channel", msg.Channel)

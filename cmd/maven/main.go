@@ -49,7 +49,7 @@ type RuntimeFactory func(cfg *config.Config) (Runtime, error)
 // DefaultRuntimeFactory creates the default agentsdk-go runtime
 func DefaultRuntimeFactory(cfg *config.Config) (Runtime, error) {
 	if cfg.Provider.APIKey == "" {
-		return nil, fmt.Errorf("api key not set. Run 'maven onboard' or set MAVEN_API_KEY / ANTHROPIC_API_KEY")
+		return nil, fmt.Errorf("api key not set: edit %s or run 'maven onboard'", config.ConfigPath())
 	}
 
 	mem := memory.NewMemoryStore(cfg.Agent.Workspace)
@@ -271,7 +271,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	gw, err := gateway.New(cfg)
+	gw, err := gateway.New(cfg, mavenlog.Std())
 	if err != nil {
 		return fmt.Errorf("create gateway: %w", err)
 	}
@@ -316,9 +316,8 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Skills dir: %s\n", resolveSkillsDir(cfg))
 	fmt.Println("\nNext steps:")
 	fmt.Printf("  1. Edit %s to set your API key\n", cfgPath)
-	fmt.Println("  2. Or set MAVEN_API_KEY environment variable")
-	fmt.Printf("  3. Add skills under %s (optional)\n", resolveSkillsDir(cfg))
-	fmt.Println("  4. Run 'maven agent -m \"Hello\"' to test")
+	fmt.Printf("  2. Add skills under %s (optional)\n", resolveSkillsDir(cfg))
+	fmt.Println("  3. Run 'maven agent -m \"Hello\"' to test")
 
 	return nil
 }

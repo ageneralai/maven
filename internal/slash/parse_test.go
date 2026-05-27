@@ -1,6 +1,7 @@
 package slash
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -29,7 +30,7 @@ func TestParseSuccess(t *testing.T) {
 }
 
 func TestParseInvalid(t *testing.T) {
-	if _, err := Parse("just text"); err != ErrNoCommand {
+	if _, err := Parse("just text"); !errors.Is(err, ErrNoCommand) {
 		t.Fatalf("expected ErrNoCommand, got %v", err)
 	}
 	if _, err := Parse("/broken 'unterminated"); err == nil {

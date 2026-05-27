@@ -5,21 +5,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"sort"
 	"strings"
-)
 
-func wecomSignature(token, timestamp, nonce, data string) string {
-	parts := []string{token, timestamp, nonce, data}
-	sort.Strings(parts)
-	joined := strings.Join(parts, "")
-	sum := sha1.Sum([]byte(joined))
-	return fmt.Sprintf("%x", sum)
-}
+	"github.com/ageneralai/maven/internal/channel/webhook"
+)
 
 func wecomDecrypt(encodingAESKey, expectedReceiveID, encrypted string) (string, string, error) {
 	aesKey, err := decodeWeComAESKey(encodingAESKey)
@@ -91,7 +83,7 @@ func wecomEncrypt(encodingAESKey, receiveID, plaintext string) (string, error) {
 }
 
 func (w *WeComChannel) signature(timestamp, nonce, data string) string {
-	return wecomSignature(w.cfg.Token, timestamp, nonce, data)
+	return webhook.Signature(w.cfg.Token, timestamp, nonce, data)
 }
 
 func (w *WeComChannel) decrypt(encrypted string) (string, string, error) {

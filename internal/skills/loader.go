@@ -135,7 +135,7 @@ func parseFrontmatter(content []byte) (skillFrontmatter, string, error) {
 	body := strings.Join(lines[end+1:], "\n")
 	var meta skillFrontmatter
 	if err := yaml.Unmarshal([]byte(frontmatter), &meta); err != nil {
-		return skillFrontmatter{}, "", fmt.Errorf("%w: %v", errInvalidSkillYAML, err)
+		return skillFrontmatter{}, "", fmt.Errorf("%w: %w", errInvalidSkillYAML, err)
 	}
 	return meta, body, nil
 }

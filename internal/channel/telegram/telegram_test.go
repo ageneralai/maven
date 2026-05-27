@@ -21,18 +21,12 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/config"
+	"github.com/ageneralai/maven/pkg/stringutil"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
 )
 
 // === Telegram Channel Constructor Tests ===
-func TestNewTelegramChannel_NoToken(t *testing.T) {
-	b := bus.New(10, channelTestLog)
-	_, err := NewTelegramChannel(config.TelegramConfig{}, "", channelTestLog, b)
-	if err == nil {
-		t.Error("expected error for empty token")
-	}
-}
 func TestNewTelegramChannel_Valid(t *testing.T) {
 	b := bus.New(10, channelTestLog)
 	ch, err := NewTelegramChannel(config.TelegramConfig{Token: fakeToken}, "", channelTestLog, b)
@@ -41,6 +35,12 @@ func TestNewTelegramChannel_Valid(t *testing.T) {
 	}
 	if ch.Name() != "telegram" {
 		t.Errorf("Name = %q, want telegram", ch.Name())
+	}
+}
+
+func TestTelegramConfig_Validate_MissingToken(t *testing.T) {
+	if err := (config.TelegramConfig{Enabled: true}).Validate(); err == nil {
+		t.Error("expected error for empty token when enabled")
 	}
 }
 
@@ -106,14 +106,14 @@ func TestTelegramChannel_Send_NilBot(t *testing.T) {
 	}
 }
 func TestTelegramChannel_Send_InvalidChatID(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{})
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "not-a-number", Content: "test"})
 	if err == nil {
 		t.Error("expected error for invalid chat ID")
 	}
 }
 func TestTelegramChannel_Send_Success(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{})
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "hello"})
 	if err != nil {
 		t.Errorf("Send error: %v", err)
@@ -123,7 +123,7 @@ func TestTelegramChannel_Send_Success(t *testing.T) {
 	}
 }
 func TestTelegramChannel_Send_LongMessage(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{})
 	longContent := ""
 	for i := 0; i < 100; i++ {
 		longContent += "This is a long line of text that will be repeated.\n"
@@ -144,7 +144,7 @@ func TestTelegramChannel_Send_LongMessage(t *testing.T) {
 	}
 }
 func TestTelegramChannel_Send_LongMessageNoNewline(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{})
 	longContent := strings.Repeat("x", 5000)
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: longContent})
 	if err != nil {
@@ -161,7 +161,7 @@ func TestTelegramChannel_Send_LongMessageNoNewline(t *testing.T) {
 	}
 }
 func TestTelegramChannel_Send_HTMLError_Retry(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{})
 	retryCaller := &retrySendCaller{inner: newMockCaller(), failFirst: true}
 	bot, _ := telego.NewBot(fakeToken, telego.WithAPICaller(retryCaller))
 	ch.bot = bot
@@ -172,7 +172,7 @@ func TestTelegramChannel_Send_HTMLError_Retry(t *testing.T) {
 }
 
 func TestTelegramChannel_Send_BothFail(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{})
 	caller.responses["sendMessage"] = &ta.Response{Ok: false, Error: &ta.Error{Description: "send failed", ErrorCode: 400}}
 	err := ch.Send(context.Background(), bus.OutboundMessage{ChatID: "123", Content: "test"})
 	if err == nil {
@@ -260,7 +260,7 @@ func TestTelegramChannel_HandleMessage_Caption(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_Photo(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, b := newTestChannel(t, config.TelegramConfig{})
 	photoData := []byte{0xff, 0xd8, 0xff, 0xd9}
 	ch.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -280,7 +280,7 @@ func TestTelegramChannel_HandleMessage_Photo(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.Bus.InboundChan():
+	case inbound := <-b.InboundChan():
 		if inbound.Content != "photo caption" {
 			t.Errorf("content = %q, want 'photo caption'", inbound.Content)
 		}
@@ -299,7 +299,7 @@ func TestTelegramChannel_HandleMessage_Photo(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_PhotoWithCaption(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, b := newTestChannel(t, config.TelegramConfig{})
 	photoData := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -328,7 +328,7 @@ func TestTelegramChannel_HandleMessage_PhotoWithCaption(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.Bus.InboundChan():
+	case inbound := <-b.InboundChan():
 		if inbound.Content != "photo caption via server" {
 			t.Errorf("content = %q, want 'photo caption via server'", inbound.Content)
 		}
@@ -345,7 +345,7 @@ func TestTelegramChannel_HandleMessage_PhotoWithCaption(t *testing.T) {
 }
 func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
 	workspace := t.TempDir()
-	ch, _ := newTestChannelWithWorkspace(t, config.TelegramConfig{}, workspace)
+	ch, _, b := newTestChannelWithWorkspace(t, config.TelegramConfig{}, workspace)
 	pdfData := []byte("%PDF-1.4\n")
 	ch.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -365,7 +365,7 @@ func TestTelegramChannel_HandleMessage_Document(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.Bus.InboundChan():
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[File saved to:") {
 			t.Errorf("content = %q, want file path reference", inbound.Content)
 		}
@@ -465,7 +465,7 @@ func TestTelegramChannel_HandleMessage_ExternalReply(t *testing.T) {
 	}
 }
 func TestTelegramChannel_HandleMessage_ExternalReplyWithPhoto(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, b := newTestChannel(t, config.TelegramConfig{})
 	photoData := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -501,7 +501,7 @@ func TestTelegramChannel_HandleMessage_ExternalReplyWithPhoto(t *testing.T) {
 	}
 	ch.handleMessage(msg)
 	select {
-	case inbound := <-ch.Bus.InboundChan():
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "[Replying to channel: Linux.do 热门话题]") {
 			t.Errorf("missing external reply header, got: %q", inbound.Content)
 		}
@@ -572,7 +572,7 @@ func TestTelegramChannel_HandleMessage_ForwardNoComment(t *testing.T) {
 
 // === Media Group Tests ===
 func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{})
+	ch, _, b := newTestChannel(t, config.TelegramConfig{})
 	photoData := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
@@ -606,7 +606,7 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 	}
 	// Should produce exactly ONE inbound message after flush.
 	select {
-	case inbound := <-ch.Bus.InboundChan():
+	case inbound := <-b.InboundChan():
 		if !strings.Contains(inbound.Content, "album caption") {
 			t.Errorf("missing caption, got: %q", inbound.Content)
 		}
@@ -623,7 +623,7 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 	}
 	// Verify no second message arrives.
 	select {
-	case extra := <-ch.Bus.InboundChan():
+	case extra := <-b.InboundChan():
 		t.Fatalf("unexpected second inbound message: %+v", extra)
 	case <-time.After(300 * time.Millisecond):
 		// Good — no duplicate.
@@ -632,7 +632,7 @@ func TestTelegramChannel_HandleMessage_MediaGroup(t *testing.T) {
 
 // === WeChat Image Test (unchanged, no tgbotapi dependency) ===
 func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
 	ch.slashCommands = map[string]Command{
 		"status": {Name: "status", Description: "Check bot status"},
 		"help":   {Name: "help", Description: "  Show\navailable commands  "},
@@ -677,7 +677,7 @@ func TestTelegramChannel_TelegramRootOverride(t *testing.T) {
 }
 
 func TestTelegramChannel_SyncBotCommands(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
 	ch.slashCommands = map[string]Command{
 		"compact": {Name: "compact", Description: "Compress conversation history"},
 		"status":  {Name: "status", Description: "Check bot status"},
@@ -812,7 +812,7 @@ func TestSummarizeToolInput(t *testing.T) {
 	}
 }
 func TestTelegramChannel_SendStream_PureText(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
 	events := make(chan api.StreamEvent, 10)
 	// Pure text — no tool events, should skip status card
 	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "hello "}}
@@ -852,7 +852,7 @@ func TestTelegramChannel_SendStream_PureText(t *testing.T) {
 	}
 }
 func TestTelegramChannel_SendStream_WithTools(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
 	events := make(chan api.StreamEvent, 20)
 	iter := 0
 	// Simulate: iteration_start -> content_block(tool_use) -> tool_execution -> text
@@ -904,7 +904,7 @@ func TestTelegramChannel_SendStream_WithTools(t *testing.T) {
 }
 
 func TestStreamState_ToolExecutionOutputAppendsToCard(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
 	st := newStreamState(context.Background(), ch, "123", 123, nil)
 	iter := 0
 	st.handleEvent(api.StreamEvent{Type: api.EventIterationStart, Iteration: &iter})
@@ -922,7 +922,7 @@ func TestStreamState_ToolExecutionOutputAppendsToCard(t *testing.T) {
 }
 
 func TestTelegramChannel_SendStream_Disabled(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: false})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: false})
 	events := make(chan api.StreamEvent, 5)
 	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "buffered"}}
 	close(events)
@@ -942,7 +942,7 @@ func TestTelegramChannel_SendStream_Disabled(t *testing.T) {
 }
 
 func TestTelegramChannel_SendStream_ErrorVisibility(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
 	events := make(chan api.StreamEvent, 5)
 	events <- api.StreamEvent{Type: api.EventError, Output: "unexpected end of JSON input"}
 	close(events)
@@ -976,7 +976,7 @@ func TestTelegramChannel_SendStream_ErrorVisibility(t *testing.T) {
 }
 
 func TestTelegramChannel_SendStream_FinalSendFailureKeepsIntermediateMessages(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
 	caller.methodErrSeq = map[string][]error{
 		"sendMessage": {nil, errors.New("final send failed"), errors.New("final send failed")},
 	}
@@ -1029,7 +1029,7 @@ func TestTelegramRetryAfter(t *testing.T) {
 }
 
 func TestTelegramChannel_SendStream_PrivateUsesMessageDraftWhenTickerFlushes(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
 	events := make(chan api.StreamEvent, 10)
 	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "hello"}}
 	go func() {
@@ -1053,7 +1053,7 @@ func TestTelegramChannel_SendStream_PrivateUsesMessageDraftWhenTickerFlushes(t *
 // TestTelegramChannel_SendStream_GroupDoesNotUseMessageDraft ensures negative chat IDs (basic groups
 // and supergroups such as -100…) never call sendMessageDraft; only private DMs use drafts.
 func TestTelegramChannel_SendStream_GroupDoesNotUseMessageDraft(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "normal"})
 	events := make(chan api.StreamEvent, 10)
 	events <- api.StreamEvent{Type: api.EventContentBlockDelta, Delta: &api.Delta{Type: "text_delta", Text: "hello"}}
 	go func() {
@@ -1071,20 +1071,20 @@ func TestTelegramChannel_SendStream_GroupDoesNotUseMessageDraft(t *testing.T) {
 }
 
 func TestTruncateForTelegramDraftText(t *testing.T) {
-	const maxRunes = 4096
+	const maxRunes = telegramStreamDraftMaxRunes
 	runes := strings.Repeat("é", maxRunes+10) // 2-byte runes
-	got := truncateForTelegramDraftText(runes)
+	got := stringutil.TruncateRunes(runes, maxRunes)
 	if utf8.RuneCountInString(got) != maxRunes {
 		t.Fatalf("rune count = %d, want %d", utf8.RuneCountInString(got), maxRunes)
 	}
 	short := "hello"
-	if truncateForTelegramDraftText(short) != short {
-		t.Fatalf("truncate short = %q", truncateForTelegramDraftText(short))
+	if stringutil.TruncateRunes(short, maxRunes) != short {
+		t.Fatalf("truncate short = %q", stringutil.TruncateRunes(short, maxRunes))
 	}
 }
 
 func TestTelegramChannel_SendStream_FinalSend429RetriesOnce(t *testing.T) {
-	ch, caller := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
+	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Streaming: true, Feedback: "debug"})
 	caller.methodErrSeq = map[string][]error{
 		"sendMessage": {nil, errors.New(`telego: sendMessage: api: 429 "Too Many Requests: retry after 0", migrate to chat ID: 0, retry after: 0`), nil},
 	}
@@ -1113,7 +1113,7 @@ func TestTelegramChannel_SendStream_FinalSend429RetriesOnce(t *testing.T) {
 
 func TestTelegramChannel_SaveFile_SanitizesName(t *testing.T) {
 	tmpDir := t.TempDir()
-	ch, _ := newTestChannelWithWorkspace(t, config.TelegramConfig{}, tmpDir)
+	ch, _, _ := newTestChannelWithWorkspace(t, config.TelegramConfig{}, tmpDir)
 
 	payload := []byte("hello")
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1147,6 +1147,6 @@ func TestTelegramChannel_SaveFile_SanitizesName(t *testing.T) {
 }
 
 func TestTelegramChannel_SendReaction_SkipsMissingMessageID(t *testing.T) {
-	ch, _ := newTestChannel(t, config.TelegramConfig{Feedback: "debug"})
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{Feedback: "debug"})
 	ch.PreProcessFeedback(123, 0)
 }

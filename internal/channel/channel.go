@@ -3,8 +3,6 @@ package channel
 import (
 	"context"
 
-	"log/slog"
-
 	"github.com/ageneralai/maven/internal/bus"
 )
 
@@ -25,30 +23,4 @@ type Channel interface {
 	Stop() error
 	Send(ctx context.Context, msg bus.OutboundMessage) error
 	Capabilities() CapabilitySet
-}
-
-type BaseChannel struct {
-	name      string
-	Bus       *bus.MessageBus
-	allowFrom map[string]bool
-	Log       *slog.Logger
-}
-
-func NewBaseChannel(name string, b *bus.MessageBus, allowFrom []string, log *slog.Logger) BaseChannel {
-	af := make(map[string]bool, len(allowFrom))
-	for _, id := range allowFrom {
-		af[id] = true
-	}
-	return BaseChannel{name: name, Bus: b, allowFrom: af, Log: log}
-}
-
-func (c *BaseChannel) Name() string {
-	return c.name
-}
-
-func (c *BaseChannel) IsAllowed(senderID string) bool {
-	if len(c.allowFrom) == 0 {
-		return true
-	}
-	return c.allowFrom[senderID]
 }
