@@ -99,7 +99,6 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 	if err != nil {
 		return nil, err
 	}
-	wireBackground(core, planes)
 	return &Gateway{
 		cfg:            core.cfg,
 		logger:         core.logger,
@@ -138,7 +137,7 @@ func (g *Gateway) reloadPipeline(ctx context.Context, cfg *config.Config, rt age
 }
 
 // Apply makes cfg the active gateway state: replaces channels via ChannelManager.Apply, builds a fresh
-// runtime from the factory, swaps it into the pipeline under Reload semantics, refreshes SlashRegistry from cron,
+// runtime from the factory, swaps it into the pipeline under Reload semantics, refreshes slash builtins from cron,
 // and restarts the heartbeat ticker tree. Idempotent retries use the same path.
 func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	g.applyMu.Lock()
@@ -164,7 +163,7 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("slash builtins: %w", err)
 	}
-	g.pipe.SlashRegistry = slashReg
+	g.pipe.SetSlashRegistry(slashReg)
 	g.startHeartbeat(ctx)
 	return nil
 }

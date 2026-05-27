@@ -53,11 +53,11 @@ func (r *Router) Resolve(key, fallback string) string {
 	if fallback != "" {
 		return fallback
 	}
-	return SessionIDFromRouteKey(key)
+	return sessionid.FromRouteKey(key)
 }
 
 func (r *Router) Current(key string) string {
-	return r.Resolve(key, SessionIDFromRouteKey(key))
+	return r.Resolve(key, sessionid.FromRouteKey(key))
 }
 
 func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err error) {
@@ -65,7 +65,7 @@ func (r *Router) Rotate(key string) (oldSessionID, newSessionID string, err erro
 	if key == "" {
 		return "", "", errors.New("session key is empty")
 	}
-	defaultID := SessionIDFromRouteKey(key)
+	defaultID := sessionid.FromRouteKey(key)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	oldSessionID = strings.TrimSpace(r.sessions[key])
@@ -88,7 +88,7 @@ func (r *Router) Set(key, sessionID string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if sessionID == "" || sessionID == SessionIDFromRouteKey(key) {
+	if sessionID == "" || sessionID == sessionid.FromRouteKey(key) {
 		delete(r.sessions, key)
 	} else {
 		r.sessions[key] = sessionID

@@ -76,9 +76,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 	channelMgr := manager.New(core.bus, core.logger, nil, nil)
 	sessRes := &mavsession.SessionResolver{Router: core.sessions}
 	posts := postaction.New(core.sessions, core.cfg.Agent.Workspace)
-	pipe := pipeline.New(core.logger, core.bus, nil, sessRes, posts)
-	pipe.Channels = channelMgr
-	pipe.Liveness = core.liveness
+	pipe := pipeline.New(core.logger, core.bus, nil, sessRes, posts, channelMgr, core.liveness)
 	channelMgr.SetStreamRunner(pipe)
 	cronDeliver := &cron.Deliver{Bus: core.bus, Channels: channelMgr, Log: core.logger}
 	cronSvc, err := cron.NewService(filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"), pipe, core.cfg.Gateway.Cron.MaxConcurrentRuns, core.logger, cronDeliver)
@@ -89,27 +87,25 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 	if err != nil {
 		return nil, err
 	}
-	pipe.SlashRegistry = slashReg
+	pipe.SetSlashRegistry(slashReg)
 	hb, err := heartbeat.New(core.cfg.Agent.Workspace, pipe, 0, core.logger, heartbeat.WithHealthReporter(core.liveness))
 	if err != nil {
 		return nil, fmt.Errorf("heartbeat: %w", err)
 	}
+	plugs := []plugin.Plugin{acp.NewPlugin()}
+	plugs = append(plugs, mavoice.VoicePlugins()...)
+	plugins := plugin.NewRegistry(plugs...)
+	channelMgr.SetPlugins(plugins)
 	return &planeDeps{
 		channelMgr: channelMgr,
 		pipe:       pipe,
 		cron:       cronSvc,
 		hb:         hb,
+		plugins:    plugins,
 	}, nil
 }
 
-func wireBackground(_ *coreDeps, planes *planeDeps) {
-	plugs := []plugin.Plugin{acp.NewPlugin()}
-	plugs = append(plugs, mavoice.VoicePlugins()...)
-	planes.plugins = plugin.NewRegistry(plugs...)
-	planes.channelMgr.SetPlugins(planes.plugins)
-}
-
 var (
-	_ executor.TurnExecutor  = (*pipeline.Pipeline)(nil)
-	_ executor.StreamRunner  = (*pipeline.Pipeline)(nil)
+	_ executor.TurnExecutor = (*pipeline.Pipeline)(nil)
+	_ executor.StreamRunner = (*pipeline.Pipeline)(nil)
 )

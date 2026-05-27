@@ -15,7 +15,7 @@ type SessionResolver struct {
 }
 
 func (r *SessionResolver) ResolveSDKSessionID(channel, chatID, routeKey string, mode SessionMode) string {
-	base := ChatSessionID(channel, chatID)
+	base := sessionid.ChatSessionID(channel, chatID)
 	if mode == SessionModeIsolated {
 		return sessionid.New(sessionid.KindIsolated, base).String()
 	}

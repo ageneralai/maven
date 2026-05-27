@@ -60,7 +60,7 @@ func TestHandle_emitsPipelineTurnStartViaRegistry(t *testing.T) {
 			cap := &eventsfake.CapturePublisher{}
 			events.SetDefaultPublisher(cap)
 			router, _ := session.New("")
-			p := New(slog.New(slog.DiscardHandler), b, stubRuntime{}, &session.SessionResolver{Router: router}, postaction.New(router, ""))
+			p := New(slog.New(slog.DiscardHandler), b, stubRuntime{}, &session.SessionResolver{Router: router}, postaction.New(router, ""), nil, nil)
 			p.handle(context.Background(), tt.msg)
 			eventsfake.AssertPublished(t, cap, tt.want)
 		})

@@ -77,12 +77,12 @@ func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan ap
 var _ agent.Runtime = (*mockRuntime)(nil)
 
 func testPipeline(b *bus.MessageBus, rt agent.Runtime, router *session.Router, ws string) *pipeline.Pipeline {
-	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, postaction.New(router, ws))
+	p := pipeline.New(testLG, b, rt, &session.SessionResolver{Router: router}, postaction.New(router, ws), nil, nil)
 	reg, err := slash.BuiltIns(nil)
 	if err != nil {
 		panic(err)
 	}
-	p.SlashRegistry = reg
+	p.SetSlashRegistry(reg)
 	return p
 }
 
@@ -232,7 +232,7 @@ func TestGateway_RunAgent(t *testing.T) {
 			},
 		},
 	}
-	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""), nil, nil)
 	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
@@ -244,7 +244,7 @@ func TestGateway_RunAgent(t *testing.T) {
 
 func TestGateway_RunAgent_NilResponse(t *testing.T) {
 	mockRt := &mockRuntime{response: nil}
-	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""), nil, nil)
 	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
@@ -256,7 +256,7 @@ func TestGateway_RunAgent_NilResponse(t *testing.T) {
 
 func TestGateway_RunAgent_NilResult(t *testing.T) {
 	mockRt := &mockRuntime{response: &api.Response{Result: nil}}
-	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""), nil, nil)
 	result, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if err != nil {
 		t.Errorf("runAgent error: %v", err)
@@ -412,7 +412,7 @@ func TestGateway_ProcessLoop_WithContentBlocks(t *testing.T) {
 
 func TestGateway_RunAgent_Error(t *testing.T) {
 	mockRt := &mockRuntime{err: context.DeadlineExceeded}
-	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""))
+	pipe := pipeline.New(testLG, bus.New(1, testLG), mockRt, &session.SessionResolver{}, postaction.New(&session.Router{}, ""), nil, nil)
 	_, err := pipe.RunTurn(context.Background(), "test", "session1")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
@@ -1131,7 +1131,7 @@ func TestGateway_ProcessLoop_CompactPostAction(t *testing.T) {
 	}
 
 	baseSession := "telegram:chat1"
-	defaultSession := session.SessionIDFromRouteKey(baseSession)
+	defaultSession := sessionid.FromRouteKey(baseSession)
 	currentSession := router.Resolve(baseSession, defaultSession)
 	if currentSession == defaultSession {
 		t.Fatal("expected compact to rotate session")
@@ -1199,7 +1199,7 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 	}
 
 	baseSession := "telegram:chat1"
-	defaultSession := session.SessionIDFromRouteKey(baseSession)
+	defaultSession := sessionid.FromRouteKey(baseSession)
 	currentSession := router.Resolve(baseSession, defaultSession)
 	if currentSession == defaultSession {
 		t.Fatal("expected /new to rotate session")

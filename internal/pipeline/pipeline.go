@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 	"sync"
 
@@ -12,14 +13,12 @@ import (
 	"github.com/ageneralai/maven/internal/bus"
 	"github.com/ageneralai/maven/internal/channel"
 	"github.com/ageneralai/maven/internal/channel/manager"
-	turnctx "github.com/ageneralai/maven/pkg/context"
 	"github.com/ageneralai/maven/internal/health"
-	"github.com/ageneralai/maven/pkg/events"
-	"github.com/ageneralai/maven/pkg/executor"
-	"log/slog"
-
 	"github.com/ageneralai/maven/internal/session"
 	"github.com/ageneralai/maven/internal/slash"
+	turnctx "github.com/ageneralai/maven/pkg/context"
+	"github.com/ageneralai/maven/pkg/events"
+	"github.com/ageneralai/maven/pkg/executor"
 	"github.com/ageneralai/maven/pkg/stringutil"
 )
 
@@ -43,20 +42,25 @@ func (e errPostActionHandle) Unwrap() error {
 // turn; Reload drains under Lock for the pointer swap only; applyChannels runs outside
 // the lock so channel I/O does not stall inbound.
 type Pipeline struct {
-	Log           *slog.Logger
-	Bus           *bus.MessageBus
-	Channels      *manager.ChannelManager
-	SlashRegistry *slash.Registry
-	Sessions      session.Resolver
-	Posts         postaction.Handler
-	Liveness      health.HealthReporter
-	turnMu sync.RWMutex
-	rt             agent.Runtime
+	log          *slog.Logger
+	bus          *bus.MessageBus
+	channels     *manager.ChannelManager
+	slashRegistry *slash.Registry
+	sessions     session.Resolver
+	posts        postaction.Handler
+	liveness     health.HealthReporter
+	turnMu       sync.RWMutex
+	rt           agent.Runtime
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunTurn.
-func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts postaction.Handler) *Pipeline {
-	return &Pipeline{Log: log, Bus: b, rt: rt, Sessions: sessions, Posts: posts}
+func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts postaction.Handler, channels *manager.ChannelManager, liveness health.HealthReporter) *Pipeline {
+	return &Pipeline{log: log, bus: b, rt: rt, sessions: sessions, posts: posts, channels: channels, liveness: liveness}
+}
+
+// SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
+func (p *Pipeline) SetSlashRegistry(r *slash.Registry) {
+	p.slashRegistry = r
 }
 
 // CurrentRuntime returns rt without holding the turn lock. Use only when no concurrent
@@ -112,8 +116,8 @@ func (p *Pipeline) Reload(applyChannels func() error, newRt agent.Runtime, works
 	p.turnMu.Lock()
 	old := p.rt
 	p.rt = newRt
-	if p.Posts != nil {
-		p.Posts.SetWorkspace(workspace)
+	if p.posts != nil {
+		p.posts.SetWorkspace(workspace)
 	}
 	p.turnMu.Unlock()
 	if old != nil {
@@ -146,7 +150,7 @@ func cloneTransportMeta(meta map[string]any) map[string]any {
 func (p *Pipeline) Run(ctx context.Context) {
 	for {
 		select {
-		case msg, ok := <-p.Bus.InboundChan():
+		case msg, ok := <-p.bus.InboundChan():
 			if !ok {
 				return
 			}
@@ -158,14 +162,14 @@ func (p *Pipeline) Run(ctx context.Context) {
 }
 
 func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string, err error) {
-	p.Log.Error("pipeline turn error", "channel", chName, "chat_id", chatID, "err", err)
-	pubErr := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+	p.log.Error("pipeline turn error", "channel", chName, "chat_id", chatID, "err", err)
+	pubErr := p.bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel: chName,
 		ChatID:  chatID,
 		Content: userMsg,
 	})
 	if pubErr != nil {
-		p.Log.Error("pipeline error reply publish failed", "channel", chName, "chat_id", chatID, "err", pubErr)
+		p.log.Error("pipeline error reply publish failed", "channel", chName, "chat_id", chatID, "err", pubErr)
 		attrs := map[string]string{
 			"channel": chName,
 			"chat_id": chatID,
@@ -175,7 +179,7 @@ func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string
 			attrs["cause"] = err.Error()
 		}
 		events.Publish(ctx, events.Event{Type: events.EventOutboundDeliveryFailed, Attrs: attrs})
-		if rep := health.OrHealthReporter(p.Liveness); rep != nil {
+		if rep := health.OrHealthReporter(p.liveness); rep != nil {
 			rep.Pulse(health.SignalDeliveryFailed)
 		}
 	}
@@ -193,7 +197,7 @@ func (p *Pipeline) reportStreamFailed(ctx context.Context, chName, chatID string
 			"error":   err.Error(),
 		},
 	})
-	if rep := health.OrHealthReporter(p.Liveness); rep != nil {
+	if rep := health.OrHealthReporter(p.liveness); rep != nil {
 		rep.Pulse(health.SignalDeliveryFailed)
 	}
 }
@@ -208,7 +212,7 @@ func (p *Pipeline) turnContext(ctx context.Context, msg bus.InboundMessage, sess
 }
 
 func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bool {
-	handled, err := p.Posts.HandleBuiltin(msg)
+	handled, err := p.posts.HandleBuiltin(msg)
 	if !handled {
 		return false
 	}
@@ -216,20 +220,20 @@ func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bo
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 		return true
 	}
-	if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+	if err := p.bus.PublishOutbound(ctx, bus.OutboundMessage{
 		Channel:  msg.Channel,
 		ChatID:   msg.ChatID,
 		Content:  "✅ Started a fresh session.",
 		Metadata: cloneTransportMeta(msg.TransportMeta),
 	}); err != nil {
-		p.Log.Error("pipeline publish session reset reply", "channel", msg.Channel, "err", err)
+		p.log.Error("pipeline publish session reset reply", "channel", msg.Channel, "err", err)
 	}
 	return true
 }
 
 func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, sessionKey, slashName string) (slash.Outcome, error) {
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
-	return slash.PreTurn(msgCtx, p.SlashRegistry, slash.Input{
+	return slash.PreTurn(msgCtx, p.slashRegistry, slash.Input{
 		Text:              msg.Content,
 		ExpectedSlashName: slashName,
 	})
@@ -238,10 +242,10 @@ func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, session
 func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channel.StreamChannel) error {
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
-	streamCtx := p.Bus.OnStreamBegin(msgCtx, streamHints)
+	streamCtx := p.bus.OnStreamBegin(msgCtx, streamHints)
 	streamEvents, err := runStreamWithMetadata(streamCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
 	if err != nil {
-		p.Bus.OnStreamEnd(streamCtx, streamHints, err)
+		p.bus.OnStreamEnd(streamCtx, streamHints, err)
 		return err
 	}
 	sendMeta := cloneTransportMeta(msg.TransportMeta)
@@ -250,7 +254,7 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		sendErr = channel.WrapDeliveryFailed(sendErr)
 		p.reportStreamFailed(ctx, msg.Channel, msg.ChatID, sendErr)
 	}
-	p.Bus.OnStreamEnd(streamCtx, streamHints, sendErr)
+	p.bus.OnStreamEnd(streamCtx, streamHints, sendErr)
 	return sendErr
 }
 
@@ -264,27 +268,27 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 	if resp != nil && resp.Result != nil {
 		result = resp.Result.Output
 	}
-	if postResult, handled, postErr := p.Posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
+	if postResult, handled, postErr := p.posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
 		if postErr != nil {
 			return errPostActionHandle{postErr}
 		}
 		result = postResult
 	}
 	if result != "" {
-		if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+		if err := p.bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  result,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
 		}); err != nil {
-			p.Log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
+			p.log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
 		}
 	}
 	return nil
 }
 
 func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
-	p.Log.Debug("pipeline inbound", "channel", msg.Channel, "sender", msg.SenderID, "content", stringutil.Truncate(msg.Content, 80))
+	p.log.Debug("pipeline inbound", "channel", msg.Channel, "sender", msg.SenderID, "content", stringutil.Truncate(msg.Content, 80))
 	if p.handleBuiltin(ctx, msg) {
 		return
 	}
@@ -299,11 +303,11 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		},
 	})
 	var ch channel.Channel
-	if p.Channels != nil {
-		ch = p.Channels.GetChannel(msg.Channel)
+	if p.channels != nil {
+		ch = p.channels.GetChannel(msg.Channel)
 	}
 	plan := classifyTurn(msg, ch)
-	sessionKey := p.Sessions.ResolveSDKSessionID(msg.Channel, msg.ChatID, msg.StableRouteKey(), plan.sessionMode)
+	sessionKey := p.sessions.ResolveSDKSessionID(msg.Channel, msg.ChatID, msg.StableRouteKey(), plan.sessionMode)
 	if ch != nil {
 		if ip, ok := ch.(channel.InboundPreprocessor); ok {
 			if chatInt, err := strconv.ParseInt(msg.ChatID, 10, 64); err == nil {
@@ -317,13 +321,13 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		return
 	}
 	if !slashOut.ContinueToModel {
-		if err := p.Bus.PublishOutbound(ctx, bus.OutboundMessage{
+		if err := p.bus.PublishOutbound(ctx, bus.OutboundMessage{
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  slashOut.DirectReply,
 			Metadata: cloneTransportMeta(msg.TransportMeta),
 		}); err != nil {
-			p.Log.Error("pipeline publish slash reply", "channel", msg.Channel, "err", err)
+			p.log.Error("pipeline publish slash reply", "channel", msg.Channel, "err", err)
 		}
 		return
 	}

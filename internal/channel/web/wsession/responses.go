@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	mavsession "github.com/ageneralai/maven/internal/session"
+	"github.com/ageneralai/maven/internal/sessionid"
 )
 
 const (
@@ -30,7 +30,7 @@ func IsMavenResponseID(id string) bool {
 
 func StoreMavenResponseSession(responseID, sessionID string) {
 	responseID = strings.TrimSpace(responseID)
-	sessionID = mavsession.ChatSessionID(mavsession.WebChannelName, sessionID)
+	sessionID = sessionid.ChatSessionID(sessionid.WebChannelName, sessionID)
 	if responseID == "" || sessionID == "" {
 		return
 	}
@@ -93,8 +93,4 @@ func ResetMavenResponseSessionsForTest() {
 	responseSessionMu.Lock()
 	responseSessions = map[string]responseSessionEntry{}
 	responseSessionMu.Unlock()
-}
-
-func LookupMavenResponseSession(responseID string) (string, bool) {
-	return lookupMavenResponseSession(responseID)
 }

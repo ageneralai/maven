@@ -69,6 +69,29 @@ func TestNewTask(t *testing.T) {
 	}
 }
 
+func TestChatSessionID(t *testing.T) {
+	t.Parallel()
+	if got := ChatSessionID("telegram", "12345"); got != "telegram-12345" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ChatSessionID("web", "550e8400-e29b-41d4-a716-446655440000"); got != "web-550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ChatSessionID("web", "web-1"); got != "web-1" {
+		t.Fatalf("idempotent: got %q", got)
+	}
+}
+
+func TestFromRouteKey(t *testing.T) {
+	t.Parallel()
+	if got := FromRouteKey("telegram:12345"); got != "telegram-12345" {
+		t.Fatalf("got %q", got)
+	}
+	if got := FromRouteKey("web:web-1"); got != "web-1" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestParseRoundTrip(t *testing.T) {
 	t.Parallel()
 	cases := []SessionID{
