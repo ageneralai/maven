@@ -8,7 +8,7 @@ Every outbound call — LLM APIs, channels (Telegram, Feishu, WeCom), voice TTS 
 
 | Variable | Purpose |
 |----------|---------|
-| `HTTPS_PROXY` | Proxy URL for HTTPS traffic (e.g. `http://127.0.0.1:10254`) |
+| `HTTPS_PROXY` | Proxy URL for HTTPS traffic (e.g. `http://127.0.0.1:10255`) |
 | `HTTP_PROXY` | Proxy URL for HTTP traffic |
 | `NO_PROXY` | Comma-separated hosts to bypass the proxy |
 | `SSL_CERT_FILE` | Path to a CA bundle for TLS trust (required for MITM proxies like OneCLI) |
@@ -41,7 +41,7 @@ Some proxies (including [OneCLI](onecli.md)) terminate TLS and re-encrypt to ups
 
 ```bash
 export SSL_CERT_FILE=/path/to/proxy-ca.pem
-export HTTPS_PROXY=http://127.0.0.1:10254
+export HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255
 ./maven gateway
 ```
 
@@ -54,8 +54,8 @@ Set environment variables in your unit file or container spec:
 ```ini
 # /etc/systemd/system/maven.service.d/proxy.conf
 [Service]
-Environment=HTTPS_PROXY=http://127.0.0.1:10254
-Environment=SSL_CERT_FILE=/etc/onecli/ca.pem
+Environment=HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255
+Environment=SSL_CERT_FILE=/home/user/.onecli/gateway/ca.pem
 ```
 
 ```yaml
@@ -63,8 +63,8 @@ Environment=SSL_CERT_FILE=/etc/onecli/ca.pem
 services:
   maven:
     environment:
-      HTTPS_PROXY: http://onecli:10254
-      SSL_CERT_FILE: /etc/onecli/ca.pem
+      HTTPS_PROXY: http://x:aoc_YOUR_TOKEN@onecli:10255
+      SSL_CERT_FILE: /home/user/.onecli/gateway/ca.pem
 ```
 
 ## Troubleshooting

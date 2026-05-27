@@ -6,13 +6,15 @@
 
 ```text
 Maven process
-  └── http.DefaultClient (HTTPS_PROXY set)
-        └── OneCLI proxy (:10254)
-              ├── injects API key from vault
+  └── http.DefaultClient (HTTPS_PROXY set with agent token)
+        └── OneCLI gateway (:10255)
+              ├── injects API key from vault (replaces x-api-key / Authorization)
               └── forwards to api.anthropic.com / api.openai.com / ...
 ```
 
 Maven has no OneCLI-specific code. It works because Maven uses `http.DefaultClient`, which respects `HTTPS_PROXY` and `SSL_CERT_FILE` from the environment.
+
+Port layout: **10254** = dashboard (web UI), **10255** = gateway (HTTPS proxy).
 
 ## Prerequisites
 
@@ -33,73 +35,70 @@ docker run -d \
 Or install natively:
 
 ```bash
-curl -fsSL onecli.sh/install | sh
-onecli start
+curl -fsSL https://onecli.sh/install | sh
 ```
 
-Verify:
+Verify both services are up:
 
 ```bash
-curl -sf http://127.0.0.1:10255/health
+curl -sf http://127.0.0.1:10254/v1/health   # dashboard
+curl -sf http://127.0.0.1:10255/healthz      # gateway
 ```
 
-## Step 2: Add credentials to the vault
+## Step 2: Add credentials and get your agent token
 
-```bash
-onecli secrets add anthropic \
-  --host-pattern api.anthropic.com \
-  --header-name Authorization \
-  --format "Bearer {secret}"
-```
+Open the dashboard at **http://127.0.0.1:10254**, then:
 
-Paste your API key when prompted. Repeat for other providers (OpenAI, etc.) as needed.
+1. Go to **Secrets** and add your Anthropic (or OpenAI) API key.
+2. Go to **Agents**, open the default agent, and copy its **access token** (`aoc_...`).
 
-List secrets:
-
-```bash
-onecli secrets list
-```
+The gateway authenticates each proxied request by this token and injects the matching credential.
 
 ## Step 3: Trust OneCLI's CA certificate
 
-OneCLI terminates TLS to inject credentials. Maven must trust OneCLI's CA:
+OneCLI terminates TLS to inject credentials. Go's `x509` package reads `SSL_CERT_FILE` natively on Linux, so no custom code is needed — just point the env var at OneCLI's generated CA:
 
 ```bash
-# Export OneCLI's CA bundle (path varies by install)
-export SSL_CERT_FILE=/path/to/onecli-combined-ca.pem
+# Docker install
+export SSL_CERT_FILE=/path/to/onecli-data/gateway/ca.pem
+
+# Native install
+export SSL_CERT_FILE=~/.onecli/gateway/ca.pem
 ```
 
-Or install the CA into your OS trust store and skip this step.
+Alternatively, install the CA into your OS trust store and omit `SSL_CERT_FILE`.
 
 ## Step 4: Configure Maven to use the proxy
 
-Remove API keys from `~/.maven/config.json` — OneCLI injects them:
+Set `provider.apiKey` to a non-empty placeholder in `~/.maven/config.json` — OneCLI replaces it at the gateway before the request reaches Anthropic:
 
 ```json
 {
   "provider": {
     "type": "anthropic",
-    "apiKey": "",
+    "apiKey": "placeholder",
     "baseUrl": "https://api.anthropic.com"
   }
 }
 ```
 
-Start Maven with the proxy env:
+Start Maven with the proxy env, embedding your agent token in the proxy URL:
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:10254
-export SSL_CERT_FILE=/path/to/onecli-combined-ca.pem
+export HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255
+export SSL_CERT_FILE=~/.onecli/gateway/ca.pem
 ./maven gateway
 ```
+
+The `x:TOKEN` format is standard HTTP Basic auth — `x` is a dummy username, the token is the password.
 
 ## Step 5: Verify
 
 Send a message through any enabled channel, or run the CLI agent:
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:10254
-export SSL_CERT_FILE=/path/to/onecli-combined-ca.pem
+export HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255
+export SSL_CERT_FILE=~/.onecli/gateway/ca.pem
 ./maven agent "hello"
 ```
 
@@ -115,28 +114,32 @@ You should see requests to `api.anthropic.com` with `injections_applied=1`.
 
 ```ini
 [Service]
-Environment=HTTPS_PROXY=http://127.0.0.1:10254
-Environment=SSL_CERT_FILE=/etc/onecli/ca.pem
+Environment=HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255
+Environment=SSL_CERT_FILE=/home/user/.onecli/gateway/ca.pem
 ```
 
-Ensure `provider.apiKey` is empty in config when using the vault.
+`provider.apiKey` in config must be a non-empty string (e.g. `"placeholder"`); the gateway replaces it.
 
 ## Troubleshooting
 
 **`x509: certificate signed by unknown authority`**
-- Set `SSL_CERT_FILE` to OneCLI's CA bundle
+- Set `SSL_CERT_FILE` to OneCLI's CA: `~/.onecli/gateway/ca.pem` (native) or the Docker volume path
 
 **401 from upstream API**
-- Secret not configured in vault, or wrong host pattern
-- Run `onecli secrets list` and confirm a secret matches the upstream hostname
+- Secret not configured in vault, or agent token missing/wrong in `HTTPS_PROXY`
+- Open the dashboard at `:10254`, confirm the secret exists and the token matches the agent
 
-**Connection refused on :10254**
-- OneCLI is not running: `docker ps | grep onecli` or `onecli status`
+**Connection refused on :10255**
+- OneCLI gateway is not running: `docker ps | grep onecli`
 
-**Maven still sends its own API key**
-- Clear `provider.apiKey` in config and remove `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` from the environment
+**Maven fails to start with "provider.apiKey is required"**
+- Set `apiKey` to any non-empty string (e.g. `"placeholder"`) — the gateway overwrites it
+
+**Maven still sends its own API key / 401 despite gateway**
+- Confirm the agent token is correct in `HTTPS_PROXY` (`http://x:aoc_TOKEN@...`)
+- Remove `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` from the environment so Maven doesn't read them as the real key
 
 ## See also
 
 - [Proxy](proxy.md) — general proxy configuration for Maven
-- [OneCLI docs](https://docs.onecli.sh)
+- [OneCLI docs](https://onecli.sh/docs)

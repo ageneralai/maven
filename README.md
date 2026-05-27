@@ -262,7 +262,7 @@ When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
 Maven has no proxy fields in `config.json`. Set egress at process start:
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:10254   # optional: OneCLI or any HTTP proxy
+export HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255   # optional: OneCLI gateway
 export SSL_CERT_FILE=/path/to/proxy-ca.pem  # when the proxy terminates TLS
 ./maven gateway
 ```
@@ -414,7 +414,7 @@ docker build -t maven .
 docker run -d \
   -e MAVEN_API_KEY=your-api-key \
   -e MAVEN_TELEGRAM_TOKEN=your-token \
-  -e HTTPS_PROXY=http://host.docker.internal:10254 \
+  -e HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@host.docker.internal:10255 \
   -e SSL_CERT_FILE=/etc/proxy/ca.pem \
   -p 18790:18790 \
   -p 9876:9876 \
