@@ -27,12 +27,6 @@ func NewPlugin(storePath string, maxConcurrent int, channels *manager.ChannelMan
 	return &Plugin{storePath: storePath, maxConcurrent: maxConcurrent, channels: channels, log: lg}
 }
 
-func (p *Plugin) setService(svc *Service) {
-	p.mu.Lock()
-	p.svc = svc
-	p.mu.Unlock()
-}
-
 // Service returns the active scheduler after the trigger has started.
 func (p *Plugin) Service() *Service {
 	p.mu.RLock()

@@ -11,7 +11,6 @@ import (
 
 type fakeFeishuPlugin struct {
 	bus *bus.MessageBus
-	log interface{ Error(string, ...any) }
 }
 
 func (f *fakeFeishuPlugin) Name() string { return "feishu-test" }
