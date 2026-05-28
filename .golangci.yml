@@ -60,6 +60,9 @@ linters:
       - path: internal/plugins/tool/acp/
         linters:
           - gosec
+      - path: internal/plugins/memory/
+        linters:
+          - gosec
       - path: internal/kernel/config/
         linters:
           - tagliatelle
