@@ -10,12 +10,12 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
+	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	mavenlog "github.com/ageneralai/maven/internal/kernel/log"
-	"github.com/ageneralai/maven/internal/kernel/prompt"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/prompt"
 	"github.com/ageneralai/maven/internal/kernel/slash"
 )
 
@@ -178,6 +178,6 @@ func (g *Gateway) wirePostActionHooks() {
 		})
 	}
 	if g.plugins != nil {
-		g.pipe.SetPostTurnHooks(g.plugins.PostTurnHandlers(g.cfg))
+		g.plugins.ConfigureTurnJournals(g.cfg)
 	}
 }

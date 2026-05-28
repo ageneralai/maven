@@ -8,7 +8,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/hook"
+	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/voice"
 )
 
@@ -130,6 +130,17 @@ func (r *Registry) STTProvider(cfg *config.Config) voice.STTProvider {
 	return nil
 }
 
+func (r *Registry) SetEventBus(f *events.Fanout) {
+	if r == nil || f == nil {
+		return
+	}
+	for _, p := range r.plugins {
+		if eap, ok := p.(EventAwarePlugin); ok {
+			eap.SetEventBus(f)
+		}
+	}
+}
+
 func (r *Registry) Start(ctx context.Context) error {
 	if r == nil {
 		return nil
@@ -154,20 +165,16 @@ func (r *Registry) Stop() error {
 	return nil
 }
 
-// PostTurnHandlers returns one handler per PostTurnPlugin implementation, in registration order.
-func (r *Registry) PostTurnHandlers(cfg *config.Config) []hook.PostTurnHandler {
+// ConfigureTurnJournals calls ConfigureTurnJournal on each TurnJournalPlugin.
+func (r *Registry) ConfigureTurnJournals(cfg *config.Config) {
 	if r == nil || cfg == nil {
-		return nil
+		return
 	}
-	var out []hook.PostTurnHandler
 	for _, p := range r.plugins {
-		if ptp, ok := p.(PostTurnPlugin); ok {
-			if h := ptp.PostTurnHandler(cfg); h != nil {
-				out = append(out, h)
-			}
+		if tjp, ok := p.(TurnJournalPlugin); ok {
+			tjp.ConfigureTurnJournal(cfg)
 		}
 	}
-	return out
 }
 
 // MemoryPlugins returns all registered MemoryPlugin implementations in registration order.

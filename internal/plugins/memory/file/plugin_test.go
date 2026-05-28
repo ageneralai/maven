@@ -11,7 +11,7 @@ import (
 	sdkapi "github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/hook"
+	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
 )
 
@@ -134,34 +134,37 @@ func waitClosed(t *testing.T, ch <-chan struct{}) {
 	}
 }
 
-func TestPostTurnHandler_returnsNilWhenDisabled(t *testing.T) {
-	t.Parallel()
-	log, _ := newCaptureLogger()
-	var factoryCalled bool
-	p := newTestPlugin(log, func(_ *config.Config, _ string, _ []tool.Tool) (shadowRuntime, error) {
-		factoryCalled = true
-		return nil, errors.New("should not be called")
+func publishTurnCompleted(f *events.Fanout, userMsg, assistantMsg string) {
+	f.Publish(context.Background(), events.Event{
+		Type: events.EventTurnCompleted,
+		Payload: events.TurnCompleted{
+			UserMsg:      userMsg,
+			AssistantMsg: assistantMsg,
+		},
 	})
-	cfg := &config.Config{Agent: config.AgentConfig{Workspace: "/tmp/ws"}}
-	cfg.ShadowJournal.Enabled = false
-	if h := p.PostTurnHandler(cfg); h != nil {
-		t.Fatal("expected nil handler when shadowJournal.enabled is false")
-	}
-	if factoryCalled {
-		t.Fatal("factory must not be called when disabled")
-	}
 }
 
-func TestPostTurnHandler_returnsNilOnFactoryError(t *testing.T) {
-	t.Parallel()
+func TestConfigureTurnJournal_disabledClearsRuntime(t *testing.T) {
+	log, _ := newCaptureLogger()
+	cfg := cfgWithShadowEnabled(t.TempDir())
+	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
+		return &sdkapi.Response{}, nil
+	})
+	p := newTestPlugin(log, factoryFor(fake))
+	p.ConfigureTurnJournal(cfg)
+	p.ConfigureTurnJournal(&config.Config{Agent: cfg.Agent})
+	if err := p.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitClosed(t, fake.closed)
+}
+
+func TestConfigureTurnJournal_returnsNilOnFactoryError(t *testing.T) {
 	log, _ := newCaptureLogger()
 	p := newTestPlugin(log, func(_ *config.Config, _ string, _ []tool.Tool) (shadowRuntime, error) {
 		return nil, errors.New("init failed")
 	})
-	h := p.PostTurnHandler(cfgWithShadowEnabled("/tmp/ws"))
-	if h != nil {
-		t.Fatal("expected nil handler on factory error")
-	}
+	p.ConfigureTurnJournal(cfgWithShadowEnabled("/tmp/ws"))
 	p.mu.Lock()
 	rt := p.rt
 	p.mu.Unlock()
@@ -170,8 +173,7 @@ func TestPostTurnHandler_returnsNilOnFactoryError(t *testing.T) {
 	}
 }
 
-func TestPostTurnHandler_swapsAndAsyncClosesPrevious(t *testing.T) {
-	t.Parallel()
+func TestConfigureTurnJournal_swapsAndAsyncClosesPrevious(t *testing.T) {
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
 	fakeA := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
@@ -185,13 +187,9 @@ func TestPostTurnHandler_swapsAndAsyncClosesPrevious(t *testing.T) {
 		return current, nil
 	})
 	current = fakeA
-	if p.PostTurnHandler(cfg) == nil {
-		t.Fatal("expected handler")
-	}
+	p.ConfigureTurnJournal(cfg)
 	current = fakeB
-	if p.PostTurnHandler(cfg) == nil {
-		t.Fatal("expected handler")
-	}
+	p.ConfigureTurnJournal(cfg)
 	waitClosed(t, fakeA.closed)
 	p.mu.Lock()
 	got := p.rt
@@ -201,8 +199,7 @@ func TestPostTurnHandler_swapsAndAsyncClosesPrevious(t *testing.T) {
 	}
 }
 
-func TestPostTurnHandler_closureUsesGenerationRuntime(t *testing.T) {
-	t.Parallel()
+func TestOnTurnCompleted_usesCurrentRuntime(t *testing.T) {
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
 	var fakeACalled, fakeBCalled bool
@@ -218,49 +215,54 @@ func TestPostTurnHandler_closureUsesGenerationRuntime(t *testing.T) {
 	p := newTestPlugin(log, func(_ *config.Config, _ string, _ []tool.Tool) (shadowRuntime, error) {
 		return current, nil
 	})
+	f := events.NewFanout(nil)
+	p.SetEventBus(f)
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = p.Stop() }()
 	current = fakeA
-	h1 := p.PostTurnHandler(cfg)
-	if h1 == nil {
-		t.Fatal("expected handler")
-	}
+	p.ConfigureTurnJournal(cfg)
 	current = fakeB
-	if p.PostTurnHandler(cfg) == nil {
-		t.Fatal("expected handler")
+	p.ConfigureTurnJournal(cfg)
+	publishTurnCompleted(f, "hi", "hello")
+	time.Sleep(100 * time.Millisecond)
+	if !fakeBCalled {
+		t.Fatal("expected fakeB.Run called with current runtime")
 	}
-	h1(context.Background(), hook.PostTurnEvent{UserMsg: "hi", AssistantMsg: "hello"})
-	if !fakeACalled {
-		t.Fatal("expected fakeA.Run called from first-generation closure")
-	}
-	if fakeBCalled {
-		t.Fatal("fakeB.Run must not be called from first-generation closure")
+	if fakeACalled {
+		t.Fatal("fakeA.Run must not be called after runtime swap")
 	}
 }
 
-func TestPostTurnHandler_skipsEmptyExchange(t *testing.T) {
-	t.Parallel()
+func TestOnTurnCompleted_skipsEmptyExchange(t *testing.T) {
 	tests := []struct {
 		name    string
-		ev      hook.PostTurnEvent
+		user    string
+		asst    string
 		wantRun bool
 	}{
-		{name: "empty", ev: hook.PostTurnEvent{}, wantRun: false},
-		{name: "user_only", ev: hook.PostTurnEvent{UserMsg: "hi"}, wantRun: true},
-		{name: "assistant_only", ev: hook.PostTurnEvent{AssistantMsg: "hello"}, wantRun: true},
+		{name: "empty", wantRun: false},
+		{name: "user_only", user: "hi", wantRun: true},
+		{name: "assistant_only", asst: "hello", wantRun: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			log, _ := newCaptureLogger()
 			cfg := cfgWithShadowEnabled(t.TempDir())
 			fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 				return &sdkapi.Response{}, nil
 			})
 			p := newTestPlugin(log, factoryFor(fake))
-			h := p.PostTurnHandler(cfg)
-			if h == nil {
-				t.Fatal("expected handler")
+			f := events.NewFanout(nil)
+			p.SetEventBus(f)
+			if err := p.Start(context.Background()); err != nil {
+				t.Fatal(err)
 			}
-			h(context.Background(), tt.ev)
+			defer func() { _ = p.Stop() }()
+			p.ConfigureTurnJournal(cfg)
+			publishTurnCompleted(f, tt.user, tt.asst)
+			time.Sleep(100 * time.Millisecond)
 			got := fake.runCount()
 			if tt.wantRun && got != 1 {
 				t.Fatalf("Run count = %d, want 1", got)
@@ -272,8 +274,7 @@ func TestPostTurnHandler_skipsEmptyExchange(t *testing.T) {
 	}
 }
 
-func TestPostTurnHandler_appliesTimeout(t *testing.T) {
-	t.Parallel()
+func TestOnTurnCompleted_appliesTimeout(t *testing.T) {
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
 	var sawDeadline bool
@@ -294,29 +295,33 @@ func TestPostTurnHandler_appliesTimeout(t *testing.T) {
 		return &sdkapi.Response{}, nil
 	})
 	p := newTestPlugin(log, factoryFor(fake))
-	h := p.PostTurnHandler(cfg)
-	if h == nil {
-		t.Fatal("expected handler")
+	f := events.NewFanout(nil)
+	p.SetEventBus(f)
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatal(err)
 	}
+	defer func() { _ = p.Stop() }()
+	p.ConfigureTurnJournal(cfg)
 	parent, cancel := context.WithCancel(context.Background())
 	cancel()
-	h(parent, hook.PostTurnEvent{UserMsg: "x", AssistantMsg: "y"})
+	f.Publish(parent, events.Event{
+		Type:    events.EventTurnCompleted,
+		Payload: events.TurnCompleted{UserMsg: "x", AssistantMsg: "y"},
+	})
+	time.Sleep(100 * time.Millisecond)
 	if !sawDeadline {
 		t.Fatal("Run was not invoked or deadline not checked")
 	}
 }
 
 func TestStop_closesCurrentRuntime(t *testing.T) {
-	t.Parallel()
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
 	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return &sdkapi.Response{}, nil
 	})
 	p := newTestPlugin(log, factoryFor(fake))
-	if p.PostTurnHandler(cfg) == nil {
-		t.Fatal("expected handler")
-	}
+	p.ConfigureTurnJournal(cfg)
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +331,7 @@ func TestStop_closesCurrentRuntime(t *testing.T) {
 	}
 }
 
-func TestPlugin_satisfiesPostTurnPluginInterface(t *testing.T) {
-	t.Parallel()
-	var _ plugin.PostTurnPlugin = (*Plugin)(nil)
+func TestPlugin_satisfiesTurnJournalPluginInterface(t *testing.T) {
+	var _ plugin.TurnJournalPlugin = (*Plugin)(nil)
+	var _ plugin.EventAwarePlugin = (*Plugin)(nil)
 }

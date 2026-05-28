@@ -7,8 +7,8 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/executor"
-	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/voice"
 )
 
@@ -107,9 +107,15 @@ type TriggerPlugin interface {
 	Triggers(cfg *config.Config) []Trigger
 }
 
-// PostTurnPlugin optionally contributes a handler called by the pipeline after each real user
-// conversation turn. The pipeline fires it in a goroutine; returning nil disables the hook.
-type PostTurnPlugin interface {
+// EventAwarePlugin receives the process event bus before Start so it can subscribe.
+type EventAwarePlugin interface {
 	Plugin
-	PostTurnHandler(cfg *config.Config) hook.PostTurnHandler
+	SetEventBus(*events.Fanout)
+}
+
+// TurnJournalPlugin optionally configures shadow journaling for turn.completed events.
+// Subscribe in Start; pipeline publishes events.EventTurnCompleted via kernel/events.
+type TurnJournalPlugin interface {
+	Plugin
+	ConfigureTurnJournal(cfg *config.Config)
 }

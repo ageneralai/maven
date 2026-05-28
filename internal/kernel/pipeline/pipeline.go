@@ -19,7 +19,6 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/health"
-	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/session"
 	"github.com/ageneralai/maven/internal/kernel/slash"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
@@ -53,27 +52,25 @@ type Pipeline struct {
 	sessions      session.Resolver
 	posts         postaction.Handler
 	liveness      health.HealthReporter
-	postTurnHooks []hook.PostTurnHandler
+	eventBus      *events.Fanout
 	turnMu        sync.RWMutex
 	rt            agent.Runtime
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunTurn.
 func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session.Resolver, posts postaction.Handler, channels *manager.ChannelManager, liveness health.HealthReporter) *Pipeline {
-	return &Pipeline{log: log, bus: b, rt: rt, sessions: sessions, posts: posts, channels: channels, liveness: liveness}
+	return &Pipeline{log: log, bus: b, rt: rt, sessions: sessions, posts: posts, channels: channels, liveness: liveness, eventBus: events.NewFanout(nil)}
+}
+
+func (p *Pipeline) SetEventBus(f *events.Fanout) {
+	if f != nil {
+		p.eventBus = f
+	}
 }
 
 // Posts returns the postaction handler for hook registration.
 func (p *Pipeline) Posts() postaction.Handler {
 	return p.posts
-}
-
-// SetPostTurnHooks registers handlers invoked concurrently in goroutines after each successful
-// user conversation turn. Protected by the same turnMu as the runtime swap.
-func (p *Pipeline) SetPostTurnHooks(fns []hook.PostTurnHandler) {
-	p.turnMu.Lock()
-	defer p.turnMu.Unlock()
-	p.postTurnHooks = fns
 }
 
 // SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
@@ -198,7 +195,7 @@ func (p *Pipeline) sendError(ctx context.Context, chName, chatID, userMsg string
 		if err != nil {
 			attrs["cause"] = err.Error()
 		}
-		events.Publish(ctx, events.Event{Type: events.EventOutboundDeliveryFailed, Attrs: attrs})
+		p.eventBus.Publish(ctx, events.Event{Type: events.EventOutboundDeliveryFailed, Attrs: attrs})
 		if rep := health.OrHealthReporter(p.liveness); rep != nil {
 			rep.Pulse(health.SignalDeliveryFailed)
 		}
@@ -209,7 +206,7 @@ func (p *Pipeline) reportStreamFailed(ctx context.Context, chName, chatID string
 	if err == nil {
 		return
 	}
-	events.Publish(ctx, events.Event{
+	p.eventBus.Publish(ctx, events.Event{
 		Type: events.EventStreamFailed,
 		Attrs: map[string]string{
 			"channel": chName,
@@ -261,7 +258,7 @@ func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, session
 }
 
 func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channels.StreamChannel, plan turnPlan) error {
-	hooks := p.postTurnHooks // copied while caller holds turnMu.RLock
+	collectTurn := plan.sessionMode == session.SessionModeCurrent
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
 	streamCtx := p.bus.OnStreamBegin(msgCtx, streamHints)
@@ -272,7 +269,7 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 	}
 	var intercepted <-chan api.StreamEvent
 	var outputCollector *strings.Builder
-	if len(hooks) > 0 && plan.sessionMode == session.SessionModeCurrent {
+	if collectTurn {
 		var sb strings.Builder
 		outputCollector = &sb
 		intercepted = collectStreamOutput(streamEvents, &sb)
@@ -287,20 +284,23 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 	}
 	p.bus.OnStreamEnd(streamCtx, streamHints, sendErr)
 	if sendErr == nil && outputCollector != nil {
-		ev := hook.PostTurnEvent{
+		p.publishTurnCompleted(ctx, msg, sessionKey, outputCollector.String())
+	}
+	return sendErr
+}
+
+func (p *Pipeline) publishTurnCompleted(ctx context.Context, msg bus.InboundMessage, sessionKey, assistantMsg string) {
+	p.eventBus.Publish(ctx, events.Event{
+		Type: events.EventTurnCompleted,
+		Payload: events.TurnCompleted{
 			UserMsg:      msg.Content,
-			AssistantMsg: outputCollector.String(),
+			AssistantMsg: assistantMsg,
 			SessionID:    sessionKey,
 			Channel:      msg.Channel,
 			ChatID:       msg.ChatID,
 			At:           time.Now(),
-		}
-		bgCtx := context.WithoutCancel(ctx)
-		for _, h := range hooks {
-			go h(bgCtx, ev)
-		}
-	}
-	return sendErr
+		},
+	})
 }
 
 func collectStreamOutput(in <-chan api.StreamEvent, sb *strings.Builder) <-chan api.StreamEvent {
@@ -343,20 +343,8 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 			p.log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
 		}
 	}
-	hooks := p.postTurnHooks // copied while caller holds turnMu.RLock
-	if len(hooks) > 0 && plan.sessionMode == session.SessionModeCurrent {
-		ev := hook.PostTurnEvent{
-			UserMsg:      msg.Content,
-			AssistantMsg: result,
-			SessionID:    sessionKey,
-			Channel:      msg.Channel,
-			ChatID:       msg.ChatID,
-			At:           time.Now(),
-		}
-		bgCtx := context.WithoutCancel(ctx)
-		for _, h := range hooks {
-			go h(bgCtx, ev)
-		}
+	if plan.sessionMode == session.SessionModeCurrent {
+		p.publishTurnCompleted(ctx, msg, sessionKey, result)
 	}
 	return nil
 }
@@ -369,7 +357,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	p.turnMu.RLock()
 	defer p.turnMu.RUnlock()
 	rt := p.rt
-	events.Publish(ctx, events.Event{
+	p.eventBus.Publish(ctx, events.Event{
 		Type: "pipeline.turn_start",
 		Attrs: map[string]string{
 			"channel": msg.Channel,

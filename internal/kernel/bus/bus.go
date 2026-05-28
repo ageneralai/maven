@@ -9,8 +9,8 @@ import (
 
 	"log/slog"
 
-	"github.com/ageneralai/maven/internal/kernel/health"
 	"github.com/ageneralai/maven/internal/kernel/events"
+	"github.com/ageneralai/maven/internal/kernel/health"
 )
 
 var ErrBusClosed = errors.New("bus closed")
@@ -34,7 +34,7 @@ type MessageBus struct {
 	publisher events.EventPublisher
 	liveness  health.HealthReporter
 
-	streamMu sync.RWMutex
+	streamMu  sync.RWMutex
 	streamDel StreamDelegate
 
 	mu   sync.RWMutex
@@ -50,7 +50,6 @@ type Option func(*MessageBus)
 func WithEventPublisher(p events.EventPublisher) Option {
 	return func(b *MessageBus) {
 		b.publisher = events.OrPublisher(p)
-		events.SetDefaultPublisher(b.publisher)
 	}
 }
 
@@ -87,7 +86,6 @@ func New(bufSize int, log *slog.Logger, opts ...Option) *MessageBus {
 			o(b)
 		}
 	}
-	events.SetDefaultPublisher(b.publisher)
 	return b
 }
 

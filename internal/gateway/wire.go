@@ -10,35 +10,37 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/channel/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/kernel/events"
+	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/health"
+	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/pipeline"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	mavsession "github.com/ageneralai/maven/internal/kernel/session"
 	"github.com/ageneralai/maven/internal/kernel/slash"
-	"github.com/ageneralai/maven/internal/plugins/tool/acp"
-	"github.com/ageneralai/maven/internal/plugins/voice/cartesia"
-	"github.com/ageneralai/maven/internal/plugins/voice/deepgram"
-	"github.com/ageneralai/maven/internal/plugins/voice/elevenlabs"
-	voiceopenai "github.com/ageneralai/maven/internal/plugins/voice/openai"
-	"github.com/ageneralai/maven/internal/kernel/executor"
-	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
-	"github.com/ageneralai/maven/internal/kernel/plugin"
-	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
 	"github.com/ageneralai/maven/internal/plugins/channel/feishu"
-	skills "github.com/ageneralai/maven/internal/plugins/skill/file"
 	"github.com/ageneralai/maven/internal/plugins/channel/matrix"
 	"github.com/ageneralai/maven/internal/plugins/channel/telegram"
 	"github.com/ageneralai/maven/internal/plugins/channel/web"
 	"github.com/ageneralai/maven/internal/plugins/channel/wecom"
 	"github.com/ageneralai/maven/internal/plugins/channel/whatsapp"
+	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
+	skills "github.com/ageneralai/maven/internal/plugins/skill/file"
+	"github.com/ageneralai/maven/internal/plugins/tool/acp"
 	"github.com/ageneralai/maven/internal/plugins/trigger/cron"
-	"github.com/ageneralai/maven/internal/plugins/trigger/memconsolidate"
 	"github.com/ageneralai/maven/internal/plugins/trigger/heartbeat"
+	"github.com/ageneralai/maven/internal/plugins/trigger/memconsolidate"
+	"github.com/ageneralai/maven/internal/plugins/voice/cartesia"
+	"github.com/ageneralai/maven/internal/plugins/voice/deepgram"
+	"github.com/ageneralai/maven/internal/plugins/voice/elevenlabs"
+	voiceopenai "github.com/ageneralai/maven/internal/plugins/voice/openai"
 )
 
 type coreDeps struct {
 	cfg            *config.Config
 	logger         *slog.Logger
 	bus            *bus.MessageBus
+	eventBus       *events.Fanout
 	sessions       *mavsession.Router
 	historyStore   *mavsession.NoIsolatedStore
 	liveness       health.HealthReporter
@@ -69,10 +71,12 @@ func wireCore(cfg *config.Config, opts Options) (*coreDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("session store: %w", err)
 	}
+	eventBus := events.NewFanout(nil)
 	return &coreDeps{
 		cfg:            cfg,
 		logger:         opts.Logger,
-		bus:            bus.New(config.DefaultBufSize, opts.Logger, bus.WithHealthReporter(health.OrHealthReporter(opts.HealthReporter))),
+		bus:            bus.New(config.DefaultBufSize, opts.Logger, bus.WithEventPublisher(eventBus), bus.WithHealthReporter(health.OrHealthReporter(opts.HealthReporter))),
+		eventBus:       eventBus,
 		sessions:       router,
 		historyStore:   mavsession.NewNoIsolatedStore(histStore),
 		liveness:       health.OrHealthReporter(opts.HealthReporter),
@@ -87,6 +91,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 	sessRes := &mavsession.SessionResolver{Router: core.sessions}
 	posts := postaction.New(core.sessions, core.cfg.Agent.Workspace)
 	pipe := pipeline.New(core.logger, core.bus, nil, sessRes, posts, channelMgr, core.liveness)
+	pipe.SetEventBus(core.eventBus)
 	webPlug.SetStreamRunner(pipe)
 	cronPlug := cron.NewPlugin(
 		filepath.Join(core.cfg.Agent.Workspace, ".maven", "cron", "jobs.json"),
@@ -115,6 +120,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		memPlug,
 	}
 	plugins := plugin.NewRegistry(plugs...)
+	plugins.SetEventBus(core.eventBus)
 	webPlug.SetRegistry(plugins)
 	channelMgr.SetRegistry(plugins)
 	if _, err := cronPlug.EnsureService(pipe); err != nil {
@@ -139,10 +145,12 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		memReg:     memReg,
 	}, nil
 }
+
 var (
 	_ executor.TurnExecutor = (*pipeline.Pipeline)(nil)
 	_ executor.StreamRunner = (*pipeline.Pipeline)(nil)
 )
+
 // Wire builds a production Gateway with all plugins registered.
 func Wire(cfg *config.Config, lg *slog.Logger) (*Gateway, error) {
 	return NewWithOptions(cfg, Options{Logger: lg})

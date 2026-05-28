@@ -8,7 +8,7 @@ import (
 	sdkapi "github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/kernel/hook"
+	"github.com/ageneralai/maven/internal/kernel/events"
 )
 
 func TestRunShadowTurn_logsRememberToolCalls(t *testing.T) {
@@ -25,7 +25,7 @@ func TestRunShadowTurn_logsRememberToolCalls(t *testing.T) {
 			},
 		}, nil
 	})
-	runShadowTurn(context.Background(), fake, log, hook.PostTurnEvent{UserMsg: "u", AssistantMsg: "a"})
+	runShadowTurn(context.Background(), fake, log, events.TurnCompleted{UserMsg: "u", AssistantMsg: "a"})
 	infos := cap.infos()
 	if len(infos) != 2 {
 		t.Fatalf("info records = %d, want 2", len(infos))
@@ -53,7 +53,7 @@ func TestRunShadowTurn_logsNothingToJournalWhenNoRemember(t *testing.T) {
 			},
 		}, nil
 	})
-	runShadowTurn(context.Background(), fake, log, hook.PostTurnEvent{UserMsg: "u", AssistantMsg: "a"})
+	runShadowTurn(context.Background(), fake, log, events.TurnCompleted{UserMsg: "u", AssistantMsg: "a"})
 	debugs := cap.debugs()
 	if len(debugs) != 1 || debugs[0].Msg != "memory-file: nothing to journal" {
 		t.Fatalf("debugs = %+v, want one nothing-to-journal", debugs)
@@ -69,7 +69,7 @@ func TestRunShadowTurn_logsNothingToJournalWhenResultNil(t *testing.T) {
 	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return &sdkapi.Response{Result: nil}, nil
 	})
-	runShadowTurn(context.Background(), fake, log, hook.PostTurnEvent{UserMsg: "u", AssistantMsg: "a"})
+	runShadowTurn(context.Background(), fake, log, events.TurnCompleted{UserMsg: "u", AssistantMsg: "a"})
 	debugs := cap.debugs()
 	if len(debugs) != 1 || debugs[0].Msg != "memory-file: nothing to journal" {
 		t.Fatalf("debugs = %+v, want one nothing-to-journal", debugs)
@@ -82,7 +82,7 @@ func TestRunShadowTurn_logsNothingToJournalWhenResponseNil(t *testing.T) {
 	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return nil, nil //nolint:nilnil // exercises production nil-response branch
 	})
-	runShadowTurn(context.Background(), fake, log, hook.PostTurnEvent{UserMsg: "u", AssistantMsg: "a"})
+	runShadowTurn(context.Background(), fake, log, events.TurnCompleted{UserMsg: "u", AssistantMsg: "a"})
 	debugs := cap.debugs()
 	if len(debugs) != 1 || debugs[0].Msg != "memory-file: nothing to journal" {
 		t.Fatalf("debugs = %+v, want one nothing-to-journal", debugs)
@@ -95,7 +95,7 @@ func TestRunShadowTurn_logsDebugOnError(t *testing.T) {
 	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return nil, errors.New("boom")
 	})
-	runShadowTurn(context.Background(), fake, log, hook.PostTurnEvent{UserMsg: "u", AssistantMsg: "a"})
+	runShadowTurn(context.Background(), fake, log, events.TurnCompleted{UserMsg: "u", AssistantMsg: "a"})
 	debugs := cap.debugs()
 	if len(debugs) != 1 || debugs[0].Msg != "memory-file: shadow turn failed" {
 		t.Fatalf("debugs = %+v, want shadow turn failed", debugs)
@@ -111,8 +111,8 @@ func TestRunShadowTurn_logsDebugOnError(t *testing.T) {
 
 type nameTool struct{ name string }
 
-func (f nameTool) Name() string        { return f.name }
-func (nameTool) Description() string   { return "" }
+func (f nameTool) Name() string           { return f.name }
+func (nameTool) Description() string      { return "" }
 func (nameTool) Schema() *tool.JSONSchema { return nil }
 func (nameTool) Execute(context.Context, map[string]any) (*tool.ToolResult, error) {
 	return nil, nil //nolint:nilnil // stub tool for shadowTools filter test

@@ -10,7 +10,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/hook"
+	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/google/uuid"
 )
 
@@ -48,7 +48,7 @@ func shadowTools(all []tool.Tool) []tool.Tool {
 	return out
 }
 
-func runShadowTurn(ctx context.Context, rt shadowRuntime, log *slog.Logger, ev hook.PostTurnEvent) {
+func runShadowTurn(ctx context.Context, rt shadowRuntime, log *slog.Logger, ev events.TurnCompleted) {
 	prompt := fmt.Sprintf("User: %s\n\nAssistant: %s", ev.UserMsg, ev.AssistantMsg)
 	resp, err := rt.Run(ctx, sdkapi.Request{Prompt: prompt, SessionID: uuid.New().String()})
 	if err != nil {

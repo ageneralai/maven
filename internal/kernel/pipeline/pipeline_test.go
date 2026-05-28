@@ -10,11 +10,11 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/agent/postaction"
 	"github.com/ageneralai/maven/internal/kernel/bus"
+	"github.com/ageneralai/maven/internal/kernel/events"
+	"github.com/ageneralai/maven/internal/kernel/events/eventsfake"
 	"github.com/ageneralai/maven/internal/kernel/session"
 	"github.com/ageneralai/maven/internal/kernel/slash"
 	turnctx "github.com/ageneralai/maven/internal/kernel/turnctx"
-	"github.com/ageneralai/maven/internal/kernel/events"
-	"github.com/ageneralai/maven/internal/kernel/events/eventsfake"
 )
 
 type stubRuntime struct{}
@@ -35,9 +35,9 @@ var _ agent.Runtime = stubRuntime{}
 
 func TestHandle_emitsPipelineTurnStartViaRegistry(t *testing.T) {
 	tests := []struct {
-		name    string
-		msg     bus.InboundMessage
-		want    []eventsfake.WantEvent
+		name string
+		msg  bus.InboundMessage
+		want []eventsfake.WantEvent
 	}{
 		{
 			name: "telegram_chat",
@@ -46,23 +46,26 @@ func TestHandle_emitsPipelineTurnStartViaRegistry(t *testing.T) {
 				ChatID:  "42",
 				Content: "hi",
 			},
-			want: []eventsfake.WantEvent{{
-				Type: "pipeline.turn_start",
-				Attrs: map[string]string{
-					"channel": "telegram",
-					"chat_id": "42",
+			want: []eventsfake.WantEvent{
+				{
+					Type: "pipeline.turn_start",
+					Attrs: map[string]string{
+						"channel": "telegram",
+						"chat_id": "42",
+					},
 				},
-			}},
+				{Type: events.EventTurnCompleted},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() { events.SetDefaultPublisher(nil) })
 			b := bus.New(10, slog.New(slog.DiscardHandler))
 			cap := &eventsfake.CapturePublisher{}
-			events.SetDefaultPublisher(cap)
+			f := events.NewFanout(cap)
 			router, _ := session.New("")
 			p := New(slog.New(slog.DiscardHandler), b, stubRuntime{}, &session.SessionResolver{Router: router}, postaction.New(router, ""), nil, nil)
+			p.SetEventBus(f)
 			p.handle(context.Background(), tt.msg)
 			eventsfake.AssertPublished(t, cap, tt.want)
 		})
