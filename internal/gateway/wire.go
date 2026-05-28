@@ -49,7 +49,6 @@ type planeDeps struct {
 	channelMgr *manager.ChannelManager
 	pipe       *pipeline.Pipeline
 	plugins    *plugin.Registry
-	memPlug    *fmemory.Plugin
 	memReg     *kmemory.Registry
 }
 
@@ -95,6 +94,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		core.logger,
 	)
 	hbPlug := heartbeat.NewPlugin(0, core.logger, heartbeat.WithHealthReporter(core.liveness))
+	memPlug := fmemory.NewPlugin(core.logger)
 	plugs := []plugin.Plugin{
 		telegram.NewPlugin(core.bus, core.logger),
 		feishu.NewPlugin(core.bus, core.logger),
@@ -110,6 +110,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		deepgram.NewPlugin(),
 		elevenlabs.NewPlugin(),
 		voiceopenai.NewPlugin(),
+		memPlug,
 	}
 	plugins := plugin.NewRegistry(plugs...)
 	webPlug.SetRegistry(plugins)
@@ -125,7 +126,6 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		return nil, err
 	}
 	pipe.SetSlashRegistry(slashReg)
-	memPlug := fmemory.NewPlugin(core.logger)
 	memReg, err := kmemory.NewRegistry(core.logger, memPlug)
 	if err != nil {
 		return nil, fmt.Errorf("memory registry: %w", err)
@@ -134,7 +134,6 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		channelMgr: channelMgr,
 		pipe:       pipe,
 		plugins:    plugins,
-		memPlug:    memPlug,
 		memReg:     memReg,
 	}, nil
 }

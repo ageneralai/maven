@@ -14,12 +14,10 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/plugin"
 )
 
 type rememberTool struct {
-	plug *Plugin
-	cfg  *config.Config
+	cfg *config.Config
 }
 
 type memorySearchTool struct {
@@ -33,14 +31,9 @@ type memoryGetTool struct {
 var rememberSchema = &tool.JSONSchema{
 	Type: "object",
 	Properties: map[string]any{
-		"content": map[string]any{"type": "string", "description": "The information to store."},
-		"kind": map[string]any{
-			"type":        "string",
-			"enum":        []string{"fact", "event", "preference"},
-			"description": `"fact" replaces MEMORY.md (long-term), "event" appends to today's journal, "preference" appends a preference note.`,
-		},
+		"content": map[string]any{"type": "string", "description": "The information to remember. Appended to today's journal."},
 	},
-	Required: []string{"content", "kind"},
+	Required: []string{"content"},
 }
 
 var memorySearchSchema = &tool.JSONSchema{
@@ -62,7 +55,7 @@ var memoryGetSchema = &tool.JSONSchema{
 
 func (p *Plugin) Tools(cfg *config.Config) []tool.Tool {
 	return []tool.Tool{
-		&rememberTool{plug: p, cfg: cfg},
+		&rememberTool{cfg: cfg},
 		&memorySearchTool{cfg: cfg},
 		&memoryGetTool{cfg: cfg},
 	}
@@ -71,32 +64,31 @@ func (p *Plugin) Tools(cfg *config.Config) []tool.Tool {
 func (t *rememberTool) Name() string { return "remember" }
 
 func (t *rememberTool) Description() string {
-	return "Store information to long-term memory. Use kind='fact' for persistent facts about the user or context, 'event' for things that happened today, 'preference' for user preferences."
+	return "Append a note to today's memory journal. Use for events, decisions, facts, or anything worth remembering. To update long-term memory (MEMORY.md), write to the file directly."
 }
 
 func (t *rememberTool) Schema() *tool.JSONSchema { return rememberSchema }
 
 func (t *rememberTool) Execute(ctx context.Context, params map[string]any) (*tool.ToolResult, error) {
 	content := strings.TrimSpace(stringParam(params, "content"))
-	kindStr := strings.TrimSpace(stringParam(params, "kind"))
 	if content == "" {
 		return nil, fmt.Errorf("remember: content is required")
 	}
-	kind := plugin.MemoryKind(kindStr)
-	if err := t.plug.Write(ctx, t.cfg, plugin.MemoryEntry{
-		Content:   content,
-		Kind:      kind,
-		Timestamp: time.Now(),
-		Source:    "agent",
-	}); err != nil {
+	dir := memoryDir(t.cfg)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return &tool.ToolResult{Success: false, Output: err.Error()}, err
 	}
-	if t.plug.refreshFn != nil && kind != plugin.MemoryKindEvent {
-		if err := t.plug.refreshFn(ctx); err != nil {
-			_ = err
-		}
+	date := time.Now().Format("2006-01-02")
+	path := filepath.Join(dir, date+".md")
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return &tool.ToolResult{Success: false, Output: err.Error()}, err
 	}
-	return &tool.ToolResult{Success: true, Output: fmt.Sprintf("Stored (%s).", kind)}, nil
+	defer func() { _ = f.Close() }()
+	if _, err := fmt.Fprintf(f, "%s\n", content); err != nil {
+		return &tool.ToolResult{Success: false, Output: err.Error()}, err
+	}
+	return &tool.ToolResult{Success: true, Output: "Remembered."}, nil
 }
 
 func (t *memorySearchTool) Name() string { return "memory_search" }

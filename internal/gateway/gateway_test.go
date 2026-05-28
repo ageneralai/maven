@@ -37,14 +37,14 @@ import (
 
 var testLG = slog.New(slog.DiscardHandler)
 
-func testMemoryReg(t *testing.T) (*kmemory.Registry, *fmemory.Plugin) {
+func testMemoryReg(t *testing.T) *kmemory.Registry {
 	t.Helper()
 	memPlug := fmemory.NewPlugin(testLG)
 	memReg, err := kmemory.NewRegistry(testLG, memPlug)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return memReg, memPlug
+	return memReg
 }
 
 func testSysPrompt(t *testing.T, workspace string, memReg *kmemory.Registry, cfg *config.Config) string {
@@ -128,7 +128,7 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 		},
 	}
 
-	memReg, _ := testMemoryReg(t)
+	memReg := testMemoryReg(t)
 	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	if sys == "" {
@@ -144,20 +144,19 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 
 func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 	tmpDir := t.TempDir()
-
-	memReg, memPlug := testMemoryReg(t)
+	memDir := filepath.Join(tmpDir, "memory")
+	if err := os.MkdirAll(memDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(memDir, "MEMORY.md"), []byte("User is a developer.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	memReg := testMemoryReg(t)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
 			Workspace: tmpDir,
 		},
 	}
-	if err := memPlug.Write(context.Background(), cfg, plugin.MemoryEntry{
-		Content: "User is a developer.",
-		Kind:    plugin.MemoryKindFact,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
 	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	if !strings.Contains(sys, "User is a developer") {
@@ -174,7 +173,7 @@ func TestGateway_BuildSystemPrompt_NoFiles(t *testing.T) {
 		},
 	}
 
-	memReg, _ := testMemoryReg(t)
+	memReg := testMemoryReg(t)
 	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	// Should return empty when no files exist
@@ -662,9 +661,6 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 	}
 	if g.memReg == nil {
 		t.Error("memReg should not be nil")
-	}
-	if g.memPlug == nil {
-		t.Error("memPlug should not be nil")
 	}
 	if g.cronService() == nil {
 		t.Error("cron service should not be nil after wire")

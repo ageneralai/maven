@@ -19,22 +19,16 @@ const (
 	memoryMdMaxChars = 12288
 )
 
-// Registry fans out memory reads to all plugins and routes writes to the primary.
+// Registry fans out memory reads to all plugins.
 type Registry struct {
 	plugins []plugin.MemoryPlugin
 	log     *slog.Logger
 }
 
-// NewRegistry constructs a Registry. Returns error if zero or more than one plugin is primary.
+// NewRegistry constructs a Registry. Returns error if no plugins are registered.
 func NewRegistry(lg *slog.Logger, plugins ...plugin.MemoryPlugin) (*Registry, error) {
-	n := 0
-	for _, p := range plugins {
-		if p.Primary() {
-			n++
-		}
-	}
-	if n != 1 {
-		return nil, fmt.Errorf("memory registry: exactly one primary plugin required, got %d", n)
+	if len(plugins) == 0 {
+		return nil, fmt.Errorf("memory registry: at least one plugin required")
 	}
 	cp := make([]plugin.MemoryPlugin, len(plugins))
 	copy(cp, plugins)
@@ -75,19 +69,6 @@ func (r *Registry) Context(ctx context.Context, cfg *config.Config, q plugin.Mem
 		return all[i].Timestamp.After(all[j].Timestamp)
 	})
 	return formatEntries(all)
-}
-
-// Write routes to the primary plugin.
-func (r *Registry) Write(ctx context.Context, cfg *config.Config, e plugin.MemoryEntry) error {
-	if r == nil {
-		return nil
-	}
-	for _, p := range r.plugins {
-		if p.Primary() {
-			return p.Write(ctx, cfg, e)
-		}
-	}
-	return fmt.Errorf("memory: no primary plugin")
 }
 
 func formatEntries(entries []plugin.MemoryEntry) string {

@@ -17,7 +17,6 @@ import (
 	mavsession "github.com/ageneralai/maven/internal/kernel/session"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
-	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
@@ -49,7 +48,6 @@ type Gateway struct {
 	triggers       []plugin.Trigger
 	trigMu         sync.Mutex
 	memReg         *kmemory.Registry
-	memPlug        *fmemory.Plugin
 	skillRegs      []api.SkillRegistration
 	sessions       *mavsession.Router
 	historyStore   *mavsession.Store
@@ -82,7 +80,6 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		sessions:       core.sessions,
 		historyStore:   core.historyStore,
 		memReg:         planes.memReg,
-		memPlug:        planes.memPlug,
 		liveness:       core.liveness,
 		signalChan:     core.signalChan,
 		runtimeFactory: core.runtimeFactory,
@@ -90,6 +87,5 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		pipe:           planes.pipe,
 		plugins:        planes.plugins,
 	}
-	gw.memPlug.SetRefreshFn(gw.refreshMemory)
 	return gw, nil
 }

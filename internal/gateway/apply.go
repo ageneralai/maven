@@ -49,9 +49,6 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 	if g.plugins != nil {
 		pluginTools = g.plugins.Tools(cfg)
 	}
-	if g.memPlug != nil {
-		pluginTools = append(pluginTools, g.memPlug.Tools(cfg)...)
-	}
 	return g.runtimeFactory(cfg, sysPrompt, skillRegs, pluginTools, g.historyStore, g.logger)
 }
 
@@ -112,33 +109,4 @@ func (g *Gateway) wirePostActionHooks() {
 		const flushPrompt = "Before this conversation compacts, use the remember tool to save any important facts, preferences, or decisions that should persist to long-term memory. Be concise."
 		_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)
 	})
-}
-
-// refreshMemory rebuilds the system prompt and runtime with fresh memory, without restarting channels.
-// Called by the remember tool after a successful write.
-func (g *Gateway) refreshMemory(ctx context.Context) error {
-	g.applyMu.Lock()
-	defer g.applyMu.Unlock()
-	if g.cfg == nil {
-		return nil
-	}
-	sysPrompt, err := buildSysPrompt(ctx, g.cfg.Agent.Workspace, g.memReg, g.cfg)
-	if err != nil {
-		return err
-	}
-	slashReg, err := slash.BuiltIns()
-	if err != nil {
-		return err
-	}
-	if g.plugins != nil {
-		if err := slash.RegisterPluginCommands(slashReg, g.plugins.SlashCommands(g.cfg)); err != nil {
-			return err
-		}
-	}
-	rt, err := g.buildRuntime(g.cfg, sysPrompt, g.skillRegs)
-	if err != nil {
-		return err
-	}
-	g.pipe.SwapRuntime(rt, slashReg)
-	return nil
 }
