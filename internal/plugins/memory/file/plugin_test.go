@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -202,13 +203,13 @@ func TestConfigureTurnJournal_swapsAndAsyncClosesPrevious(t *testing.T) {
 func TestOnTurnCompleted_usesCurrentRuntime(t *testing.T) {
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
-	var fakeACalled, fakeBCalled bool
+	var fakeACalled, fakeBCalled atomic.Bool
 	fakeA := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
-		fakeACalled = true
+		fakeACalled.Store(true)
 		return &sdkapi.Response{}, nil
 	})
 	fakeB := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
-		fakeBCalled = true
+		fakeBCalled.Store(true)
 		return &sdkapi.Response{}, nil
 	})
 	var current shadowRuntime
@@ -227,10 +228,10 @@ func TestOnTurnCompleted_usesCurrentRuntime(t *testing.T) {
 	p.ConfigureTurnJournal(cfg)
 	publishTurnCompleted(f, "hi", "hello")
 	time.Sleep(100 * time.Millisecond)
-	if !fakeBCalled {
+	if !fakeBCalled.Load() {
 		t.Fatal("expected fakeB.Run called with current runtime")
 	}
-	if fakeACalled {
+	if fakeACalled.Load() {
 		t.Fatal("fakeA.Run must not be called after runtime swap")
 	}
 }
@@ -277,7 +278,7 @@ func TestOnTurnCompleted_skipsEmptyExchange(t *testing.T) {
 func TestOnTurnCompleted_appliesTimeout(t *testing.T) {
 	log, _ := newCaptureLogger()
 	cfg := cfgWithShadowEnabled(t.TempDir())
-	var sawDeadline bool
+	var sawDeadline atomic.Bool
 	fake := newFakeRuntime(func(ctx context.Context, _ sdkapi.Request) (*sdkapi.Response, error) {
 		deadline, ok := ctx.Deadline()
 		if !ok {
@@ -291,7 +292,7 @@ func TestOnTurnCompleted_appliesTimeout(t *testing.T) {
 		if ctx.Err() != nil {
 			t.Errorf("ctx must not be cancelled, err=%v", ctx.Err())
 		}
-		sawDeadline = true
+		sawDeadline.Store(true)
 		return &sdkapi.Response{}, nil
 	})
 	p := newTestPlugin(log, factoryFor(fake))
@@ -309,7 +310,7 @@ func TestOnTurnCompleted_appliesTimeout(t *testing.T) {
 		Payload: events.TurnCompleted{UserMsg: "x", AssistantMsg: "y"},
 	})
 	time.Sleep(100 * time.Millisecond)
-	if !sawDeadline {
+	if !sawDeadline.Load() {
 		t.Fatal("Run was not invoked or deadline not checked")
 	}
 }
