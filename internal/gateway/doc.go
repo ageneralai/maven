@@ -7,9 +7,12 @@
 //   - Pipeline reload and shutdown drain via turnMu (kernel/pipeline.Pipeline).
 //   - Gateway.Apply is the single declarative path: ChannelManager.Apply, new runtime via factory,
 //     pipeline.Reload (no separate "first start" branch). Cron proactive delivery is cron.Deliver.AfterSuccessfulRun after a successful job run; TurnExecutor stays pipeline-only.
-//   - The message bus (kernel/bus.New) defaults to kernel/events.NoOp for EventPublisher.
-//     Wire kernel/bus.WithEventPublisher to observe events.EventBusPublishFailure and
-//     events.EventBusClosed emits.
+//   - Events: wireCore builds one kernel/events.Fanout and injects it into the bus
+//     (kernel/bus.WithEventPublisher), the pipeline (Pipeline.SetEventBus), and the plugin
+//     registry (Registry.SetEventBus); there is no process-global registry. The bus emits
+//     events.EventBusPublishFailure and events.EventBusClosed; the pipeline emits
+//     events.EventStreamFailed, events.EventOutboundDeliveryFailed, and events.EventTurnCompleted.
+//     The memory plugin subscribes to events.EventTurnCompleted via plugin.EventAwarePlugin.
 //   - Streaming: kernel/bus.StreamDelegate defaults to noop; wire WithStreamDelegate or
 //     MessageBus.SetStreamDelegate — pipeline wraps channel SendStream with OnStreamBegin/OnStreamEnd.
 //   - Per-turn routing: kernel/turnctx: pipeline attaches WithInbound;

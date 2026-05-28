@@ -48,7 +48,7 @@ sequenceDiagram
     participant Bus
     participant ChMgr as ChannelManager
     participant Channel
-    participant Obs as events.Publisher / HealthReporter
+    participant Obs as events.Fanout / HealthReporter
     Pipeline->>Bus: PublishOutbound(msg)
     Bus->>ChMgr: subscriber callback(msg)
     ChMgr->>Channel: Send(ctx, msg)
