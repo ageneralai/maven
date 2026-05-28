@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	sdkapi "github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
@@ -22,7 +21,7 @@ type Plugin struct {
 	log       *slog.Logger
 	newShadow shadowRuntimeFactory
 	mu        sync.Mutex
-	rt        *sdkapi.Runtime
+	rt        shadowRuntime
 }
 
 var _ plugin.PostTurnPlugin = (*Plugin)(nil)
