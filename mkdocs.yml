@@ -79,7 +79,7 @@ nav:
       - Memory: guides/memory.md
       - Skills: guides/skills.md
       - Slash commands: guides/slash-commands.md
-      - Subagents (Task): guides/subagents.md
+      - Subagents: guides/subagents.md
       - ACP delegation: guides/acp-delegation.md
       - Cron jobs: guides/cron.md
       - Heartbeat: guides/heartbeat.md
