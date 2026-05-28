@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
@@ -137,6 +138,7 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			speaking := pcmRMS(data) > voiceDetectRMSThreshold
 			if speaking && voiceDetectArmed {
 				voiceDetectArmed = false
+				t.log.Debug("web voice vad interrupt", "session", sessionID, "rms", pcmRMS(data))
 				sess.Interrupt()
 				vc.writeCancel()
 			} else if !speaking {
@@ -149,8 +151,10 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+	var transcriptCount atomic.Int64
 	go func() {
 		err := sess.RunSTT(audioCh, func(text string) {
+			t.log.Debug("web voice transcript", "session", sessionID, "n", transcriptCount.Add(1), "text", text)
 			sess.Interrupt()
 			vc.writeCancel()
 			events, err := t.runner.RunStream(r.Context(), text, sessionID)
@@ -252,10 +256,12 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 		for {
 			select {
 			case <-agentCtx.Done():
+				t.log.Debug("web voice turn interrupted", "session", chatID, "err", agentCtx.Err())
 				return
 			case ev, ok := <-events:
 				if !ok {
 					tail := voice.FlushRemainder(&buf)
+					t.log.Debug("web voice turn complete", "session", chatID, "tailLen", len(tail))
 					if tail != "" {
 						select {
 						case textCh <- tail:
@@ -291,6 +297,7 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 		return conn.Write(writeCtx, websocket.MessageBinary, b)
 	}
 	ttsErr := sess.RunTTS(agentCtx, textCh, writeAudio)
+	t.log.Debug("web voice tts done", "session", chatID, "ttsErr", ttsErr, "drainErr", drainErr, "agentCtxErr", agentCtx.Err())
 	if ttsErr != nil {
 		sess.Interrupt()
 	}
