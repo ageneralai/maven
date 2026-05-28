@@ -1,477 +1,117 @@
-<p>
+<p align="center">
   <img src="https://github.com/ageneralai/maven/blob/main/website/public/images/panorama_photosphere_120dp_000_FILL0_wght500_GRAD0_opsz48.png?raw=true" alt="Maven" width="120">
 </p>
 
-# Maven
+<h1 align="center">Maven</h1>
 
-Personal AI assistant built on [ageneral-agents-go](https://github.com/ageneralai/ageneral-agents-go).
+<p align="center">
+  A personal AI assistant. One Go binary that runs locally or in a container, talks to your favorite chat apps, schedules its own work, and delegates coding tasks to external agents.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://ageneralai.github.io/maven/"><strong>Documentation</strong></a> ·
+  <a href="https://ageneralai.github.io/maven/getting-started/">Get started</a> ·
+  <a href="https://ageneralai.github.io/maven/concepts/architecture/">Architecture</a> ·
+  <a href="https://ageneralai.github.io/maven/reference/configuration/">Reference</a>
+</p>
 
-- **CLI Agent** - Single message or interactive REPL mode
-- **Gateway** - Full orchestration: channels + cron + heartbeat
-- **Telegram Channel** - Receive and send messages via Telegram bot (text + image + document); optional **streaming** in private chats (Bot API `sendMessageDraft`) when `channels.telegram.streaming` is true and the model streams tokens
-- **Feishu Channel** - Receive and send messages via Feishu (Lark) bot
-- **WeCom Channel** - Receive inbound messages and send markdown replies via WeCom intelligent bot API mode
-- **WhatsApp Channel** - Receive and send messages via WhatsApp (QR code login)
-- **Matrix Channel** - Receive and send plaintext messages via Matrix (any homeserver); sync loop with auto-join on invite
-- **Web UI** - Browser-based chat interface with WebSocket (responsive, PC + mobile)
-- **Multi-Provider** - Support for Anthropic and OpenAI models
-- **Multimodal** - Image recognition and document processing
-- **Cron Jobs** - Scheduled tasks with JSON persistence
-- **Subagents** - Optional in-process **`Task`** tool for scoped SDK subagent delegation; see [docs/subagents.md](docs/subagents.md)
-- **ACP delegation** - Optional **`DelegateTask`** tool: Maven spawns configured ACP coding agents (stdio); see [docs/acp.md](docs/acp.md)
-- **Heartbeat** - Periodic tasks from HEARTBEAT.md
-- **Memory consolidation** - Background pass that promotes daily journal entries to long-term memory (`MEMORY.md`) on a configurable schedule (`memConsolidate.enabled`, `memConsolidate.intervalHours`)
-- **Memory** - Long-term (MEMORY.md) + daily memories
-- **Skills** - Custom skill loading from workspace
-- **Gateway config hot reload** - Optional watch on `~/.maven/config.json` (`gateway.hotReload`) to reload channels and runtime without restarting the process
-- **Process-level egress** - All outbound HTTP uses `http.DefaultClient` (`HTTPS_PROXY`, `SSL_CERT_FILE`); see [docs/proxy.md](docs/proxy.md) and [docs/onecli.md](docs/onecli.md)
+<p align="center">
+  Built on <a href="https://github.com/ageneralai/ageneral-agents-go">ageneral-agents-go</a> · Licensed under <a href="LICENSE">MIT</a>
+</p>
 
-## Quick Start
-
-```bash
-# Build
-make build
-
-# Build smaller release binary
-make build-release
-
-# Interactive config setup
-make setup
-
-# Or initialize config and workspace manually
-make onboard
-
-# Set your API key in ~/.maven/config.json (see `make onboard`)
-
-# Run agent (single message)
-./maven agent -m "Hello"
-
-# Run agent (REPL mode)
-make run
-
-# Start gateway (channels + cron + heartbeat)
-make gateway
-```
-
-## Makefile Targets
-
-| Target | Description |
-|--------|-------------|
-| `make build` | Build binary |
-| `make build-release` | Release binary; stamps version/commit/date (`git describe`, see `internal/version`) |
-| `make package` | Package optimized binary to `dist/maven-<os>-<arch>.gz` |
-| `make package-all` | Package optimized binaries for `darwin/arm64 linux/amd64 linux/arm64` |
-| `make run` | Run agent REPL |
-| `make gateway` | Start gateway (channels + cron + heartbeat) |
-| `make onboard` | Initialize config and workspace |
-| `make status` | Show maven status |
-| `make setup` | Interactive config setup (generates `~/.maven/config.json`) |
-| `make tunnel` | Start cloudflared tunnel for Feishu webhook |
-| `make test` | Run tests |
-| `make test-race` | Run tests with race detection |
-| `make test-cover` | Run tests with coverage report |
-| `make docker-up` | Docker build and start |
-| `make docker-up-tunnel` | Docker start with cloudflared tunnel |
-| `make docker-down` | Docker stop |
-| `make lint` | Run golangci-lint |
-
-## Binary Packaging
-
-```bash
-# Smaller binary for release
-make build-release
-
-# Create compressed package (.gz)
-make package
-
-# Build and package default multi-platform artifacts
-make package-all
-
-# Or customize target platforms
-make package-all PLATFORMS="linux/amd64 linux/arm64"
-```
-
-`make package` creates a single archive `dist/maven-<os>-<arch>.gz`.
-`make package-all` creates multiple archives under `dist/`, suitable for release distribution and low-bandwidth deployment.
-
-## Configuration
-
-Run `make setup` for interactive config, or copy `config.example.json` to `~/.maven/config.json`:
-
-```json
-{
-  "provider": {
-    "type": "anthropic",
-    "apiKey": "your-api-key",
-    "baseUrl": ""
-  },
-  "agent": {
-    "model": "claude-sonnet-4-5-20250929"
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "your-bot-token",
-      "allowFrom": ["123456789"],
-      "streaming": false
-    },
-    "feishu": {
-      "enabled": true,
-      "appId": "cli_xxx",
-      "appSecret": "your-app-secret",
-      "verificationToken": "your-verification-token",
-      "port": 9876,
-      "allowFrom": []
-    },
-    "wecom": {
-      "enabled": true,
-      "token": "your-token",
-      "encodingAESKey": "your-43-char-encoding-aes-key",
-      "receiveId": "",
-      "port": 9886,
-      "allowFrom": ["zhangsan"]
-    },
-    "whatsapp": {
-      "enabled": true,
-      "allowFrom": []
-    },
-    "matrix": {
-      "enabled": true,
-      "homeserver": "https://matrix.example.org",
-      "accessToken": "syt_...",
-      "userId": "@agent:example.org",
-      "deviceId": "MAVEN01",
-      "allowFrom": [],
-      "allowRooms": []
-    },
-    "web": {
-      "enabled": true,
-      "allowFrom": [],
-      "voice": {
-        "enabled": false
-      }
-    }
-  },
-  "speech": {
-    "sttProvider": "deepgram",
-    "ttsProvider": "openai"
-  },
-  "tools": {
-    "restrictToWorkspace": true,
-    "acp": {
-      "enabled": false,
-      "agents": {
-        "claude": {
-          "command": "npx",
-          "args": ["-y", "@zed-industries/claude-code-acp@latest"]
-        }
-      }
-    }
-  },
-  "skills": {
-    "enabled": true,
-    "dir": ""
-  },
-  "autoCompact": {
-    "enabled": false,
-    "threshold": 0.8,
-    "preserveCount": 5
-  },
-  "gateway": {
-    "host": "0.0.0.0",
-    "port": 18790,
-    "hotReload": false,
-    "reloadDebounceMs": 800,
-    "cron": {
-      "maxConcurrentRuns": 1
-    }
-  }
-}
-```
-
-### Gateway (`host`, `port`, hot reload, cron queue)
-
-- **`gateway.host`** / **`gateway.port`**: HTTP bind for Web UI and channel webhooks (defaults align with `config.example.json`).
-- **`gateway.hotReload`**: when `true`, edits to `~/.maven/config.json` (after a short debounce) trigger a reload; the log line `[gateway] reloaded; …` confirms success. **`agent.workspace` cannot change** on reload (restart required).
-- **`gateway.reloadDebounceMs`**: debounce in milliseconds before reload runs after the file changes; `0` uses an internal default (800ms).
-- **`gateway.cron.maxConcurrentRuns`**: max concurrent **cron** agent turns in the gateway process (default **1** if omitted). Heartbeat uses its own **one-slot** try-once queue. Changing **`maxConcurrentRuns`** requires a **gateway restart** (not hot reload). See `internal/gateway/gateway.go`.
-
-See `config.example.json` for the full schema.
-
-### Tools / ACP (`tools`, `tools.acp`)
-
-- **`tools.restrictToWorkspace`**: when true, sandbox-style tools (and **`DelegateTask`** `cwd` / ACP FS hooks) must stay under **`agent.workspace`**.
-- **`tools.acp`**: optional; when **`enabled`** is true and **`agents`** has valid entries (`command` non-empty per key), the gateway registers **`DelegateTask`**. Agent binaries and args come **only from config**, never from model-supplied shell commands.
-
-Full detail and examples: [docs/acp.md](docs/acp.md).
-
-### Auto-compact (`autoCompact`)
-
-Context rotation when the model nears its window is **off by default** (`enabled: false`). Set **`enabled`** to **`true`** to opt in.
-
-- **`threshold`**: trigger when estimated context usage crosses this fraction of the window (greater than `0`, up to `1`). Default in generated defaults is **`0.8`** when you enable auto-compact.
-- **`preserveCount`**: how many recent turns to keep across a compact boundary (default **`5`** in generated defaults).
-
-Validation rules are enforced in `config.Validate()` when `enabled` is true.
-
-### Telegram (`channels.telegram`)
-
-- **`streaming`** (optional, default `false`): when `true`, the gateway uses the streaming pipeline and Telegram shows progressive output. **Private** DMs use Bot API **`sendMessageDraft`** (then a final `sendMessage`). **Groups/supergroups** use placeholder + `editMessageText` (draft API is private-chat only). For visible streaming, the LLM provider must actually return streamed chunks (`stream: true` / SSE); otherwise you still get one burst when the model finishes.
-
-### Matrix (`channels.matrix`)
-
-- **`homeserver`**, **`accessToken`**, **`userId`**: required when enabled; use a dedicated bot account and a long-lived access token (see [docs/matrix-setup.md](docs/matrix-setup.md)).
-- **`deviceId`** (optional): persisted in `<agent.workspace>/.matrix/state.json`; auto-generated on first start if omitted.
-- **`allowFrom`** / **`allowRooms`**: MXID and room ID allowlists; empty = allow all.
-- Plaintext only (no E2EE in v1). Sync state is stored at `<agent.workspace>/.matrix/state.json`.
-
-### Provider Types
-
-| Type | Config |
-|------|--------|
-| `anthropic` (default) | `"type": "anthropic"` |
-| `openai` | `"type": "openai"` |
-
-When using OpenAI, set the model to an OpenAI model name (e.g., `gpt-4o`).
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `HTTPS_PROXY` | HTTP(S) proxy for all outbound traffic (LLM, channels, tools) |
-| `HTTP_PROXY` | HTTP proxy (fallback when `HTTPS_PROXY` unset) |
-| `NO_PROXY` | Comma-separated hosts to bypass the proxy |
-| `SSL_CERT_FILE` | CA bundle for TLS trust (required for MITM proxies such as OneCLI) |
-
-Set provider keys, channel tokens, and other settings in `~/.maven/config.json` (see `make onboard`).
-
-### Networking (proxy / OneCLI)
-
-Maven has no proxy fields in `config.json`. Set egress at process start:
-
-```bash
-export HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@127.0.0.1:10255   # optional: OneCLI gateway
-export SSL_CERT_FILE=/path/to/proxy-ca.pem  # when the proxy terminates TLS
-./maven gateway
-```
-
-- [Proxy setup](docs/proxy.md) — regions without direct API access, systemd/Docker
-- [OneCLI vault](docs/onecli.md) — credential injection without API keys in config
-
-### Skills
-
-`maven` supports local skills loaded from `SKILL.md` files.
-
-- `skills.enabled`: enable or disable skills (default `true`)
-- `skills.dir`: custom skills directory; empty means `<agent.workspace>/skills`
-- `maven onboard` automatically creates the default skills directory
-
-Skill layout:
-
-```text
-<workspace>/skills/<skill-name>/SKILL.md
-```
-
-Minimal `SKILL.md` example:
-
-```markdown
 ---
-name: writer
-description: writing helper
-keywords: [write, draft]
----
-# Writer
-Use this skill for writing tasks.
-```
 
-After changing skills, either enable **`gateway.hotReload`** and save `~/.maven/config.json` so the gateway reloads skill registration, or restart **`maven gateway`**.
+## Highlights
 
-Skill diagnostics:
+- **Chat in your apps.** Telegram, Feishu (Lark), WeCom, Matrix, WhatsApp, and a built-in Web UI all flow through one agent runtime.
+- **Run on a schedule.** Persistent cron jobs and a periodic heartbeat call the same execution path the chat surfaces use.
+- **Speak and listen.** Realtime browser voice via Deepgram STT and OpenAI / Deepgram / ElevenLabs / Cartesia TTS.
+- **Delegate work.** A `Task` tool runs in-process subagents (explore, plan, general-purpose); a `DelegateTask` tool launches external [ACP](https://agentclientprotocol.com) coding agents (Claude Code, Gemini CLI, …) as subprocesses.
+- **Remember.** Long-term `MEMORY.md` plus daily journals, queryable via `remember`, `memory_search`, and `memory_get`. A background pass consolidates worth-keeping facts.
+- **Stay private.** Process-wide egress honors `HTTPS_PROXY`, `SSL_CERT_FILE`, and `NO_PROXY` so you can route everything through a vault like [OneCLI](https://github.com/onecli/onecli).
+- **Hot reload.** Edit `~/.maven/config.json` and the gateway re-applies without restarting.
 
-```bash
-./maven skills list
-./maven skills info writer
-./maven skills check
-./maven skills list --json
-```
-
-JSON contract (stable):
-
-- Common fields for all `--json` outputs:
-  - `schemaVersion` (int, currently `1`)
-  - `command` (`skills.list` | `skills.info` | `skills.check`)
-  - `ok` (bool)
-- `skills list --json`:
-  - `enabled`, `dir`, `loaded`, `skills[]`
-  - `skills[]` item: `name`, `description`, `keywords[]`
-- `skills info <name> --json`:
-  - `name`, `description`, `dir`, `keywords[]`, `source`, `preview`
-  - optional: `handlerError`
-- `skills check --json`:
-  - `enabled`, `dir`, `skillFolders`, `loaded`, `missingSkillMD[]`, `result`
-  - optional: `note`
-
-## Channel Setup
-
-### Telegram
-
-See [docs/telegram-setup.md](docs/telegram-setup.md) for detailed setup guide.
-
-Quick steps:
-1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
-2. Set `channels.telegram.token` in `~/.maven/config.json`
-3. For progressive replies in **private** chats, set `"streaming": true` under `channels.telegram` (see **Telegram** under Configuration above); your model endpoint must stream tokens
-4. Run `make gateway`
-
-### Feishu (Lark)
-
-See [docs/feishu-setup.md](docs/feishu-setup.md) for detailed setup guide.
-
-Quick steps:
-1. Create an app at [Feishu Open Platform](https://open.feishu.cn/app)
-2. Enable **Bot** capability
-3. Add permissions: `im:message`, `im:message:send_as_bot`
-4. Configure Event Subscription URL: `https://your-domain/feishu/webhook`
-5. Subscribe to event: `im.message.receive_v1`
-6. Set `appId`, `appSecret`, `verificationToken` in config
-7. Run `make gateway` and `make tunnel` (for public webhook URL)
-
-### WeCom
-
-See [docs/wecom-setup.md](docs/wecom-setup.md) for detailed setup guide.
-
-Quick steps:
-1. Create a WeCom intelligent bot in API mode and get `token`, `encodingAESKey`
-2. Configure callback URL: `https://your-domain/wecom/bot`
-3. Set `token` and `encodingAESKey` in both WeCom console and maven config
-4. Optionally set `receiveId` if you need strict decrypt receive-id validation
-5. Optional: set `allowFrom` to your user ID(s) as whitelist (if unset/empty, inbound from all users is allowed)
-6. Run `make gateway`
-
-WeCom notes:
-- Outbound is **reactive only** (passive reply URLs from inbound). **Cron jobs with `deliver: true` skip WeCom** and log a skip message; use another channel for proactive delivery.
-- Outbound uses `response_url` and sends `markdown` payloads
-- `response_url` is short-lived (often single-use); delayed or repeated replies may fail
-- Outbound markdown content over 20480 bytes is truncated
-
-### WhatsApp
-
-Quick steps:
-1. Set `"whatsapp": {"enabled": true}` in config
-2. Run `make gateway`
-3. Scan the QR code displayed in terminal with your WhatsApp
-4. Session is stored locally in SQLite (auto-reconnects on restart)
-
-### Matrix
-
-See [docs/matrix-setup.md](docs/matrix-setup.md) for detailed setup guide.
-
-Quick steps:
-1. Create a dedicated bot account on your Matrix homeserver
-2. Obtain a long-lived **access token** and the bot **MXID** (`@agent:example.org`)
-3. Set `homeserver`, `accessToken`, and `userId` under `channels.matrix` in config
-4. Run `make gateway`
-5. Invite the bot MXID to a room and send a message to test
-
-Matrix notes:
-- Plaintext messages only (encrypted rooms are not supported in v1)
-- Auto-joins rooms when invited
-- Sync state persists at `<agent.workspace>/.matrix/state.json`
-
-### Web UI
-
-Quick steps:
-1. Set `"web": {"enabled": true}` in config
-2. Run `make gateway`
-3. Open `http://localhost:18790` in your browser (PC or mobile)
-
-Features:
-- Responsive design (PC + mobile)
-- Dark mode (follows system preference)
-- WebSocket real-time communication
-- Markdown rendering (code blocks, bold, italic, links)
-- Auto-reconnect on connection loss
-
-## Docker Deployment
-
-### Build and Run
+## Quick start
 
 ```bash
-docker build -t maven .
+make build               # build the binary
+make setup               # interactive ~/.maven/config.json (fills in a provider key)
+make onboard             # initialize the workspace
 
-docker run -d \
-  -e HTTPS_PROXY=http://x:aoc_YOUR_TOKEN@host.docker.internal:10255 \
-  -e SSL_CERT_FILE=/etc/proxy/ca.pem \
-  -p 18790:18790 \
-  -p 9876:9876 \
-  -p 9886:9886 \
-  -v maven-data:/root/.maven \
-  maven
+./maven agent -m "Hello" # one-shot CLI
+make run                 # interactive REPL
+make gateway             # persistent gateway (channels + cron + heartbeat)
 ```
 
-### Docker Compose
-
-```bash
-# Create .env from example
-cp .env.example .env
-# Edit .env with your credentials
-
-# Start gateway
-docker compose up -d
-
-# Start with cloudflared tunnel (for Feishu webhook)
-docker compose --profile tunnel up -d
-
-# View logs
-docker compose logs -f maven
-```
-
-### Cloudflared Tunnel
-
-For Feishu webhooks, you need a public URL:
-
-```bash
-# Temporary tunnel (dev)
-make tunnel
-
-# Or via docker compose
-docker compose --profile tunnel up -d
-docker compose logs tunnel | grep trycloudflare
-```
-
-Set the output URL + `/feishu/webhook` as your Feishu event subscription URL.
-
-## Security
-
-- `~/.maven/config.json` is set to `chmod 600` (owner read/write only)
-- `.gitignore` excludes `config.json`
-- Use environment variables for sensitive values in CI/CD and production
-- Never commit real API keys or tokens to version control
-
-## Testing
-
-```bash
-make test            # Run all tests
-make test-race       # Run with race detection
-make test-cover      # Run with coverage report
-make lint            # Run golangci-lint
-```
+Full walkthrough: **[Get started](https://ageneralai.github.io/maven/getting-started/)**.
 
 ## Documentation
 
-Published docs: [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/)
+The full manual lives at **<https://ageneralai.github.io/maven/>**:
 
-Source lives in `docs/` (MkDocs + Material). To preview or publish:
+- [Concepts](https://ageneralai.github.io/maven/concepts/architecture/) — architecture, pipeline, plugins, sessions, streaming.
+- [Guides](https://ageneralai.github.io/maven/guides/workspace/) — workspace, memory, skills, slash commands, cron, voice, subagents, ACP, hot reload.
+- [Channels](https://ageneralai.github.io/maven/channels/) — Telegram, Feishu, WeCom, Matrix, WhatsApp, Web UI.
+- [Deployment](https://ageneralai.github.io/maven/deployment/docker/) — Docker, proxy, OneCLI vault.
+- [Reference](https://ageneralai.github.io/maven/reference/configuration/) — configuration schema, CLI, environment, HTTP API.
+
+The doc source lives in [`docs/`](docs/) (MkDocs Material). To preview locally:
 
 ```bash
 pip install -r requirements-docs.txt
-mkdocs serve                    # http://127.0.0.1:8000/
+mkdocs serve  # http://127.0.0.1:8000/
 ```
 
-Pushes to `main` deploy docs to **`gh-pages`** via CI. See [docs/contributing.md](docs/contributing.md) for the full contributor workflow.
+Pushes to `main` deploy to **`gh-pages`** via CI. See [contributing](https://ageneralai.github.io/maven/contributing/) for the workflow.
+
+## Project layout
+
+```text
+cmd/maven/      CLI entry point
+internal/
+  gateway/      composition root (wire.go) and lifecycle
+  kernel/       plugin-agnostic core (no plugin imports)
+  plugins/      channel, tool, skill, voice, trigger, memory plugins
+docs/           MkDocs source for the documentation site
+scripts/        interactive setup
+```
+
+The architectural rule is one-way: `internal/kernel/` never imports `internal/plugins/`. Composition happens exactly once, in `internal/gateway/wire.go`. See [Architecture](https://ageneralai.github.io/maven/concepts/architecture/).
+
+## Develop
+
+```bash
+make build         # binary
+make test          # tests
+make test-race     # race detector
+make test-cover    # coverage report
+make lint          # golangci-lint v2
+make ci            # lint + vet + race tests
+```
+
+Docker:
+
+```bash
+make docker-up           # build and start
+make docker-up-tunnel    # also start cloudflared tunnel for Feishu
+make docker-down
+```
+
+Release binaries:
+
+```bash
+make build-release                                     # smaller, version-stamped binary
+make package                                            # dist/maven-<os>-<arch>.gz
+make package-all PLATFORMS="darwin/arm64 linux/amd64"   # multi-platform
+```
+
+## Security
+
+- `~/.maven/config.json` is written with mode `0600`.
+- `.gitignore` excludes `config.json`.
+- For production, front the gateway with a reverse proxy and put credentials behind a vault — see [OneCLI](https://ageneralai.github.io/maven/deployment/onecli/).
+- Never commit real API keys, bot tokens, or encryption keys to version control.
 
 ## License
 
-MIT
+[MIT](LICENSE).
