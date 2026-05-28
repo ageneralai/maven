@@ -50,7 +50,7 @@ type Gateway struct {
 	memReg         *kmemory.Registry
 	skillRegs      []api.SkillRegistration
 	sessions       *mavsession.Router
-	historyStore   *mavsession.Store
+	historyStore   *mavsession.NoIsolatedStore
 	signalChan     chan os.Signal
 	logger         *slog.Logger
 	liveness       health.HealthReporter

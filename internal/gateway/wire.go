@@ -40,7 +40,7 @@ type coreDeps struct {
 	logger         *slog.Logger
 	bus            *bus.MessageBus
 	sessions       *mavsession.Router
-	historyStore   *mavsession.Store
+	historyStore   *mavsession.NoIsolatedStore
 	liveness       health.HealthReporter
 	signalChan     chan os.Signal
 	runtimeFactory RuntimeFactory
@@ -74,7 +74,7 @@ func wireCore(cfg *config.Config, opts Options) (*coreDeps, error) {
 		logger:         opts.Logger,
 		bus:            bus.New(config.DefaultBufSize, opts.Logger, bus.WithHealthReporter(health.OrHealthReporter(opts.HealthReporter))),
 		sessions:       router,
-		historyStore:   histStore,
+		historyStore:   mavsession.NewNoIsolatedStore(histStore),
 		liveness:       health.OrHealthReporter(opts.HealthReporter),
 		signalChan:     opts.SignalChan,
 		runtimeFactory: factory,
