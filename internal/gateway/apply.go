@@ -11,6 +11,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	mavenlog "github.com/ageneralai/maven/internal/kernel/log"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
@@ -39,6 +40,15 @@ func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 		return nil
 	}
 	return g.plugins.Skills(cfg)
+}
+
+func (g *Gateway) applyLogLevel(cfg *config.Config) error {
+	level, err := config.ParseLogLevel(cfg.Logging.Level)
+	if err != nil {
+		return err
+	}
+	mavenlog.SetLevel(level)
+	return nil
 }
 
 func (g *Gateway) validateReload(cfg *config.Config) error {
@@ -83,6 +93,9 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	defer g.applyMu.Unlock()
 	if err := g.validateReload(cfg); err != nil {
 		return err
+	}
+	if err := g.applyLogLevel(cfg); err != nil {
+		return fmt.Errorf("logging.level: %w", err)
 	}
 	g.stopTriggers()
 	if err := g.ensureCronService(); err != nil {

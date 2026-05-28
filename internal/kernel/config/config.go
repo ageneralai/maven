@@ -35,6 +35,11 @@ type Config struct {
 	ShadowJournal  ShadowJournalConfig  `json:"shadowJournal,omitempty"`
 	Gateway        GatewayConfig        `json:"gateway"`
 	Speech        SpeechConfig        `json:"speech,omitempty"`
+	Logging       LoggingConfig       `json:"logging,omitempty"`
+}
+
+type LoggingConfig struct {
+	Level string `json:"level,omitempty"` // debug, info, warn, error (default: info)
 }
 
 type AgentConfig struct {
@@ -267,7 +272,16 @@ func (c *Config) Validate() error {
 		c.Gateway.Validate(),
 		c.Channels.Validate(),
 		c.AutoCompact.Validate(),
+		c.Logging.Validate(),
 	)
+}
+
+func (c LoggingConfig) Validate() error {
+	if strings.TrimSpace(c.Level) == "" {
+		return nil
+	}
+	_, err := ParseLogLevel(c.Level)
+	return err
 }
 
 func (c ProviderConfig) Validate() error {

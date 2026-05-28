@@ -204,6 +204,12 @@ Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice]
 
 Credentials come from environment variables; see [Reference: Environment](environment.md).
 
+## `logging`
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `level` | `info` | Process log verbosity: `debug`, `info`, `warn`, `error`. Hot reload applies changes when `gateway.hotReload` is enabled. Or set `MAVEN_LOG_LEVEL` at process start. |
+
 ## `gateway`
 
 | Field | Default | Description |
@@ -224,6 +230,7 @@ Aggregated errors surface from `Config.Validate()`:
 - `channels.<name>.…` field-specific messages
 - `autoCompact.threshold must be in (0,1] when autoCompact.enabled`
 - `autoCompact.preserveCount must be non-negative`
+- invalid `logging.level` (must be `debug`, `info`, `warn`, or `error`)
 
 Errors join with `errors.Join` — a single failed `Validate()` returns every problem at once.
 

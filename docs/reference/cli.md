@@ -108,6 +108,6 @@ Most operational failures (channel auth, slow LLM, missing files) log at `error`
 
 ## Logging
 
-Output is `slog` text on TTY, JSON otherwise (`internal/kernel/log/log.Std`). Levels: `debug`, `info`, `warn`, `error`. There is no `--log-level` flag yet — the default is `info`.
+Output is `slog` text on TTY, JSON otherwise (`internal/kernel/log/log.New`). Levels: `debug`, `info`, `warn`, `error`. Default is `info`.
 
-To increase verbosity in development, run with `LOG_LEVEL` if you wire it via your environment, or fork the log handler in `internal/kernel/log` to honor a flag.
+Set `logging.level` in `~/.maven/config.json` or `MAVEN_LOG_LEVEL` in the environment. Env always wins — it is applied on every `LoadConfig` call, including hot reload. With `gateway.hotReload = true`, changing `logging.level` in config takes effect on reload only when `MAVEN_LOG_LEVEL` is not set.

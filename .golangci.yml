@@ -22,7 +22,7 @@ linters:
     forbidigo:
       forbid:
         - pattern: '^slog\.Default\(\)'
-          msg: use injected logger (kernel/log.Std), not slog.Default
+          msg: use injected logger (kernel/log.New), not slog.Default
     revive:
       rules:
         - name: exported

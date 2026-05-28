@@ -123,5 +123,8 @@
     "cron": {
       "maxConcurrentRuns": 1
     }
+  },
+  "logging": {
+    "level": "info"
   }
 }

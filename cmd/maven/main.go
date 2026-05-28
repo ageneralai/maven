@@ -125,7 +125,12 @@ func init() {
 }
 
 func main() {
-	app := cmdContext{log: mavenlog.Std()}
+	level, err := config.BootstrapLogLevel()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maven: %v\n", err)
+		os.Exit(1)
+	}
+	app := cmdContext{log: mavenlog.New(level)}
 	slog.SetDefault(app.log)
 	app.bindCommands()
 	if err := rootCmd.Execute(); err != nil {

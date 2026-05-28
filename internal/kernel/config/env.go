@@ -18,6 +18,7 @@ func applyEnv(cfg *Config) {
 	setFromEnv(&cfg.Speech.ElevenLabs.VoiceID, os.Getenv("ELEVENLABS_VOICE_ID"))
 	setFromEnv(&cfg.Speech.Cartesia.APIKey, os.Getenv("CARTESIA_API_KEY"))
 	setFromEnv(&cfg.Speech.Cartesia.VoiceID, os.Getenv("CARTESIA_VOICE_ID"))
+	setFromEnv(&cfg.Logging.Level, os.Getenv("MAVEN_LOG_LEVEL"))
 }
 
 func setFromEnv(field *string, val string) {

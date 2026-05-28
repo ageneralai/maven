@@ -7,6 +7,7 @@ Maven loads config from `~/.maven/config.json` (or `MAVEN_CONFIG`). Environment 
 | Variable | Purpose |
 |----------|---------|
 | `MAVEN_CONFIG` | Path to config file (default: `~/.maven/config.json`) |
+| `MAVEN_LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, or `error`. Overrides `logging.level` in config. Applied on every config load, including hot reload — env always wins. |
 
 ## Provider credentials
 

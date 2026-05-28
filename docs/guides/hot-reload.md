@@ -28,6 +28,7 @@ Hot reload re-runs `Gateway.Apply`, which:
 - Builds a fresh agent runtime via the factory.
 - Re-applies channels (`ChannelManager.Apply`): stops removed/changed channels, starts new ones.
 - Restarts background triggers (cron, heartbeat, mem-consolidate).
+- Updates log verbosity from `logging.level` (and `MAVEN_LOG_LEVEL` when set at load time).
 
 The pipeline runtime swap happens under the write lock; in-flight chat turns drain first.
 
