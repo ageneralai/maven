@@ -8,6 +8,7 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/executor"
+	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/voice"
 )
 
@@ -106,10 +107,9 @@ type TriggerPlugin interface {
 	Triggers(cfg *config.Config) []Trigger
 }
 
-// PostTurnPlugin optionally contributes a handler called after each real user conversation turn.
-// The handler receives the user message and assistant response. It is called in a goroutine
-// and must not block the pipeline. Returning nil disables the hook.
+// PostTurnPlugin optionally contributes a handler called by the pipeline after each real user
+// conversation turn. The pipeline fires it in a goroutine; returning nil disables the hook.
 type PostTurnPlugin interface {
 	Plugin
-	PostTurnHandler(cfg *config.Config) func(ctx context.Context, userMsg, assistantMsg string)
+	PostTurnHandler(cfg *config.Config) hook.PostTurnHandler
 }

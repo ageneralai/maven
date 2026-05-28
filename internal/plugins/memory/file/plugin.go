@@ -16,6 +16,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/google/uuid"
 )
@@ -48,7 +49,8 @@ func (p *Plugin) Stop() error {
 
 // PostTurnHandler implements plugin.PostTurnPlugin. It builds a shadow runtime with only the
 // memory tools and returns a handler that journals net-new facts after each conversation turn.
-func (p *Plugin) PostTurnHandler(cfg *config.Config) func(ctx context.Context, userMsg, assistantMsg string) {
+// The pipeline fires the returned handler in a goroutine; this function runs synchronously.
+func (p *Plugin) PostTurnHandler(cfg *config.Config) hook.PostTurnHandler {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.shadowRt != nil {
@@ -73,27 +75,24 @@ func (p *Plugin) PostTurnHandler(cfg *config.Config) func(ctx context.Context, u
 	}
 	p.shadowRt = rt
 	log := p.log
-	return func(ctx context.Context, userMsg, assistantMsg string) {
-		if userMsg == "" && assistantMsg == "" {
+	return func(ctx context.Context, ev hook.PostTurnEvent) {
+		if ev.UserMsg == "" && ev.AssistantMsg == "" {
 			return
 		}
-		prompt := fmt.Sprintf("User: %s\n\nAssistant: %s", userMsg, assistantMsg)
-		sessionID := uuid.New().String()
-		go func() {
-			resp, err := rt.Run(context.WithoutCancel(ctx), sdkapi.Request{
-				Prompt:    prompt,
-				SessionID: sessionID,
-			})
-			if err != nil {
-				log.Debug("memory-file: shadow turn failed", "err", err)
-				return
-			}
-			if resp != nil && resp.Result != nil && len(resp.Result.ToolCalls) > 0 {
-				log.Info("memory-file: remembered", "content", resp.Result.ToolCalls[0].Arguments["content"])
-			} else {
-				log.Debug("memory-file: nothing to journal")
-			}
-		}()
+		prompt := fmt.Sprintf("User: %s\n\nAssistant: %s", ev.UserMsg, ev.AssistantMsg)
+		resp, err := rt.Run(ctx, sdkapi.Request{
+			Prompt:    prompt,
+			SessionID: uuid.New().String(),
+		})
+		if err != nil {
+			log.Debug("memory-file: shadow turn failed", "err", err)
+			return
+		}
+		if resp != nil && resp.Result != nil && len(resp.Result.ToolCalls) > 0 {
+			log.Info("memory-file: remembered", "content", resp.Result.ToolCalls[0].Arguments["content"])
+		} else {
+			log.Debug("memory-file: nothing to journal")
+		}
 	}
 }
 

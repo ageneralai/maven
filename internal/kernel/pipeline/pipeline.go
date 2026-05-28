@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/kernel/agent"
@@ -15,13 +16,14 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/channel/manager"
-	"github.com/ageneralai/maven/internal/kernel/health"
-	"github.com/ageneralai/maven/internal/kernel/session"
-	"github.com/ageneralai/maven/internal/kernel/slash"
-	turnctx "github.com/ageneralai/maven/internal/kernel/turnctx"
 	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/executor"
+	"github.com/ageneralai/maven/internal/kernel/health"
+	"github.com/ageneralai/maven/internal/kernel/hook"
+	"github.com/ageneralai/maven/internal/kernel/session"
+	"github.com/ageneralai/maven/internal/kernel/slash"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
+	turnctx "github.com/ageneralai/maven/internal/kernel/turnctx"
 )
 
 const userErrMessage = "Sorry, I encountered an error processing your message."
@@ -51,7 +53,7 @@ type Pipeline struct {
 	sessions      session.Resolver
 	posts         postaction.Handler
 	liveness      health.HealthReporter
-	postTurnHook  func(ctx context.Context, userMsg, assistantMsg string)
+	postTurnHook  hook.PostTurnHandler
 	turnMu        sync.RWMutex
 	rt            agent.Runtime
 }
@@ -66,8 +68,8 @@ func (p *Pipeline) Posts() postaction.Handler {
 	return p.posts
 }
 
-// SetPostTurnHook registers a callback invoked after each successful sync turn with the user message and assistant response.
-func (p *Pipeline) SetPostTurnHook(fn func(ctx context.Context, userMsg, assistantMsg string)) {
+// SetPostTurnHook registers a handler invoked in a goroutine after each successful user conversation turn.
+func (p *Pipeline) SetPostTurnHook(fn hook.PostTurnHandler) {
 	p.postTurnHook = fn
 }
 
@@ -264,10 +266,10 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		p.bus.OnStreamEnd(streamCtx, streamHints, err)
 		return err
 	}
-	hook := p.postTurnHook
+	hookFn := p.postTurnHook
 	var intercepted <-chan api.StreamEvent
 	var outputCollector *strings.Builder
-	if hook != nil && plan.sessionMode == session.SessionModeCurrent {
+	if hookFn != nil && plan.sessionMode == session.SessionModeCurrent {
 		var sb strings.Builder
 		outputCollector = &sb
 		intercepted = collectStreamOutput(streamEvents, &sb)
@@ -281,8 +283,16 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		p.reportStreamFailed(ctx, msg.Channel, msg.ChatID, sendErr)
 	}
 	p.bus.OnStreamEnd(streamCtx, streamHints, sendErr)
-	if sendErr == nil && hook != nil && outputCollector != nil {
-		hook(ctx, msg.Content, outputCollector.String())
+	if sendErr == nil && hookFn != nil && outputCollector != nil {
+		ev := hook.PostTurnEvent{
+			UserMsg:      msg.Content,
+			AssistantMsg: outputCollector.String(),
+			SessionID:    sessionKey,
+			Channel:      msg.Channel,
+			ChatID:       msg.ChatID,
+			At:           time.Now(),
+		}
+		go hookFn(context.WithoutCancel(ctx), ev)
 	}
 	return sendErr
 }
@@ -328,7 +338,16 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 		}
 	}
 	if p.postTurnHook != nil && plan.sessionMode == session.SessionModeCurrent {
-		p.postTurnHook(ctx, msg.Content, result)
+		ev := hook.PostTurnEvent{
+			UserMsg:      msg.Content,
+			AssistantMsg: result,
+			SessionID:    sessionKey,
+			Channel:      msg.Channel,
+			ChatID:       msg.ChatID,
+			At:           time.Now(),
+		}
+		h := p.postTurnHook
+		go h(context.WithoutCancel(ctx), ev)
 	}
 	return nil
 }

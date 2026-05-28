@@ -8,6 +8,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/kernel/hook"
 	"github.com/ageneralai/maven/internal/kernel/voice"
 )
 
@@ -153,13 +154,13 @@ func (r *Registry) Stop() error {
 	return nil
 }
 
-// PostTurnHandler composes handlers from all PostTurnPlugin implementations into one function.
+// PostTurnHandler composes handlers from all PostTurnPlugin implementations into one.
 // Each plugin's handler is called in registration order. Returns nil if no plugin provides one.
-func (r *Registry) PostTurnHandler(cfg *config.Config) func(ctx context.Context, userMsg, assistantMsg string) {
+func (r *Registry) PostTurnHandler(cfg *config.Config) hook.PostTurnHandler {
 	if r == nil || cfg == nil {
 		return nil
 	}
-	var handlers []func(ctx context.Context, userMsg, assistantMsg string)
+	var handlers []hook.PostTurnHandler
 	for _, p := range r.plugins {
 		if ptp, ok := p.(PostTurnPlugin); ok {
 			if h := ptp.PostTurnHandler(cfg); h != nil {
@@ -170,9 +171,9 @@ func (r *Registry) PostTurnHandler(cfg *config.Config) func(ctx context.Context,
 	if len(handlers) == 0 {
 		return nil
 	}
-	return func(ctx context.Context, userMsg, assistantMsg string) {
+	return func(ctx context.Context, ev hook.PostTurnEvent) {
 		for _, h := range handlers {
-			h(ctx, userMsg, assistantMsg)
+			h(ctx, ev)
 		}
 	}
 }
