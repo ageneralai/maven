@@ -5,12 +5,11 @@ import (
 	"strings"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/httpc"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	pkgvoice "github.com/ageneralai/maven/internal/kernel/voice"
 )
 
-// Plugin exposes Deepgram STT/TTS when speech config selects deepgram.
 type Plugin struct{}
 
 func NewPlugin() plugin.Plugin { return Plugin{} }
@@ -21,30 +20,30 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if cfg == nil || !pkgvoice.SelectedForTTS(cfg, "deepgram") {
 		return nil
 	}
-	k := pkgvoice.MergeKeys(cfg)
-	if strings.TrimSpace(k.Deepgram) == "" {
+	apiKey := strings.TrimSpace(cfg.Speech.Deepgram.APIKey)
+	if apiKey == "" {
 		return nil
 	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Deepgram.Proxy)
 	if err != nil {
 		return nil
 	}
-	return &TTS{APIKey: k.Deepgram, HTTPClient: httpClient}
+	return &TTS{APIKey: apiKey, HTTPClient: httpClient}
 }
 
 func (Plugin) STTProvider(cfg *config.Config) pkgvoice.STTProvider {
 	if cfg == nil || !pkgvoice.SelectedForSTT(cfg, "deepgram") {
 		return nil
 	}
-	k := pkgvoice.MergeKeys(cfg)
-	if strings.TrimSpace(k.Deepgram) == "" {
+	apiKey := strings.TrimSpace(cfg.Speech.Deepgram.APIKey)
+	if apiKey == "" {
 		return nil
 	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Deepgram.Proxy)
 	if err != nil {
 		return nil
 	}
-	return &STT{APIKey: k.Deepgram, HTTPClient: httpClient}
+	return &STT{APIKey: apiKey, HTTPClient: httpClient}
 }
 
 func (Plugin) Start(context.Context) error { return nil }

@@ -5,12 +5,11 @@ import (
 	"strings"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/httpc"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	pkgvoice "github.com/ageneralai/maven/internal/kernel/voice"
 )
 
-// Plugin exposes ElevenLabs TTS when speech config selects elevenlabs.
 type Plugin struct{}
 
 func NewPlugin() plugin.Plugin { return Plugin{} }
@@ -25,15 +24,15 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if voiceID == "" {
 		return nil
 	}
-	k := pkgvoice.MergeKeys(cfg)
-	if strings.TrimSpace(k.ElevenLabs) == "" {
+	apiKey := strings.TrimSpace(cfg.Speech.ElevenLabs.APIKey)
+	if apiKey == "" {
 		return nil
 	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Speech.ElevenLabs.Proxy)
 	if err != nil {
 		return nil
 	}
-	return &TTS{APIKey: k.ElevenLabs, VoiceID: voiceID, HTTPClient: httpClient}
+	return &TTS{APIKey: apiKey, VoiceID: voiceID, HTTPClient: httpClient}
 }
 
 func (Plugin) Start(context.Context) error { return nil }

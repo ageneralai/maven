@@ -2,7 +2,6 @@ package voice
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
@@ -26,7 +25,7 @@ func NewSTT(cfg *config.Config, reg ProviderRegistry) (STT, error) {
 	}
 	switch STTName(cfg) {
 	case "deepgram":
-		if strings.TrimSpace(MergeKeys(cfg).Deepgram) == "" {
+		if strings.TrimSpace(cfg.Speech.Deepgram.APIKey) == "" {
 			return nil, fmt.Errorf("speech: deepgram api key is empty")
 		}
 		return nil, fmt.Errorf("speech: deepgram stt provider not registered")
@@ -49,28 +48,32 @@ func NewTTS(cfg *config.Config, reg ProviderRegistry) (TTS, error) {
 	}
 	switch TTSName(cfg) {
 	case "deepgram":
-		if strings.TrimSpace(MergeKeys(cfg).Deepgram) == "" {
+		if strings.TrimSpace(cfg.Speech.Deepgram.APIKey) == "" {
 			return nil, fmt.Errorf("speech: deepgram api key is empty")
 		}
 		return nil, fmt.Errorf("speech: deepgram tts provider not registered")
 	case "openai":
-		if strings.TrimSpace(MergeKeys(cfg).OpenAI) == "" {
+		apiKey := cfg.Speech.OpenAI.APIKey
+		if apiKey == "" {
+			apiKey = cfg.Provider.APIKey
+		}
+		if strings.TrimSpace(apiKey) == "" {
 			return nil, fmt.Errorf("speech: openai api key is empty")
 		}
 		return nil, fmt.Errorf("speech: openai tts provider not registered")
 	case "elevenlabs":
-		if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
-			return nil, fmt.Errorf("speech: ELEVENLABS_VOICE_ID is required for elevenlabs tts")
+		if strings.TrimSpace(cfg.Speech.ElevenLabs.VoiceID) == "" {
+			return nil, fmt.Errorf("speech: speech.elevenlabs.voiceId is required for elevenlabs tts")
 		}
-		if strings.TrimSpace(MergeKeys(cfg).ElevenLabs) == "" {
+		if strings.TrimSpace(cfg.Speech.ElevenLabs.APIKey) == "" {
 			return nil, fmt.Errorf("speech: elevenlabs api key is empty")
 		}
 		return nil, fmt.Errorf("speech: elevenlabs tts provider not registered")
 	case "cartesia":
-		if strings.TrimSpace(os.Getenv("CARTESIA_VOICE_ID")) == "" {
-			return nil, fmt.Errorf("speech: CARTESIA_VOICE_ID is required for cartesia tts")
+		if strings.TrimSpace(cfg.Speech.Cartesia.VoiceID) == "" {
+			return nil, fmt.Errorf("speech: speech.cartesia.voiceId is required for cartesia tts")
 		}
-		if strings.TrimSpace(MergeKeys(cfg).Cartesia) == "" {
+		if strings.TrimSpace(cfg.Speech.Cartesia.APIKey) == "" {
 			return nil, fmt.Errorf("speech: cartesia api key is empty")
 		}
 		return nil, fmt.Errorf("speech: cartesia tts provider not registered")

@@ -1,6 +1,24 @@
 # Environment variables
 
-Maven prefers config over environment for most things, but a handful of values live in env by design — primarily for credentials handed off to a vault and for per-process egress.
+Maven loads config from `~/.maven/config.json` (or `MAVEN_CONFIG`). Environment variables overlay matching config fields at load time — if an env var is set, it overrides the corresponding config value.
+
+## Config path
+
+| Variable | Purpose |
+|----------|---------|
+| `MAVEN_CONFIG` | Path to config file (default: `~/.maven/config.json`) |
+
+## Provider credentials
+
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | LLM provider API key when `provider.type` is `anthropic` (default) |
+| `OPENAI_API_KEY` | LLM provider API key when `provider.type` is `openai`; also used for OpenAI TTS |
+| `DEEPGRAM_API_KEY` | Deepgram STT/TTS API key |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS API key |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID |
+| `CARTESIA_API_KEY` | Cartesia TTS API key |
+| `CARTESIA_VOICE_ID` | Cartesia voice ID |
 
 ## Networking
 
@@ -12,24 +30,6 @@ Maven prefers config over environment for most things, but a handful of values l
 | `SSL_CERT_FILE` | CA bundle path for TLS trust. | Required for MITM proxies like [OneCLI](../deployment/onecli.md). |
 
 These are read by Go's `http.DefaultTransport.Proxy` and `crypto/x509`. Maven has no proxy fields in config.
-
-## Voice provider credentials
-
-`internal/kernel/voice/keys.go` resolves credentials at gateway start:
-
-| Env | Fallback | Used by |
-|-----|----------|---------|
-| `MAVEN_DEEPGRAM_API_KEY` | `DEEPGRAM_API_KEY` | Deepgram STT + TTS. |
-| `MAVEN_ELEVENLABS_API_KEY` | `ELEVENLABS_API_KEY` | ElevenLabs TTS. |
-| `MAVEN_CARTESIA_API_KEY` | `CARTESIA_API_KEY` | Cartesia TTS. |
-| `OPENAI_API_KEY` | `MAVEN_OPENAI_API_KEY` then `provider.apiKey` (when provider type is OpenAI) | OpenAI TTS. |
-
-Voice-specific required IDs:
-
-| Env | Required when | Purpose |
-|-----|---------------|---------|
-| `ELEVENLABS_VOICE_ID` | `speech.ttsProvider = "elevenlabs"` | ElevenLabs voice id. |
-| `CARTESIA_VOICE_ID` | `speech.ttsProvider = "cartesia"` | Cartesia voice id. |
 
 ## Build-time variables (Makefile)
 
@@ -45,11 +45,8 @@ Used by `make build-release` / `make package*`:
 
 ## What's *not* an env var
 
-- LLM keys for the model provider — set in `provider.apiKey`. Use [OneCLI](../deployment/onecli.md) if you want them out of config.
 - Channel tokens (Telegram bot token, Matrix access token, WeCom encoding key, etc.) — set in `channels.<name>` config.
 - Workspace path — set in `agent.workspace` config.
-
-There is no `MAVEN_CONFIG` env override today; the path is fixed at `~/.maven/config.json` via `config.ConfigPath()`. Override by running as a different user (`HOME`).
 
 ## `HOME`
 

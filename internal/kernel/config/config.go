@@ -161,7 +161,7 @@ type WebConfig struct {
 	Voice     WebVoiceConfig `json:"voice"`
 }
 
-// SpeechConfig selects platform STT/TTS providers (credentials via env; see kernel/voice.MergeKeys).
+// SpeechConfig selects platform STT/TTS providers.
 // sttProvider: deepgram (default). ttsProvider: openai (default) | deepgram | elevenlabs | cartesia.
 type SpeechConfig struct {
 	STTProvider string           `json:"sttProvider,omitempty"`
@@ -173,6 +173,7 @@ type SpeechConfig struct {
 }
 
 type CartesiaConfig struct {
+	APIKey     string `json:"apiKey,omitempty"`
 	VoiceID    string `json:"voiceId,omitempty"`
 	ModelID    string `json:"modelId,omitempty"`
 	APIVersion string `json:"apiVersion,omitempty"`
@@ -180,16 +181,19 @@ type CartesiaConfig struct {
 }
 
 type ElevenLabsConfig struct {
+	APIKey  string `json:"apiKey,omitempty"`
 	VoiceID string `json:"voiceId,omitempty"`
 	Proxy   string `json:"proxy,omitempty"`
 }
 
 type DeepgramConfig struct {
-	Proxy string `json:"proxy,omitempty"`
+	APIKey string `json:"apiKey,omitempty"`
+	Proxy  string `json:"proxy,omitempty"`
 }
 
 type OpenAISpeechConfig struct {
-	Proxy string `json:"proxy,omitempty"`
+	APIKey string `json:"apiKey,omitempty"`
+	Proxy  string `json:"proxy,omitempty"`
 }
 
 // WebVoiceConfig enables browser realtime voice on the Web UI (/ws/voice).
@@ -402,6 +406,9 @@ func ConfigDir() string {
 }
 
 func ConfigPath() string {
+	if p := strings.TrimSpace(os.Getenv("MAVEN_CONFIG")); p != "" {
+		return p
+	}
 	return filepath.Join(ConfigDir(), "config.json")
 }
 
@@ -423,6 +430,7 @@ func LoadConfigFromPath(path string) (*Config, error) {
 			return nil, fmt.Errorf("parse config: %w", err)
 		}
 	}
+	applyEnv(cfg)
 	if cfg.Agent.Workspace == "" {
 		cfg.Agent.Workspace = DefaultConfig().Agent.Workspace
 	}

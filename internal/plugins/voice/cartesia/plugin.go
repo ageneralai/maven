@@ -5,12 +5,11 @@ import (
 	"strings"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/httpc"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	pkgvoice "github.com/ageneralai/maven/internal/kernel/voice"
 )
 
-// Plugin exposes Cartesia TTS when speech config selects cartesia.
 type Plugin struct{}
 
 func NewPlugin() plugin.Plugin { return Plugin{} }
@@ -25,8 +24,8 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 	if voiceID == "" {
 		return nil
 	}
-	k := pkgvoice.MergeKeys(cfg)
-	if strings.TrimSpace(k.Cartesia) == "" {
+	apiKey := strings.TrimSpace(cfg.Speech.Cartesia.APIKey)
+	if apiKey == "" {
 		return nil
 	}
 	httpClient, err := httpc.ClientFromProxy(cfg.Speech.Cartesia.Proxy)
@@ -34,7 +33,7 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 		return nil
 	}
 	return &TTS{
-		APIKey:     k.Cartesia,
+		APIKey:     apiKey,
 		VoiceID:    voiceID,
 		ModelID:    cfg.Speech.Cartesia.ModelID,
 		Version:    cfg.Speech.Cartesia.APIVersion,

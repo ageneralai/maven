@@ -14,19 +14,23 @@
     "sttProvider": "deepgram",
     "ttsProvider": "openai",
     "cartesia": {
+      "apiKey": "",
       "voiceId": "",
       "modelId": "sonic-2",
       "apiVersion": "2025-04-16",
       "proxy": ""
     },
     "elevenlabs": {
+      "apiKey": "",
       "voiceId": "",
       "proxy": ""
     },
     "deepgram": {
+      "apiKey": "",
       "proxy": ""
     },
     "openai": {
+      "apiKey": "",
       "proxy": ""
     }
   },
