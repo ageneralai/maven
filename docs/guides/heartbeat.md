@@ -12,7 +12,7 @@ flowchart LR
     A -- ok --> R[Read HEARTBEAT.md]
     R --> E{Empty?}
     E -- yes --> Done[No-op]
-    E -- no --> X[RunTurn with heartbeat:{uuid}]
+    E -- no --> X["RunTurn with heartbeat:{uuid}"]
     X --> OK{Output contains<br/>HEARTBEAT_OK?}
     OK -- yes --> Debug[debug log]
     OK -- no --> Info[info log: result]

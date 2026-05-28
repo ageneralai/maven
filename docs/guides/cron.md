@@ -107,7 +107,7 @@ flowchart LR
     S --> D[Find due jobs<br/>under mutex]
     D --> Q[Disable one-shots,<br/>clear nextRunAtMs,<br/>save jobs.json]
     Q --> A[Acquire admission<br/>weighted semaphore]
-    A --> R[RunTurn with<br/>cron:{id}:{uuid} session]
+    A --> R["RunTurn with<br/>cron:{id}:{uuid} session"]
     R --> P[Persist last run / error]
     R --> O{Deliver?}
     O -- yes --> Pub[OutboundPublisher]
