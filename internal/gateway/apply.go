@@ -118,17 +118,6 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		rt.Close()
 		return fmt.Errorf("channels apply: %w", err)
 	}
-	if g.journaler != nil {
-		g.journaler.close()
-	}
-	if g.memPlug != nil {
-		j, err := newJournaler(cfg, g.memPlug, g.logger)
-		if err != nil {
-			g.logger.Warn("journaler init failed, shadow journaling disabled", "err", err)
-		} else {
-			g.journaler = j
-		}
-	}
 	g.cfg = cfg
 	g.wirePostActionHooks()
 	return g.startTriggers(ctx)
@@ -172,9 +161,7 @@ func (g *Gateway) wirePostActionHooks() {
 			_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)
 		})
 	}
-	if g.journaler != nil {
-		g.pipe.SetPostTurnHook(func(ctx context.Context, userMsg, assistantMsg string) {
-			g.journaler.Journal(ctx, userMsg, assistantMsg)
-		})
+	if g.plugins != nil {
+		g.pipe.SetPostTurnHook(g.plugins.PostTurnHandler(g.cfg))
 	}
 }

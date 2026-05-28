@@ -51,7 +51,6 @@ type planeDeps struct {
 	pipe       *pipeline.Pipeline
 	plugins    *plugin.Registry
 	memReg     *kmemory.Registry
-	memPlug    *fmemory.Plugin
 }
 
 func wireCore(cfg *config.Config, opts Options) (*coreDeps, error) {
@@ -138,7 +137,6 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		pipe:       pipe,
 		plugins:    plugins,
 		memReg:     memReg,
-		memPlug:    memPlug,
 	}, nil
 }
 var (

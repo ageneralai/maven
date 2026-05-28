@@ -105,3 +105,11 @@ type TriggerPlugin interface {
 	Plugin
 	Triggers(cfg *config.Config) []Trigger
 }
+
+// PostTurnPlugin optionally contributes a handler called after each real user conversation turn.
+// The handler receives the user message and assistant response. It is called in a goroutine
+// and must not block the pipeline. Returning nil disables the hook.
+type PostTurnPlugin interface {
+	Plugin
+	PostTurnHandler(cfg *config.Config) func(ctx context.Context, userMsg, assistantMsg string)
+}

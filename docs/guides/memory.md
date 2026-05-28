@@ -72,7 +72,7 @@ shadow LLM call
     ↓ done — no user-visible output
 ```
 
-The shadow runtime is stateless: each pass gets a fresh ephemeral session (UUID) with no prior history and no disk persistence. It shares the same provider and model as the main runtime.
+The shadow runtime is stateless: each pass gets a fresh ephemeral session (UUID) with no prior history and no disk persistence. It uses the same provider configuration as the main runtime but is a separate, isolated `api.Runtime` instance.
 
 **When it fires:** only on `SessionModeCurrent` turns (real user conversations). Cron jobs, heartbeat ticks, and memory consolidation passes do not trigger the journaler.
 

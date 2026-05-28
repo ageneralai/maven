@@ -153,6 +153,30 @@ func (r *Registry) Stop() error {
 	return nil
 }
 
+// PostTurnHandler composes handlers from all PostTurnPlugin implementations into one function.
+// Each plugin's handler is called in registration order. Returns nil if no plugin provides one.
+func (r *Registry) PostTurnHandler(cfg *config.Config) func(ctx context.Context, userMsg, assistantMsg string) {
+	if r == nil || cfg == nil {
+		return nil
+	}
+	var handlers []func(ctx context.Context, userMsg, assistantMsg string)
+	for _, p := range r.plugins {
+		if ptp, ok := p.(PostTurnPlugin); ok {
+			if h := ptp.PostTurnHandler(cfg); h != nil {
+				handlers = append(handlers, h)
+			}
+		}
+	}
+	if len(handlers) == 0 {
+		return nil
+	}
+	return func(ctx context.Context, userMsg, assistantMsg string) {
+		for _, h := range handlers {
+			h(ctx, userMsg, assistantMsg)
+		}
+	}
+}
+
 // MemoryPlugins returns all registered MemoryPlugin implementations in registration order.
 func (r *Registry) MemoryPlugins() []MemoryPlugin {
 	if r == nil {
