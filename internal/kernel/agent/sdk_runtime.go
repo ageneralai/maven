@@ -31,25 +31,29 @@ func (r *runtimeAdapter) Close() {
 	_ = r.rt.Close()
 }
 
-// NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (kernel/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).
-func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, pluginTools []tool.Tool, sessionStore api.SessionStore, lg *slog.Logger) (Runtime, error) {
-	var provider api.ModelFactory
+// NewProvider constructs the model factory for the given config.
+func NewProvider(cfg *config.Config) api.ModelFactory {
 	switch cfg.Provider.Type {
 	case "openai":
-		provider = &model.OpenAIProvider{
+		return &model.OpenAIProvider{
 			APIKey:    cfg.Provider.APIKey,
 			BaseURL:   cfg.Provider.BaseURL,
 			ModelName: cfg.Agent.Model,
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	default:
-		provider = &model.AnthropicProvider{
+		return &model.AnthropicProvider{
 			APIKey:    cfg.Provider.APIKey,
 			BaseURL:   cfg.Provider.BaseURL,
 			ModelName: cfg.Agent.Model,
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	}
+}
+
+// NewSDKRuntime constructs the default ageneral-agents-go runtime. Slash commands are handled in the gateway pipeline (kernel/slash), not via api.Options. pluginTools come from the gateway registry (e.g. ACP).
+func NewSDKRuntime(cfg *config.Config, sysPrompt string, skillRegs []api.SkillRegistration, pluginTools []tool.Tool, sessionStore api.SessionStore, lg *slog.Logger) (Runtime, error) {
+	provider := NewProvider(cfg)
 	taskHolder := &task.RuntimeHolder{}
 	customTools := append([]tool.Tool{}, pluginTools...)
 	customTools = append(customTools, task.Tools(cfg.Tools.Task, taskHolder)...)

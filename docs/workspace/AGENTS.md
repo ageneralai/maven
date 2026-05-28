@@ -11,8 +11,6 @@ Your long-term memory (MEMORY.md) is always in your context above. Daily journal
 
 **Recall** — before answering anything about prior work, decisions, dates, people, preferences, or todos: run `memory_search(query)` across journal files, then use `memory_get(date)` to pull specific entries. Do not answer from guesswork when memory tools are available.
 
-**Journal** — use `remember(content)` to record anything worth keeping: events, decisions, observations, preferences, facts about the user. It appends to today's journal automatically.
-
 ## Guidelines
 
 - Be concise and helpful

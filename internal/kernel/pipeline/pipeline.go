@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -43,15 +44,16 @@ func (e errPostActionHandle) Unwrap() error {
 // turn; Reload drains under Lock for the pointer swap only; applyChannels runs outside
 // the lock so channel I/O does not stall inbound.
 type Pipeline struct {
-	log          *slog.Logger
-	bus          *bus.MessageBus
-	channels     *manager.ChannelManager
+	log           *slog.Logger
+	bus           *bus.MessageBus
+	channels      *manager.ChannelManager
 	slashRegistry atomic.Pointer[slash.Registry]
-	sessions     session.Resolver
-	posts        postaction.Handler
-	liveness     health.HealthReporter
-	turnMu       sync.RWMutex
-	rt           agent.Runtime
+	sessions      session.Resolver
+	posts         postaction.Handler
+	liveness      health.HealthReporter
+	postTurnHook  func(ctx context.Context, userMsg, assistantMsg string)
+	turnMu        sync.RWMutex
+	rt            agent.Runtime
 }
 
 // New builds a pipeline. rt may be nil only in tests that never run handles or RunTurn.
@@ -62,6 +64,11 @@ func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session
 // Posts returns the postaction handler for hook registration.
 func (p *Pipeline) Posts() postaction.Handler {
 	return p.posts
+}
+
+// SetPostTurnHook registers a callback invoked after each successful sync turn with the user message and assistant response.
+func (p *Pipeline) SetPostTurnHook(fn func(ctx context.Context, userMsg, assistantMsg string)) {
+	p.postTurnHook = fn
 }
 
 // SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
@@ -248,7 +255,7 @@ func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, session
 	})
 }
 
-func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channels.StreamChannel) error {
+func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channels.StreamChannel, plan turnPlan) error {
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
 	streamCtx := p.bus.OnStreamBegin(msgCtx, streamHints)
@@ -257,17 +264,44 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		p.bus.OnStreamEnd(streamCtx, streamHints, err)
 		return err
 	}
+	hook := p.postTurnHook
+	var intercepted <-chan api.StreamEvent
+	var outputCollector *strings.Builder
+	if hook != nil && plan.sessionMode == session.SessionModeCurrent {
+		var sb strings.Builder
+		outputCollector = &sb
+		intercepted = collectStreamOutput(streamEvents, &sb)
+	} else {
+		intercepted = streamEvents
+	}
 	sendMeta := cloneTransportMeta(msg.TransportMeta)
-	sendErr := ch.SendStream(streamCtx, msg.ChatID, sendMeta, streamEvents)
+	sendErr := ch.SendStream(streamCtx, msg.ChatID, sendMeta, intercepted)
 	if sendErr != nil {
 		sendErr = channels.WrapDeliveryFailed(sendErr)
 		p.reportStreamFailed(ctx, msg.Channel, msg.ChatID, sendErr)
 	}
 	p.bus.OnStreamEnd(streamCtx, streamHints, sendErr)
+	if sendErr == nil && hook != nil && outputCollector != nil {
+		hook(ctx, msg.Content, outputCollector.String())
+	}
 	return sendErr
 }
 
-func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, slashOut slash.Outcome) error {
+func collectStreamOutput(in <-chan api.StreamEvent, sb *strings.Builder) <-chan api.StreamEvent {
+	out := make(chan api.StreamEvent, cap(in))
+	go func() {
+		defer close(out)
+		for ev := range in {
+			if ev.Type == api.EventContentBlockDelta && ev.Delta != nil {
+				sb.WriteString(ev.Delta.Text)
+			}
+			out <- ev
+		}
+	}()
+	return out
+}
+
+func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, slashOut slash.Outcome, plan turnPlan) error {
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	resp, err := runResponseWithMetadata(msgCtx, rt, msg.Content, sessionKey, msg.ContentBlocks, meta)
 	if err != nil {
@@ -292,6 +326,9 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 		}); err != nil {
 			p.log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
 		}
+	}
+	if p.postTurnHook != nil && plan.sessionMode == session.SessionModeCurrent {
+		p.postTurnHook(ctx, msg.Content, result)
 	}
 	return nil
 }
@@ -342,7 +379,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 	}
 	if plan.useStream {
 		if sc, ok := ch.(channels.StreamChannel); ok {
-			if err := p.runStream(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, sc); err != nil {
+			if err := p.runStream(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, sc, plan); err != nil {
 				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 					p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)
 				}
@@ -351,7 +388,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			return
 		}
 	}
-	if err := p.runSync(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, slashOut); err != nil {
+	if err := p.runSync(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, slashOut, plan); err != nil {
 		var ep errPostActionHandle
 		if errors.As(err, &ep) {
 			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, ep.err)

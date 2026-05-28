@@ -118,6 +118,17 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		rt.Close()
 		return fmt.Errorf("channels apply: %w", err)
 	}
+	if g.journaler != nil {
+		g.journaler.close()
+	}
+	if g.memPlug != nil {
+		j, err := newJournaler(cfg, g.memPlug, g.logger)
+		if err != nil {
+			g.logger.Warn("journaler init failed, shadow journaling disabled", "err", err)
+		} else {
+			g.journaler = j
+		}
+	}
 	g.cfg = cfg
 	g.wirePostActionHooks()
 	return g.startTriggers(ctx)
@@ -149,17 +160,21 @@ func (g *Gateway) slashStatus(_ context.Context) slash.Result {
 	return slash.Result{Output: strings.Join(parts, "\n")}
 }
 
-// wirePostActionHooks registers pre-compact flush callback on the postaction handler.
+// wirePostActionHooks registers pre-compact flush and post-turn journaling callbacks.
 func (g *Gateway) wirePostActionHooks() {
 	if g.pipe == nil {
 		return
 	}
 	posts := g.pipe.Posts()
-	if posts == nil {
-		return
+	if posts != nil {
+		posts.SetPreCompactFlush(func(ctx context.Context, sessionID string) {
+			const flushPrompt = "Before this conversation compacts, use the remember tool to save any important facts, preferences, or decisions that should persist to long-term memory. Be concise."
+			_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)
+		})
 	}
-	posts.SetPreCompactFlush(func(ctx context.Context, sessionID string) {
-		const flushPrompt = "Before this conversation compacts, use the remember tool to save any important facts, preferences, or decisions that should persist to long-term memory. Be concise."
-		_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)
-	})
+	if g.journaler != nil {
+		g.pipe.SetPostTurnHook(func(ctx context.Context, userMsg, assistantMsg string) {
+			g.journaler.Journal(ctx, userMsg, assistantMsg)
+		})
+	}
 }
