@@ -49,6 +49,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Agent.Workspace == "" {
 		t.Error("workspace should not be empty")
 	}
+	if cfg.ShadowJournal.Enabled {
+		t.Error("shadowJournal.enabled should be false by default")
+	}
+	if cfg.ShadowJournal.Model != "" {
+		t.Errorf("shadowJournal.model = %q, want empty", cfg.ShadowJournal.Model)
+	}
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {

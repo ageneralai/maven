@@ -31,8 +31,9 @@ type Config struct {
 	Skills        SkillsConfig        `json:"skills"`
 	MCP           MCPConfig           `json:"mcp"`
 	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
-	MemConsolidate      MemConsolidateConfig      `json:"memConsolidate,omitempty"`
-	Gateway       GatewayConfig       `json:"gateway"`
+	MemConsolidate MemConsolidateConfig `json:"memConsolidate,omitempty"`
+	ShadowJournal  ShadowJournalConfig  `json:"shadowJournal,omitempty"`
+	Gateway        GatewayConfig        `json:"gateway"`
 	Speech        SpeechConfig        `json:"speech,omitempty"`
 }
 
@@ -208,6 +209,12 @@ type MemConsolidateConfig struct {
 	IntervalHours int  `json:"intervalHours,omitempty"` // default 24 when enabled
 }
 
+// ShadowJournalConfig controls the post-turn shadow journal pass.
+type ShadowJournalConfig struct {
+	Enabled bool   `json:"enabled"`
+	Model   string `json:"model,omitempty"`
+}
+
 func DefaultConfig() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
@@ -234,6 +241,10 @@ func DefaultConfig() *Config {
 		MemConsolidate: MemConsolidateConfig{
 			Enabled:       false,
 			IntervalHours: 24,
+		},
+		ShadowJournal: ShadowJournalConfig{
+			Enabled: false,
+			Model:   "",
 		},
 		Gateway: GatewayConfig{
 			Host: DefaultHost,

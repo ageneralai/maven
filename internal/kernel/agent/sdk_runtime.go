@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
@@ -31,21 +32,31 @@ func (r *runtimeAdapter) Close() {
 	_ = r.rt.Close()
 }
 
-// NewProvider constructs the model factory for the given config.
+// NewProvider returns the model factory for cfg using cfg.Agent.Model.
 func NewProvider(cfg *config.Config) api.ModelFactory {
+	return NewProviderForModel(cfg, "")
+}
+
+// NewProviderForModel returns the model factory for cfg with an optional model override.
+// If override is empty, cfg.Agent.Model is used.
+func NewProviderForModel(cfg *config.Config, override string) api.ModelFactory {
+	modelName := override
+	if strings.TrimSpace(modelName) == "" {
+		modelName = cfg.Agent.Model
+	}
 	switch cfg.Provider.Type {
 	case "openai":
 		return &model.OpenAIProvider{
 			APIKey:    cfg.Provider.APIKey,
 			BaseURL:   cfg.Provider.BaseURL,
-			ModelName: cfg.Agent.Model,
+			ModelName: modelName,
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	default:
 		return &model.AnthropicProvider{
 			APIKey:    cfg.Provider.APIKey,
 			BaseURL:   cfg.Provider.BaseURL,
-			ModelName: cfg.Agent.Model,
+			ModelName: modelName,
 			MaxTokens: cfg.Agent.MaxTokens,
 		}
 	}

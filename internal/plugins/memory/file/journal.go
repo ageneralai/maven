@@ -29,7 +29,7 @@ type shadowRuntimeFactory func(cfg *config.Config, prompt string, tools []tool.T
 func defaultShadowRuntime(cfg *config.Config, prompt string, tools []tool.Tool) (shadowRuntime, error) {
 	return sdkapi.New(context.Background(), sdkapi.Options{
 		ProjectRoot:   cfg.Agent.Workspace,
-		ModelFactory:  agent.NewProvider(cfg),
+		ModelFactory:  agent.NewProviderForModel(cfg, cfg.ShadowJournal.Model),
 		SystemPrompt:  prompt,
 		MaxIterations: 2,
 		MaxSessions:   1,

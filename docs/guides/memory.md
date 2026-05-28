@@ -76,6 +76,22 @@ The shadow runtime is stateless: each pass gets a fresh ephemeral session (UUID)
 
 **When it fires:** only on `SessionModeCurrent` turns (real user conversations). Cron jobs, heartbeat ticks, and memory consolidation passes do not trigger the journaler.
 
+### Configuration
+
+```json
+"shadowJournal": {
+  "enabled": false,
+  "model": ""
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Master toggle. When false, no post-turn shadow pass runs. |
+| `model` | `""` | Override model for shadow turns. Empty inherits `agent.model`. Use a cheaper model (e.g. `xai/grok-4-1-fast-non-reasoning`) to cut cost while keeping the main agent on a stronger model. The provider type, key, and base URL are inherited from `provider.*`. |
+
+Hot reload re-reads both fields on `Apply`.
+
 ## Background consolidation
 
 When enabled, `memconsolidate` reviews recent journals and asks the model to promote worth-keeping facts to `MEMORY.md`.

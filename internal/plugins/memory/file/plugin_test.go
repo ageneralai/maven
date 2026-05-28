@@ -118,6 +118,13 @@ func factoryFor(rt shadowRuntime) shadowRuntimeFactory {
 	}
 }
 
+func cfgWithShadowEnabled(workspace string) *config.Config {
+	return &config.Config{
+		Agent:         config.AgentConfig{Workspace: workspace},
+		ShadowJournal: config.ShadowJournalConfig{Enabled: true},
+	}
+}
+
 func waitClosed(t *testing.T, ch <-chan struct{}) {
 	t.Helper()
 	select {
@@ -127,13 +134,31 @@ func waitClosed(t *testing.T, ch <-chan struct{}) {
 	}
 }
 
+func TestPostTurnHandler_returnsNilWhenDisabled(t *testing.T) {
+	t.Parallel()
+	log, _ := newCaptureLogger()
+	var factoryCalled bool
+	p := newTestPlugin(log, func(_ *config.Config, _ string, _ []tool.Tool) (shadowRuntime, error) {
+		factoryCalled = true
+		return nil, errors.New("should not be called")
+	})
+	cfg := &config.Config{Agent: config.AgentConfig{Workspace: "/tmp/ws"}}
+	cfg.ShadowJournal.Enabled = false
+	if h := p.PostTurnHandler(cfg); h != nil {
+		t.Fatal("expected nil handler when shadowJournal.enabled is false")
+	}
+	if factoryCalled {
+		t.Fatal("factory must not be called when disabled")
+	}
+}
+
 func TestPostTurnHandler_returnsNilOnFactoryError(t *testing.T) {
 	t.Parallel()
 	log, _ := newCaptureLogger()
 	p := newTestPlugin(log, func(_ *config.Config, _ string, _ []tool.Tool) (shadowRuntime, error) {
 		return nil, errors.New("init failed")
 	})
-	h := p.PostTurnHandler(&config.Config{Agent: config.AgentConfig{Workspace: "/tmp/ws"}})
+	h := p.PostTurnHandler(cfgWithShadowEnabled("/tmp/ws"))
 	if h != nil {
 		t.Fatal("expected nil handler on factory error")
 	}
@@ -148,7 +173,7 @@ func TestPostTurnHandler_returnsNilOnFactoryError(t *testing.T) {
 func TestPostTurnHandler_swapsAndAsyncClosesPrevious(t *testing.T) {
 	t.Parallel()
 	log, _ := newCaptureLogger()
-	cfg := &config.Config{Agent: config.AgentConfig{Workspace: t.TempDir()}}
+	cfg := cfgWithShadowEnabled(t.TempDir())
 	fakeA := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return &sdkapi.Response{}, nil
 	})
@@ -179,7 +204,7 @@ func TestPostTurnHandler_swapsAndAsyncClosesPrevious(t *testing.T) {
 func TestPostTurnHandler_closureUsesGenerationRuntime(t *testing.T) {
 	t.Parallel()
 	log, _ := newCaptureLogger()
-	cfg := &config.Config{Agent: config.AgentConfig{Workspace: t.TempDir()}}
+	cfg := cfgWithShadowEnabled(t.TempDir())
 	var fakeACalled, fakeBCalled bool
 	fakeA := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		fakeACalled = true
@@ -226,7 +251,7 @@ func TestPostTurnHandler_skipsEmptyExchange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			log, _ := newCaptureLogger()
-			cfg := &config.Config{Agent: config.AgentConfig{Workspace: t.TempDir()}}
+			cfg := cfgWithShadowEnabled(t.TempDir())
 			fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 				return &sdkapi.Response{}, nil
 			})
@@ -250,7 +275,7 @@ func TestPostTurnHandler_skipsEmptyExchange(t *testing.T) {
 func TestPostTurnHandler_appliesTimeout(t *testing.T) {
 	t.Parallel()
 	log, _ := newCaptureLogger()
-	cfg := &config.Config{Agent: config.AgentConfig{Workspace: t.TempDir()}}
+	cfg := cfgWithShadowEnabled(t.TempDir())
 	var sawDeadline bool
 	fake := newFakeRuntime(func(ctx context.Context, _ sdkapi.Request) (*sdkapi.Response, error) {
 		deadline, ok := ctx.Deadline()
@@ -284,7 +309,7 @@ func TestPostTurnHandler_appliesTimeout(t *testing.T) {
 func TestStop_closesCurrentRuntime(t *testing.T) {
 	t.Parallel()
 	log, _ := newCaptureLogger()
-	cfg := &config.Config{Agent: config.AgentConfig{Workspace: t.TempDir()}}
+	cfg := cfgWithShadowEnabled(t.TempDir())
 	fake := newFakeRuntime(func(context.Context, sdkapi.Request) (*sdkapi.Response, error) {
 		return &sdkapi.Response{}, nil
 	})

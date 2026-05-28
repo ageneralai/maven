@@ -14,6 +14,7 @@ Maven reads a single JSON file at `~/.maven/config.json` (mode `0600`). The sche
   "mcp":           { … },
   "autoCompact":   { … },
   "memConsolidate":{ … },
+  "shadowJournal": { … },
   "speech":        { … },
   "gateway":       { … }
 }
@@ -174,6 +175,15 @@ Background memory consolidation pass. See [Guides: Memory](../guides/memory.md).
 |-------|---------|-------------|
 | `enabled` | `false` | Master toggle. |
 | `intervalHours` | `24` | Wall-clock interval between passes. |
+
+## `shadowJournal`
+
+Post-turn shadow journal pass. See [Guides: Memory — Shadow journaler](../guides/memory.md#shadow-journaler).
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Master toggle. When false, no post-turn shadow pass runs. |
+| `model` | `""` | Override model for shadow turns. Empty inherits `agent.model`. Provider type, key, and base URL come from `provider.*`. |
 
 ## `speech`
 

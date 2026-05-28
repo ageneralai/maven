@@ -107,6 +107,10 @@
     "enabled": false,
     "intervalHours": 24
   },
+  "shadowJournal": {
+    "enabled": false,
+    "model": ""
+  },
   "gateway": {
     "host": "0.0.0.0",
     "port": 18790,

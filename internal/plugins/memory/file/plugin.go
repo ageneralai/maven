@@ -45,6 +45,9 @@ func (p *Plugin) Stop() error {
 }
 
 func (p *Plugin) PostTurnHandler(cfg *config.Config) hook.PostTurnHandler {
+	if !cfg.ShadowJournal.Enabled {
+		return nil
+	}
 	newRt, err := p.newShadow(cfg, shadowSystemPrompt, shadowTools(p.Tools(cfg)))
 	if err != nil {
 		p.log.Warn("memory-file: shadow runtime init failed", "err", err)
