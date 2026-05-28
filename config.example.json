@@ -103,6 +103,10 @@
     "threshold": 0.8,
     "preserveCount": 5
   },
+  "memConsolidate": {
+    "enabled": false,
+    "intervalHours": 24
+  },
   "gateway": {
     "host": "0.0.0.0",
     "port": 18790,

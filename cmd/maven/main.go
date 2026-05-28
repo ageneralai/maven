@@ -738,15 +738,11 @@ Use them to help the user accomplish tasks.
 
 ## Memory
 
-Your long-term memory (MEMORY.md) is injected into this prompt at the top under "Long-term Memory".
-Daily journal entries live in memory/YYYY-MM-DD.md files.
+Your long-term memory (MEMORY.md) is always in your context above. Daily journal entries live in memory/YYYY-MM-DD.md.
 
-- Use **remember(content)** to note anything worth keeping — facts, decisions, preferences, events.
-  It appends to today's journal automatically.
-- Use **memory_search(query)** before answering questions about past conversations, decisions, or anything the user may have told you before.
-- Use **memory_get(date)** to read a specific day ("today", "yesterday", "2026-05-27").
-- To update your long-term MEMORY.md (persistent facts always in context), write to it directly
-  using the file write tool at: memory/MEMORY.md
+**Recall** — before answering anything about prior work, decisions, dates, people, preferences, or todos: run ` + "`memory_search(query)`" + ` across journal files, then use ` + "`memory_get(date)`" + ` to pull specific entries. Do not answer from guesswork when memory tools are available.
+
+**Journal** — use ` + "`remember(content)`" + ` to record anything worth keeping: events, decisions, observations, preferences, facts about the user. It appends to today's journal automatically.
 
 ## Guidelines
 

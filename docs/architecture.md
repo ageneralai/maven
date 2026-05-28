@@ -87,6 +87,7 @@ The registry (`internal/kernel/plugin/registry.go`) collects contributions by ax
 | `internal/plugins/channel/telegram`, `feishu`, `wecom`, `whatsapp`, `matrix`, `web` | Channel |
 | `internal/plugins/trigger/cron` | Trigger + Slash + Tool |
 | `internal/plugins/trigger/heartbeat` | Trigger |
+| `internal/plugins/trigger/memconsolidate` | Trigger (memory consolidation) |
 | `internal/plugins/skill/file` | Skill |
 | `internal/plugins/voice/cartesia`, `deepgram`, `elevenlabs`, `openai` | TTS/STT |
 | `internal/plugins/tool/acp` | Tool |

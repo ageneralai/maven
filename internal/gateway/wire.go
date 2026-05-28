@@ -31,6 +31,7 @@ import (
 	"github.com/ageneralai/maven/internal/plugins/channel/wecom"
 	"github.com/ageneralai/maven/internal/plugins/channel/whatsapp"
 	"github.com/ageneralai/maven/internal/plugins/trigger/cron"
+	"github.com/ageneralai/maven/internal/plugins/trigger/memconsolidate"
 	"github.com/ageneralai/maven/internal/plugins/trigger/heartbeat"
 )
 
@@ -104,6 +105,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		webPlug,
 		cronPlug,
 		hbPlug,
+		memconsolidate.NewPlugin(core.cfg.MemConsolidate.IntervalHours, core.logger),
 		acp.NewPlugin(),
 		skills.NewPlugin(core.logger),
 		cartesia.NewPlugin(),

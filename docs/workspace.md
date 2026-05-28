@@ -12,8 +12,8 @@
     SOUL.md                # identity / continuity (edit to taste)
     HEARTBEAT.md           # heartbeat runner task text (starts empty until you edit)
     memory/
-      MEMORY.md            # long-term facts; written by the agent via the `remember` tool (kind=fact)
-      2026-05-27.md        # daily journal; appended by the agent via `remember` (kind=event)
+      MEMORY.md            # long-term facts; curated by the mem-consolidate background pass (read-only for the agent)
+      2026-05-27.md        # daily journal; appended by the agent via `remember`
     skills/
       <skill-name>/
         SKILL.md           # optional skills; see Skills in README.md

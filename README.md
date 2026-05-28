@@ -22,6 +22,7 @@ Personal AI assistant built on [ageneral-agents-go](https://github.com/agenerala
 - **Subagents** - Optional in-process **`Task`** tool for scoped SDK subagent delegation; see [docs/subagents.md](docs/subagents.md)
 - **ACP delegation** - Optional **`DelegateTask`** tool: Maven spawns configured ACP coding agents (stdio); see [docs/acp.md](docs/acp.md)
 - **Heartbeat** - Periodic tasks from HEARTBEAT.md
+- **Memory consolidation** - Background pass that promotes daily journal entries to long-term memory (`MEMORY.md`) on a configurable schedule (`memConsolidate.enabled`, `memConsolidate.intervalHours`)
 - **Memory** - Long-term (MEMORY.md) + daily memories
 - **Skills** - Custom skill loading from workspace
 - **Gateway config hot reload** - Optional watch on `~/.maven/config.json` (`gateway.hotReload`) to reload channels and runtime without restarting the process

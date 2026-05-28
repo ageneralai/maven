@@ -31,6 +31,7 @@ type Config struct {
 	Skills        SkillsConfig        `json:"skills"`
 	MCP           MCPConfig           `json:"mcp"`
 	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
+	MemConsolidate      MemConsolidateConfig      `json:"memConsolidate,omitempty"`
 	Gateway       GatewayConfig       `json:"gateway"`
 	Speech        SpeechConfig        `json:"speech,omitempty"`
 }
@@ -201,6 +202,11 @@ type AutoCompactConfig struct {
 	PreserveCount int     `json:"preserveCount,omitempty"`
 }
 
+// MemConsolidateConfig controls the background memory consolidation pass.
+type MemConsolidateConfig struct {
+	Enabled       bool `json:"enabled"`
+	IntervalHours int  `json:"intervalHours,omitempty"` // default 24 when enabled
+}
 
 func DefaultConfig() *Config {
 	home, _ := os.UserHomeDir()
@@ -224,6 +230,10 @@ func DefaultConfig() *Config {
 			Enabled:       false,
 			Threshold:     0.8,
 			PreserveCount: 5,
+		},
+		MemConsolidate: MemConsolidateConfig{
+			Enabled:       false,
+			IntervalHours: 24,
 		},
 		Gateway: GatewayConfig{
 			Host: DefaultHost,
