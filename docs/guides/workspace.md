@@ -48,7 +48,7 @@ The system prompt assembly happens in `internal/kernel/prompt.BuildTemplate`. Me
 
 ## Editing AGENTS.md and SOUL.md
 
-These define personality. Maven re-reads them on `Apply` (every reload and at start). You can iterate without restarting if `gateway.hotReload = true`.
+These define personality. Maven re-reads them on `Apply` (start, hot reload, or `/reload`). Send `/reload` after editing, or enable `gateway.hotReload` and save `config.json` to trigger the same path.
 
 The defaults seeded by `onboard`:
 

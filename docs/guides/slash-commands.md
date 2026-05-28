@@ -2,7 +2,7 @@
 
 A slash command is text that starts with `/` and triggers a registered handler before (or instead of) the model. Maven supports three sources:
 
-1. **Built-in slash commands** in `kernel/slash` (e.g. `/compact`).
+1. **Built-in slash commands** in `kernel/slash` (e.g. `/compact`) and gateway-registered commands (e.g. `/reload`, `/status`).
 2. **Plugin-contributed slash commands** via the `SlashPlugin` axis (e.g. `/cron-add`, `/cron-list`, `/cron-remove`).
 3. **Workspace-defined Telegram slash commands** loaded from `<workspace>/.telegram/slashes/*.md`.
 
@@ -30,6 +30,16 @@ The lexer mirrors `agentsdk-go/pkg/runtime/commands`:
 The dispatcher applies an optional **expected slash name** filter: channels that parsed `/command` themselves (like Telegram's workspace slashes) set `ExpectedSlashName` so PreTurn only fires when the parsed name matches; otherwise it falls through to the model.
 
 On Telegram, kernel and plugin slashes are registered in the BotFather menu automatically on gateway start (merged with workspace defs under `.telegram/slashes/`; workspace overrides description and handling when names collide).
+
+## Built-in: `/reload`
+
+`/reload` re-runs `Gateway.Apply` without restarting the process. Use it after editing `AGENTS.md`, `SOUL.md`, `memory/MEMORY.md`, or skills under `skills/` — the config watcher only watches `config.json`.
+
+The handler replies `Reloading…` immediately; the reload runs on the gateway main loop (same path as hot reload). Works with or without `gateway.hotReload`.
+
+## Built-in: `/status`
+
+`/status` prints cron job counts and `MEMORY.md` size. No model turn.
 
 ## Built-in: `/compact`
 

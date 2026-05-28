@@ -54,16 +54,6 @@ func (g *Gateway) Run(ctx context.Context) error {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	}
 	for {
-		if !g.cfg.Gateway.HotReload {
-			select {
-			case <-ctx.Done():
-				g.logger.Info("gateway shutting down")
-				return g.Shutdown()
-			case <-sigCh:
-				g.logger.Info("gateway shutting down")
-				return g.Shutdown()
-			}
-		}
 		select {
 		case <-ctx.Done():
 			g.logger.Info("gateway shutting down")
@@ -72,16 +62,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 			g.logger.Info("gateway shutting down")
 			return g.Shutdown()
 		case <-reloadCh:
-			newCfg, lerr := config.LoadConfig()
-			if lerr != nil {
-				g.logger.Error("gateway reload load config error", "err", lerr)
-				continue
-			}
-			if aerr := g.Apply(ctx, newCfg); aerr != nil {
-				g.logger.Error("gateway reload apply error", "err", aerr)
-			} else {
-				g.logger.Info("gateway reloaded", "host", newCfg.Gateway.Host, "port", newCfg.Gateway.Port, "channels", g.channelMgr.EnabledChannels())
-			}
+			g.reloadFromConfig(ctx)
+		case <-g.manualReloadCh:
+			g.reloadFromConfig(ctx)
 		}
 	}
 }

@@ -13,10 +13,10 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/channel/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/health"
-	"github.com/ageneralai/maven/internal/kernel/pipeline"
-	mavsession "github.com/ageneralai/maven/internal/kernel/session"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/pipeline"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
+	mavsession "github.com/ageneralai/maven/internal/kernel/session"
 )
 
 // RuntimeFactory builds the agent runtime used by the gateway pipeline.
@@ -55,6 +55,7 @@ type Gateway struct {
 	logger         *slog.Logger
 	liveness       health.HealthReporter
 	applyMu        sync.Mutex
+	manualReloadCh chan struct{}
 }
 
 // New creates a Gateway. lg must be non-nil.
@@ -86,6 +87,7 @@ func NewWithOptions(cfg *config.Config, opts Options) (*Gateway, error) {
 		channelMgr:     planes.channelMgr,
 		pipe:           planes.pipe,
 		plugins:        planes.plugins,
+		manualReloadCh: make(chan struct{}, 1),
 	}
 	return gw, nil
 }

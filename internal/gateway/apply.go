@@ -115,6 +115,9 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 			return fmt.Errorf("slash plugins: %w", err)
 		}
 	}
+	if err := g.registerReloadSlash(slashReg); err != nil {
+		return fmt.Errorf("slash reload: %w", err)
+	}
 	if err := slashReg.Register(
 		slash.Definition{Name: "status", Description: "Show gateway status: cron jobs, memory size."},
 		slash.HandlerFunc(func(ctx context.Context, inv slash.Invocation) (slash.Result, error) {

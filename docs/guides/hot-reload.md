@@ -2,6 +2,12 @@
 
 The gateway can watch `~/.maven/config.json` and re-apply changes without restarting the process. Useful for tweaking models, toggling channels, editing skills, or rotating tokens.
 
+## Manual reload
+
+Send `/reload` in any chat channel (or run it from a slash-capable surface). Maven re-reads `config.json`, workspace persona files (`AGENTS.md`, `SOUL.md`, `MEMORY.md`), skills, and rebuilds the agent runtime. No process restart and no `gateway.hotReload` required.
+
+Use this when you edit workspace markdown directly; the config file watcher does not watch those paths.
+
 ## Enable
 
 ```json
