@@ -150,6 +150,7 @@ func buildPrompt(workspace string) (string, error) {
 	}
 	var sb strings.Builder
 	for _, name := range files {
+		// #nosec G304 -- name is from ReadDir under workspace/memory, validated as YYYY-MM-DD.md
 		data, err := os.ReadFile(filepath.Join(memDir, name))
 		if err != nil {
 			continue
