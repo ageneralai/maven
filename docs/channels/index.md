@@ -48,13 +48,15 @@ sequenceDiagram
     participant Bus
     participant ChMgr as ChannelManager
     participant Channel
+    participant Obs as events.Publisher / HealthReporter
     Pipeline->>Bus: PublishOutbound(msg)
     Bus->>ChMgr: subscriber callback(msg)
     ChMgr->>Channel: Send(ctx, msg)
     alt Send returns error
         Channel-->>ChMgr: error
         ChMgr-->>Bus: WrapDeliveryFailed
-        Bus-->>Pipeline: events.EventOutboundDeliveryFailed
+        Bus-->>Obs: emit EventOutboundDeliveryFailed
+        Bus-->>Obs: pulse SignalDeliveryFailed
     end
 ```
 

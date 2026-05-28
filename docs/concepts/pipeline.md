@@ -39,9 +39,10 @@ sequenceDiagram
     else slash continues to model
         Slash-->>P: Outcome{ContinueToModel}
         alt streaming channel
-            P->>RT: RunStream
-            RT-->>P: StreamEvent chunks
-            P->>Out: SendStream (channel does framing)
+            P->>RT: RunStream(prompt, sessionID)
+            RT-->>P: <-chan StreamEvent
+            P->>Out: SendStream(chatID, meta, events)
+            Note over Out,RT: channel reads events directly<br/>(framing, batching, edits)
         else sync
             P->>RT: Run
             RT-->>P: Response

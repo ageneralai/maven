@@ -38,9 +38,9 @@ flowchart LR
         Triggers[Triggers: cron, heartbeat, mem-consolidate]
     end
     Users <--> Channels
-    Channels --> Bus
+    Channels <--> Bus
+    Bus <--> Pipeline
     Triggers --> Pipeline
-    Bus --> Pipeline
     Pipeline --> Runtime
     Runtime --> LLM
 ```

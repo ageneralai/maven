@@ -17,22 +17,26 @@ flowchart LR
         LLM[LLM APIs]
     end
     subgraph "Maven process"
-        GW[Gateway]
-        PLG[Plugin registry]
+        Channels[Channel plugins]
+        Triggers[Triggers<br/>cron · heartbeat · mem-consolidate]
         BUS[Message bus]
         PIPE[Pipeline]
         RT[Agent runtime]
-        TRIG[Triggers]
     end
-    Users <--> PLG
-    PLG --> BUS
-    BUS --> PIPE
-    TRIG --> PIPE
-    PIPE --> RT
-    RT --> LLM
-    GW --> PLG
-    GW --> PIPE
+    Users <-->|inbound + outbound| Channels
+    Channels -->|publish inbound| BUS
+    BUS -->|dequeue| PIPE
+    Triggers -->|TurnExecutor.RunTurn| PIPE
+    PIPE -->|Run / RunStream| RT
+    RT -->|model calls| LLM
+    PIPE -->|publish outbound| BUS
+    BUS -->|deliver| Channels
+    GW[Gateway<br/>Apply loop] -. wires + lifecycle .-> Channels
+    GW -. wires + lifecycle .-> Triggers
+    GW -. wires + lifecycle .-> PIPE
 ```
+
+Solid arrows are runtime data flow. Dashed arrows from `Gateway` are wiring and lifecycle — at every `Apply` the gateway pulls contributions from the plugin registry, builds a new runtime, swaps it into the pipeline, and (re)starts channels and triggers. The plugin registry sits behind `Gateway` and is consulted at `Apply` time only — it is **not** on the runtime data path.
 
 | Plane | Responsibility |
 |-------|----------------|
