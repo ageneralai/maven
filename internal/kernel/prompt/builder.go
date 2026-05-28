@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-// Build assembles the system prompt from workspace markdown and optional memory context.
-func Build(workspace string, memoryContext string) (string, error) {
+// BuildTemplate assembles the static system prompt from workspace markdown (AGENTS.md, SOUL.md).
+// Memory context is injected separately at Apply time via memory.Registry.Context.
+func BuildTemplate(workspace string) (string, error) {
 	var sb strings.Builder
 	agentsPath := filepath.Join(workspace, "AGENTS.md")
 	if data, err := os.ReadFile(agentsPath); err == nil {
@@ -23,9 +24,6 @@ func Build(workspace string, memoryContext string) (string, error) {
 		sb.WriteString("\n\n")
 	} else if !os.IsNotExist(err) {
 		return "", fmt.Errorf("read %s: %w", soulPath, err)
-	}
-	if memoryContext != "" {
-		sb.WriteString(memoryContext)
 	}
 	return sb.String(), nil
 }

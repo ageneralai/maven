@@ -59,6 +59,11 @@ func New(log *slog.Logger, b *bus.MessageBus, rt agent.Runtime, sessions session
 	return &Pipeline{log: log, bus: b, rt: rt, sessions: sessions, posts: posts, channels: channels, liveness: liveness}
 }
 
+// Posts returns the postaction handler for hook registration.
+func (p *Pipeline) Posts() postaction.Handler {
+	return p.posts
+}
+
 // SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
 func (p *Pipeline) SetSlashRegistry(r *slash.Registry) {
 	p.slashRegistry.Store(r)
@@ -106,6 +111,19 @@ func (p *Pipeline) RunStream(ctx context.Context, prompt, sessionID string) (<-c
 }
 
 var _ executor.TurnExecutor = (*Pipeline)(nil)
+
+// SwapRuntime replaces the agent runtime and slash registry without restarting channels.
+// Used by lightweight refreshes (e.g. after memory write) where channels are already running.
+func (p *Pipeline) SwapRuntime(newRt agent.Runtime, slashReg *slash.Registry) {
+	p.turnMu.Lock()
+	old := p.rt
+	p.rt = newRt
+	p.slashRegistry.Store(slashReg)
+	p.turnMu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+}
 
 // Reload runs applyChannels first (no lock; channels do not touch rt). Then it takes
 // the write lock, swaps rt and workspace under exclusion, stores slashReg, unlocks,

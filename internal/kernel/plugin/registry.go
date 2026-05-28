@@ -152,3 +152,17 @@ func (r *Registry) Stop() error {
 	}
 	return nil
 }
+
+// MemoryPlugins returns all registered MemoryPlugin implementations in registration order.
+func (r *Registry) MemoryPlugins() []MemoryPlugin {
+	if r == nil {
+		return nil
+	}
+	var out []MemoryPlugin
+	for _, p := range r.plugins {
+		if mp, ok := p.(MemoryPlugin); ok {
+			out = append(out, mp)
+		}
+	}
+	return out
+}

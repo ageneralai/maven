@@ -42,9 +42,13 @@ func (app *cmdContext) defaultAgentRuntime(cfg *config.Config) (agent.Runtime, e
 		return nil, fmt.Errorf("api key not set: edit %s or run 'maven onboard'", config.ConfigPath())
 	}
 	mem := memory.NewMemoryStore(cfg.Agent.Workspace)
-	sysPrompt, err := prompt.Build(cfg.Agent.Workspace, mem.GetMemoryContext())
+	template, err := prompt.BuildTemplate(cfg.Agent.Workspace)
 	if err != nil {
 		return nil, fmt.Errorf("system prompt: %w", err)
+	}
+	sysPrompt := template
+	if memCtx := mem.GetMemoryContext(); memCtx != "" {
+		sysPrompt = template + "\n\n" + memCtx
 	}
 	skillRegs := app.loadRuntimeSkills(cfg)
 	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, app.log)

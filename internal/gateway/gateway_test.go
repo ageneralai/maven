@@ -28,12 +28,37 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/slash"
 	"github.com/ageneralai/maven/internal/kernel/health/healthtest"
 	"github.com/ageneralai/maven/internal/kernel/executor"
-	"github.com/ageneralai/maven/internal/kernel/memory"
+	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
+	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
 	"log/slog"
 )
 
 var testLG = slog.New(slog.DiscardHandler)
+
+func testMemoryReg(t *testing.T) (*kmemory.Registry, *fmemory.Plugin) {
+	t.Helper()
+	memPlug := fmemory.NewPlugin(testLG)
+	memReg, err := kmemory.NewRegistry(testLG, memPlug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return memReg, memPlug
+}
+
+func testSysPrompt(t *testing.T, workspace string, memReg *kmemory.Registry, cfg *config.Config) string {
+	t.Helper()
+	template, err := prompt.BuildTemplate(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memCtx := memReg.Context(context.Background(), cfg, plugin.MemoryQuery{MaxAge: 7 * 24 * time.Hour, Limit: 50})
+	if memCtx == "" {
+		return template
+	}
+	return template + "\n\n" + memCtx
+}
 
 // mockRuntime implements Runtime interface for testing
 type mockRuntime struct {
@@ -103,15 +128,8 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 		},
 	}
 
-	g := &Gateway{
-		cfg: cfg,
-		mem: memory.NewMemoryStore(tmpDir),
-	}
-
-	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	if err != nil {
-		t.Fatal(err)
-	}
+	memReg, _ := testMemoryReg(t)
+	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	if sys == "" {
 		t.Error("expected non-empty prompt")
@@ -127,26 +145,20 @@ func TestGateway_BuildSystemPrompt(t *testing.T) {
 func TestGateway_BuildSystemPrompt_WithMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	mem := memory.NewMemoryStore(tmpDir)
-	if err := mem.WriteLongTerm("User is a developer."); err != nil {
-		t.Fatal(err)
-	}
-
+	memReg, memPlug := testMemoryReg(t)
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
 			Workspace: tmpDir,
 		},
 	}
-
-	g := &Gateway{
-		cfg: cfg,
-		mem: mem,
-	}
-
-	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	if err != nil {
+	if err := memPlug.Write(context.Background(), cfg, plugin.MemoryEntry{
+		Content: "User is a developer.",
+		Kind:    plugin.MemoryKindFact,
+	}); err != nil {
 		t.Fatal(err)
 	}
+
+	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	if !strings.Contains(sys, "User is a developer") {
 		t.Error("missing memory content")
@@ -162,15 +174,8 @@ func TestGateway_BuildSystemPrompt_NoFiles(t *testing.T) {
 		},
 	}
 
-	g := &Gateway{
-		cfg: cfg,
-		mem: memory.NewMemoryStore(tmpDir),
-	}
-
-	sys, err := prompt.Build(g.cfg.Agent.Workspace, g.mem.GetMemoryContext())
-	if err != nil {
-		t.Fatal(err)
-	}
+	memReg, _ := testMemoryReg(t)
+	sys := testSysPrompt(t, cfg.Agent.Workspace, memReg, cfg)
 
 	// Should return empty when no files exist
 	if sys != "" {
@@ -209,7 +214,6 @@ func TestGateway_Shutdown(t *testing.T) {
 		bus:        msgBus,
 		pipe:       pipe,
 		channelMgr: chMgr,
-		mem:        memory.NewMemoryStore(tmpDir),
 		logger:     testLG,
 	}
 	_ = cronSvc
@@ -601,7 +605,6 @@ func TestGateway_Shutdown_NilRuntime(t *testing.T) {
 		bus:        msgBus,
 		pipe:       pipe,
 		channelMgr: chMgr,
-		mem:        memory.NewMemoryStore(tmpDir),
 		logger:     testLG,
 	}
 	_ = cronSvc
@@ -657,8 +660,11 @@ func TestNewWithOptions_MockRuntime(t *testing.T) {
 	if g.bus == nil {
 		t.Error("bus should not be nil")
 	}
-	if g.mem == nil {
-		t.Error("mem should not be nil")
+	if g.memReg == nil {
+		t.Error("memReg should not be nil")
+	}
+	if g.memPlug == nil {
+		t.Error("memPlug should not be nil")
 	}
 	if g.cronService() == nil {
 		t.Error("cron service should not be nil after wire")

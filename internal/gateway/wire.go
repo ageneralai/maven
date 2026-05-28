@@ -20,8 +20,9 @@ import (
 	"github.com/ageneralai/maven/internal/plugins/voice/elevenlabs"
 	voiceopenai "github.com/ageneralai/maven/internal/plugins/voice/openai"
 	"github.com/ageneralai/maven/internal/kernel/executor"
-	"github.com/ageneralai/maven/internal/kernel/memory"
+	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
+	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
 	"github.com/ageneralai/maven/internal/plugins/channel/feishu"
 	skills "github.com/ageneralai/maven/internal/plugins/skill/file"
 	"github.com/ageneralai/maven/internal/plugins/channel/matrix"
@@ -39,7 +40,6 @@ type coreDeps struct {
 	bus            *bus.MessageBus
 	sessions       *mavsession.Router
 	historyStore   *mavsession.Store
-	mem            *memory.MemoryStore
 	liveness       health.HealthReporter
 	signalChan     chan os.Signal
 	runtimeFactory RuntimeFactory
@@ -49,6 +49,8 @@ type planeDeps struct {
 	channelMgr *manager.ChannelManager
 	pipe       *pipeline.Pipeline
 	plugins    *plugin.Registry
+	memPlug    *fmemory.Plugin
+	memReg     *kmemory.Registry
 }
 
 func wireCore(cfg *config.Config, opts Options) (*coreDeps, error) {
@@ -73,7 +75,6 @@ func wireCore(cfg *config.Config, opts Options) (*coreDeps, error) {
 		bus:            bus.New(config.DefaultBufSize, opts.Logger, bus.WithHealthReporter(health.OrHealthReporter(opts.HealthReporter))),
 		sessions:       router,
 		historyStore:   histStore,
-		mem:            memory.NewMemoryStore(cfg.Agent.Workspace),
 		liveness:       health.OrHealthReporter(opts.HealthReporter),
 		signalChan:     opts.SignalChan,
 		runtimeFactory: factory,
@@ -124,10 +125,17 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 		return nil, err
 	}
 	pipe.SetSlashRegistry(slashReg)
+	memPlug := fmemory.NewPlugin(core.logger)
+	memReg, err := kmemory.NewRegistry(core.logger, memPlug)
+	if err != nil {
+		return nil, fmt.Errorf("memory registry: %w", err)
+	}
 	return &planeDeps{
 		channelMgr: channelMgr,
 		pipe:       pipe,
 		plugins:    plugins,
+		memPlug:    memPlug,
+		memReg:     memReg,
 	}, nil
 }
 var (

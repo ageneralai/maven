@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 type MemoryStore struct {
@@ -47,33 +46,6 @@ func (m *MemoryStore) WriteLongTerm(content string) error {
 
 // Daily journal
 
-func (m *MemoryStore) todayFile() string {
-	return filepath.Join(m.memoryDir(), time.Now().Format("2006-01-02")+".md")
-}
-
-func (m *MemoryStore) ReadToday() (string, error) {
-	data, err := os.ReadFile(m.todayFile())
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	return string(data), nil
-}
-
-func (m *MemoryStore) AppendToday(content string) error {
-	if err := m.ensureDir(); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(m.todayFile(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-	_, err = f.WriteString(content + "\n")
-	return err
-}
 
 // GetRecentMemories returns journal sections from dated .md files in memory/, newest first.
 // limit is the maximum number of daily files to include; 0 means no limit.

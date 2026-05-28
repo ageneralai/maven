@@ -3,14 +3,33 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
+	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/slash"
 )
+
+func defaultMemoryQuery() plugin.MemoryQuery {
+	return plugin.MemoryQuery{MaxAge: 7 * 24 * time.Hour, Limit: 50}
+}
+
+func buildSysPrompt(ctx context.Context, workspace string, memReg *kmemory.Registry, cfg *config.Config) (string, error) {
+	template, err := prompt.BuildTemplate(workspace)
+	if err != nil {
+		return "", fmt.Errorf("system prompt: %w", err)
+	}
+	memCtx := memReg.Context(ctx, cfg, defaultMemoryQuery())
+	if memCtx == "" {
+		return template, nil
+	}
+	return template + "\n\n" + memCtx, nil
+}
 
 func (g *Gateway) loadSkillRegs(cfg *config.Config) []api.SkillRegistration {
 	if g.plugins == nil {
@@ -30,6 +49,9 @@ func (g *Gateway) buildRuntime(cfg *config.Config, sysPrompt string, skillRegs [
 	var pluginTools []tool.Tool
 	if g.plugins != nil {
 		pluginTools = g.plugins.Tools(cfg)
+	}
+	if g.memPlug != nil {
+		pluginTools = append(pluginTools, g.memPlug.Tools(cfg)...)
 	}
 	return g.runtimeFactory(cfg, sysPrompt, skillRegs, pluginTools, g.historyStore, g.logger)
 }
@@ -52,9 +74,9 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("cron service: %w", err)
 	}
 	g.skillRegs = g.loadSkillRegs(cfg)
-	sysPrompt, err := prompt.Build(cfg.Agent.Workspace, g.mem.GetMemoryContext())
+	sysPrompt, err := buildSysPrompt(ctx, cfg.Agent.Workspace, g.memReg, cfg)
 	if err != nil {
-		return fmt.Errorf("system prompt: %w", err)
+		return err
 	}
 	slashReg, err := slash.BuiltIns()
 	if err != nil {
@@ -74,5 +96,55 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("channels apply: %w", err)
 	}
 	g.cfg = cfg
+	g.wirePostActionHooks()
 	return g.startTriggers(ctx)
+}
+
+// wirePostActionHooks registers session reset and pre-compact flush callbacks on the postaction handler.
+func (g *Gateway) wirePostActionHooks() {
+	if g.pipe == nil {
+		return
+	}
+	posts := g.pipe.Posts()
+	if posts == nil {
+		return
+	}
+	posts.SetSessionResetHook(func() {
+		if g.memReg != nil {
+			g.memReg.ResetStartup()
+		}
+	})
+	posts.SetPreCompactFlush(func(ctx context.Context, sessionID string) {
+		const flushPrompt = "Before this conversation compacts, use the remember tool to save any important facts, preferences, or decisions that should persist to long-term memory. Be concise."
+		_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)
+	})
+}
+
+// refreshMemory rebuilds the system prompt and runtime with fresh memory, without restarting channels.
+// Called by the remember tool after a successful write.
+func (g *Gateway) refreshMemory(ctx context.Context) error {
+	g.applyMu.Lock()
+	defer g.applyMu.Unlock()
+	if g.cfg == nil {
+		return nil
+	}
+	sysPrompt, err := buildSysPrompt(ctx, g.cfg.Agent.Workspace, g.memReg, g.cfg)
+	if err != nil {
+		return err
+	}
+	slashReg, err := slash.BuiltIns()
+	if err != nil {
+		return err
+	}
+	if g.plugins != nil {
+		if err := slash.RegisterPluginCommands(slashReg, g.plugins.SlashCommands(g.cfg)); err != nil {
+			return err
+		}
+	}
+	rt, err := g.buildRuntime(g.cfg, sysPrompt, g.skillRegs)
+	if err != nil {
+		return err
+	}
+	g.pipe.SwapRuntime(rt, slashReg)
+	return nil
 }

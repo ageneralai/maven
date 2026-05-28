@@ -55,7 +55,8 @@ All packages under `internal/kernel/` are plugin-agnostic core logic:
 | `internal/kernel/turnctx` | Per-turn context |
 | `internal/kernel/executor` | `TurnExecutor` / `StreamRunner` contracts |
 | `internal/kernel/stringutil`, `internal/kernel/log` | Shared utilities |
-| `internal/kernel/memory`, `internal/kernel/prompt` | Workspace memory and system prompt |
+| `internal/kernel/memory` | Memory registry: fan-out reads, primary-only writes, prompt formatting |
+| `internal/kernel/prompt` | Static system prompt template (AGENTS.md, SOUL.md) |
 | `internal/kernel/slash`, `internal/kernel/slashkind` | Slash command registry and dispatch |
 | `internal/kernel/config` | Config load, watch, hot reload |
 | `internal/kernel/voice` | TTS/STT provider interfaces |
@@ -75,6 +76,7 @@ Defined in `internal/kernel/plugin/plugin.go`. Each axis is an optional interfac
 | `TTSPlugin` / `STTPlugin` | Voice providers |
 | `SlashPlugin` | Pre-model `/commands` |
 | `TriggerPlugin` | Background triggers (cron, heartbeat) |
+| `MemoryPlugin` | Long-term memory read/write; exactly one primary plugin required |
 
 The registry (`internal/kernel/plugin/registry.go`) collects contributions by axis at runtime.
 
@@ -88,6 +90,7 @@ The registry (`internal/kernel/plugin/registry.go`) collects contributions by ax
 | `internal/plugins/skill/file` | Skill |
 | `internal/plugins/voice/cartesia`, `deepgram`, `elevenlabs`, `openai` | TTS/STT |
 | `internal/plugins/tool/acp` | Tool |
+| `internal/plugins/memory/file` | Memory (primary) + Tool (`remember`) |
 
 ## Gateway as plugin host
 

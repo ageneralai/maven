@@ -48,36 +48,6 @@ func TestLongTermMemory(t *testing.T) {
 	}
 }
 
-func TestDailyJournal(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	ms := NewMemoryStore(tmpDir)
-
-	// Read when no file exists
-	content, err := ms.ReadToday()
-	if err != nil {
-		t.Fatalf("ReadToday error: %v", err)
-	}
-	if content != "" {
-		t.Errorf("expected empty, got %q", content)
-	}
-
-	// Append
-	if err := ms.AppendToday("entry 1"); err != nil {
-		t.Fatalf("AppendToday error: %v", err)
-	}
-	if err := ms.AppendToday("entry 2"); err != nil {
-		t.Fatalf("AppendToday error: %v", err)
-	}
-
-	content, err = ms.ReadToday()
-	if err != nil {
-		t.Fatalf("ReadToday error: %v", err)
-	}
-	if !strings.Contains(content, "entry 1") || !strings.Contains(content, "entry 2") {
-		t.Errorf("content missing entries: %q", content)
-	}
-}
 
 func TestGetRecentMemories(t *testing.T) {
 	t.Parallel()
@@ -177,7 +147,12 @@ func TestGetMemoryContext_WithRecentMemories(t *testing.T) {
 	}
 
 	// Write today's journal
-	if err := ms.AppendToday("today's entry"); err != nil {
+	memDir := filepath.Join(tmpDir, "memory")
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	today := time.Now().Format("2006-01-02")
+	if err := os.WriteFile(filepath.Join(memDir, today+".md"), []byte("today's entry\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -260,12 +235,3 @@ func TestMemoryDir(t *testing.T) {
 	}
 }
 
-func TestTodayFile(t *testing.T) {
-	t.Parallel()
-	ms := NewMemoryStore("/test/workspace")
-	today := time.Now().Format("2006-01-02")
-	expected := "/test/workspace/memory/" + today + ".md"
-	if ms.todayFile() != expected {
-		t.Errorf("todayFile = %q, want %q", ms.todayFile(), expected)
-	}
-}

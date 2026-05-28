@@ -36,6 +36,7 @@ A plugin implements only the axes it provides — no nil stubs required for the 
 - `TTSProvider`, `STTProvider` — first non-nil result wins.
 - `SlashCommands` — results are concatenated; duplicates return an error.
 - `Triggers` — each trigger's `Start(ctx, TurnExecutor, OutboundPublisher)` is called; all execution flows through the same pipeline the chat path uses.
+- `Memory` — `Read` fans out to all plugins concurrently (500ms budget); `Write` routes to the single plugin where `Primary() == true`. Exactly one primary must be registered.
 
 `Start` and `Stop` are called on every plugin in registration order regardless of which axes it implements.
 
@@ -59,6 +60,7 @@ All plugins are listed in `internal/gateway/wire.go`:
 | `internal/plugins/voice/elevenlabs` | TTS |
 | `internal/plugins/voice/cartesia` | TTS |
 | `internal/plugins/tool/acp` | Tool |
+| `internal/plugins/memory/file` | Memory (primary) + Tool (`remember`) |
 
 ## Adding a plugin
 

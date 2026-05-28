@@ -18,13 +18,21 @@ import (
 // Handler applies gateway post-turn effects using slash.PreTurn trail metadata.
 type Handler interface {
 	SetWorkspace(workspace string)
+	// SetSessionResetHook registers a callback invoked after any session rotation (/new or compact).
+	// Use this to reset memory registry startup state so daily context reloads on the next Apply.
+	SetSessionResetHook(fn func())
+	// SetPreCompactFlush registers a callback invoked before compaction session rotation.
+	// The hook receives the current session ID so the agent can flush important context to memory.
+	SetPreCompactFlush(fn func(ctx context.Context, sessionID string))
 	HandleBuiltin(msg bus.InboundMessage) (bool, error)
 	HandlePostResponse(ctx context.Context, chatRouteKey string, resp *api.Response, trail []slash.Execution) (string, bool, error)
 }
 
 type handler struct {
-	sessions  *session.Router
-	workspace string
+	sessions        *session.Router
+	workspace       string
+	sessionResetHook func()
+	preCompactFlush  func(ctx context.Context, sessionID string)
 }
 
 func New(sessions *session.Router, workspace string) Handler {
@@ -32,6 +40,14 @@ func New(sessions *session.Router, workspace string) Handler {
 		panic("postaction: sessions router is required")
 	}
 	return &handler{sessions: sessions, workspace: workspace}
+}
+
+func (h *handler) SetSessionResetHook(fn func()) {
+	h.sessionResetHook = fn
+}
+
+func (h *handler) SetPreCompactFlush(fn func(ctx context.Context, sessionID string)) {
+	h.preCompactFlush = fn
 }
 
 func (h *handler) SetWorkspace(workspace string) {
@@ -42,6 +58,9 @@ func (h *handler) HandleBuiltin(msg bus.InboundMessage) (bool, error) {
 	switch strings.TrimSpace(msg.Hints.BuiltinCommand) {
 	case "new":
 		_, _, err := h.sessions.Rotate(msg.StableRouteKey())
+		if err == nil && h.sessionResetHook != nil {
+			h.sessionResetHook()
+		}
 		return true, err
 	default:
 		return false, nil
@@ -56,6 +75,10 @@ func (h *handler) HandlePostResponse(ctx context.Context, chatRouteKey string, r
 		summary := strings.TrimSpace(resultOutput(resp))
 		if summary == "" {
 			return "", true, fmt.Errorf("compact summary is empty")
+		}
+		if h.preCompactFlush != nil {
+			currentSessionID := h.sessions.Current(chatRouteKey)
+			h.preCompactFlush(ctx, currentSessionID)
 		}
 		oldSessionID, newSessionID, err := h.sessions.Rotate(chatRouteKey)
 		if err != nil {

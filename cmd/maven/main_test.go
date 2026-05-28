@@ -139,15 +139,19 @@ func TestBuildSystemPrompt(t *testing.T) {
 
 	mem := memory.NewMemoryStore(tmpDir)
 
-	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	template, err := prompt.BuildTemplate(tmpDir)
 	if err != nil {
-		t.Fatalf("prompt.Build: %v", err)
+		t.Fatalf("prompt.BuildTemplate: %v", err)
+	}
+	promptText := template
+	if memCtx := mem.GetMemoryContext(); memCtx != "" {
+		promptText = template + "\n\n" + memCtx
 	}
 
-	if !strings.Contains(prompt, "# Agent") {
+	if !strings.Contains(promptText, "# Agent") {
 		t.Error("missing AGENTS.md content")
 	}
-	if !strings.Contains(prompt, "# Soul") {
+	if !strings.Contains(promptText, "# Soul") {
 		t.Error("missing SOUL.md content")
 	}
 }
@@ -160,12 +164,16 @@ func TestBuildSystemPrompt_WithMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	template, err := prompt.BuildTemplate(tmpDir)
 	if err != nil {
-		t.Fatalf("prompt.Build: %v", err)
+		t.Fatalf("prompt.BuildTemplate: %v", err)
+	}
+	promptText := template
+	if memCtx := mem.GetMemoryContext(); memCtx != "" {
+		promptText = template + "\n\n" + memCtx
 	}
 
-	if !strings.Contains(prompt, "Important info") {
+	if !strings.Contains(promptText, "Important info") {
 		t.Error("missing memory content")
 	}
 }
@@ -175,13 +183,17 @@ func TestBuildSystemPrompt_NoFiles(t *testing.T) {
 
 	mem := memory.NewMemoryStore(tmpDir)
 
-	prompt, err := prompt.Build(tmpDir, mem.GetMemoryContext())
+	template, err := prompt.BuildTemplate(tmpDir)
 	if err != nil {
-		t.Fatalf("prompt.Build: %v", err)
+		t.Fatalf("prompt.BuildTemplate: %v", err)
+	}
+	promptText := template
+	if memCtx := mem.GetMemoryContext(); memCtx != "" {
+		promptText = template + "\n\n" + memCtx
 	}
 
-	if prompt != "" {
-		t.Errorf("expected empty prompt, got %q", prompt)
+	if promptText != "" {
+		t.Errorf("expected empty prompt, got %q", promptText)
 	}
 }
 
