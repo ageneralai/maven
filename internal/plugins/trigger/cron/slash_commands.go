@@ -20,7 +20,8 @@ func slashCommands(svc *Service) []plugin.SlashCommand {
 				Name: "cron-add",
 				Description: "Schedule a persisted cron job. Exactly one of --expr (cron with seconds, six fields), " +
 					"--in (duration from now, e.g. 1m), or --at-ms (Unix ms). When the job runs, the agent executes with --message. " +
-					"Use --deliver true with --channel and --to to send the agent reply (e.g. telegram + chat id).",
+					"To deliver the reply back to this chat: --deliver_to_incoming_chat true (no --channel or --to needed). " +
+					"To deliver to a specific chat: --deliver true --channel telegram --to <chat_id>.",
 			},
 			Handler: slashHandlerFunc(func(ctx context.Context, inv plugin.SlashInvocation) (plugin.SlashResult, error) {
 				return slashCronAdd(ctx, svc, inv)
@@ -84,6 +85,10 @@ func slashCronAdd(_ context.Context, svc *Service, inv plugin.SlashInvocation) (
 	if nSched != 1 {
 		return plugin.SlashResult{}, fmt.Errorf("cron-add: exactly one of --expr, --in, or --at-ms is required")
 	}
+	deliverIncoming := false
+	if v, ok := slashFlag(inv, "deliver_to_incoming_chat"); ok && (v == "true" || v == "1" || strings.EqualFold(v, "yes")) {
+		deliverIncoming = true
+	}
 	deliver := false
 	if v, ok := slashFlag(inv, "deliver"); ok && (v == "true" || v == "1" || strings.EqualFold(v, "yes")) {
 		deliver = true
@@ -97,7 +102,7 @@ func slashCronAdd(_ context.Context, svc *Service, inv plugin.SlashInvocation) (
 	}
 	p := AddParams{
 		Name: strings.TrimSpace(name), Message: strings.TrimSpace(msg), Expr: expr, In: inStr,
-		Deliver: deliver, Channel: chv, To: to,
+		Deliver: deliver, Channel: chv, To: to, DeliverToIncomingChat: deliverIncoming,
 	}
 	if hasAtMs && atMsStr != "" {
 		atMs, err := strconv.ParseInt(atMsStr, 10, 64)
