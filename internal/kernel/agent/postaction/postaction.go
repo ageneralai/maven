@@ -18,9 +18,6 @@ import (
 // Handler applies gateway post-turn effects using slash.PreTurn trail metadata.
 type Handler interface {
 	SetWorkspace(workspace string)
-	// SetSessionResetHook registers a callback invoked after any session rotation (/new or compact).
-	// Use this to reset memory registry startup state so daily context reloads on the next Apply.
-	SetSessionResetHook(fn func())
 	// SetPreCompactFlush registers a callback invoked before compaction session rotation.
 	// The hook receives the current session ID so the agent can flush important context to memory.
 	SetPreCompactFlush(fn func(ctx context.Context, sessionID string))
@@ -31,8 +28,7 @@ type Handler interface {
 type handler struct {
 	sessions        *session.Router
 	workspace       string
-	sessionResetHook func()
-	preCompactFlush  func(ctx context.Context, sessionID string)
+	preCompactFlush func(ctx context.Context, sessionID string)
 }
 
 func New(sessions *session.Router, workspace string) Handler {
@@ -40,10 +36,6 @@ func New(sessions *session.Router, workspace string) Handler {
 		panic("postaction: sessions router is required")
 	}
 	return &handler{sessions: sessions, workspace: workspace}
-}
-
-func (h *handler) SetSessionResetHook(fn func()) {
-	h.sessionResetHook = fn
 }
 
 func (h *handler) SetPreCompactFlush(fn func(ctx context.Context, sessionID string)) {
@@ -58,9 +50,6 @@ func (h *handler) HandleBuiltin(msg bus.InboundMessage) (bool, error) {
 	switch strings.TrimSpace(msg.Hints.BuiltinCommand) {
 	case "new":
 		_, _, err := h.sessions.Rotate(msg.StableRouteKey())
-		if err == nil && h.sessionResetHook != nil {
-			h.sessionResetHook()
-		}
 		return true, err
 	default:
 		return false, nil

@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
@@ -16,7 +15,7 @@ import (
 )
 
 func defaultMemoryQuery() plugin.MemoryQuery {
-	return plugin.MemoryQuery{MaxAge: 7 * 24 * time.Hour, Limit: 50}
+	return plugin.MemoryQuery{}
 }
 
 func buildSysPrompt(ctx context.Context, workspace string, memReg *kmemory.Registry, cfg *config.Config) (string, error) {
@@ -100,7 +99,7 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	return g.startTriggers(ctx)
 }
 
-// wirePostActionHooks registers session reset and pre-compact flush callbacks on the postaction handler.
+// wirePostActionHooks registers pre-compact flush callback on the postaction handler.
 func (g *Gateway) wirePostActionHooks() {
 	if g.pipe == nil {
 		return
@@ -109,11 +108,6 @@ func (g *Gateway) wirePostActionHooks() {
 	if posts == nil {
 		return
 	}
-	posts.SetSessionResetHook(func() {
-		if g.memReg != nil {
-			g.memReg.ResetStartup()
-		}
-	})
 	posts.SetPreCompactFlush(func(ctx context.Context, sessionID string) {
 		const flushPrompt = "Before this conversation compacts, use the remember tool to save any important facts, preferences, or decisions that should persist to long-term memory. Be concise."
 		_, _ = g.pipe.RunTurn(ctx, flushPrompt, sessionID)

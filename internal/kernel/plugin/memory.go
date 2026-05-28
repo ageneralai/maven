@@ -25,13 +25,10 @@ type MemoryEntry struct {
 }
 
 // MemoryQuery filters what a memory plugin returns. Zero values mean no filter.
-// IncludeJournal controls whether daily journal files are included; set false after first Apply
-// to avoid injecting stale dailies on every hot-reload.
 type MemoryQuery struct {
-	Kinds          []MemoryKind
-	MaxAge         time.Duration
-	Limit          int
-	IncludeJournal bool
+	Kinds  []MemoryKind
+	MaxAge time.Duration
+	Limit  int
 }
 
 // MemoryPlugin is the plugin axis for long-term agent memory.

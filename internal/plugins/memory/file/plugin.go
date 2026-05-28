@@ -37,27 +37,20 @@ func (p *Plugin) Stop() error                 { return nil }
 
 func (p *Plugin) Read(ctx context.Context, cfg *config.Config, q plugin.MemoryQuery) ([]plugin.MemoryEntry, error) {
 	dir := memoryDir(cfg)
-	var entries []plugin.MemoryEntry
 	data, err := os.ReadFile(filepath.Join(dir, "MEMORY.md"))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("memory file read: %w", err)
 	}
-	if content := strings.TrimSpace(string(data)); content != "" {
-		entries = append(entries, plugin.MemoryEntry{
-			Source:    "file:MEMORY.md",
-			Content:   content,
-			Kind:      plugin.MemoryKindFact,
-			Timestamp: time.Time{},
-		})
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return nil, nil
 	}
-	if q.IncludeJournal {
-		dailyEntries, err := readDailyFiles(dir, q)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, dailyEntries...)
-	}
-	return entries, nil
+	return []plugin.MemoryEntry{{
+		Source:    "file:MEMORY.md",
+		Content:   content,
+		Kind:      plugin.MemoryKindFact,
+		Timestamp: time.Time{},
+	}}, nil
 }
 
 func (p *Plugin) Write(ctx context.Context, cfg *config.Config, e plugin.MemoryEntry) error {

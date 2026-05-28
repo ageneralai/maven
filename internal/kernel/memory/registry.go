@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -22,9 +21,8 @@ const (
 
 // Registry fans out memory reads to all plugins and routes writes to the primary.
 type Registry struct {
-	plugins      []plugin.MemoryPlugin
-	log          *slog.Logger
-	startupDone  atomic.Bool
+	plugins []plugin.MemoryPlugin
+	log     *slog.Logger
 }
 
 // NewRegistry constructs a Registry. Returns error if zero or more than one plugin is primary.
@@ -43,16 +41,14 @@ func NewRegistry(lg *slog.Logger, plugins ...plugin.MemoryPlugin) (*Registry, er
 	return &Registry{plugins: cp, log: lg}, nil
 }
 
-// Context reads from all plugins concurrently with a 500ms budget, merges entries, and returns
-// a formatted string for system prompt injection. Daily journal files are included only on the
-// first call (gateway startup); subsequent calls (hot-reload) skip them to avoid stale injection.
+// Context reads long-term memory (MEMORY.md) from all plugins concurrently with a 500ms budget
+// and returns a formatted string for system prompt injection. Daily journal files are excluded —
+// the agent retrieves episodic memory on demand via memory_search / memory_get tools.
 // Errors from individual plugins are logged and skipped — never fatal.
 func (r *Registry) Context(ctx context.Context, cfg *config.Config, q plugin.MemoryQuery) string {
 	if r == nil || len(r.plugins) == 0 {
 		return ""
 	}
-	// First call includes daily journal; subsequent calls (hot-reload) do not.
-	q.IncludeJournal = !r.startupDone.Swap(true)
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	type result struct {
@@ -81,14 +77,6 @@ func (r *Registry) Context(ctx context.Context, cfg *config.Config, q plugin.Mem
 	return formatEntries(all)
 }
 
-// ResetStartup allows daily journal injection on the next Context call.
-// Call after session rotation (/new) so the next Apply preloads today's journal.
-func (r *Registry) ResetStartup() {
-	if r != nil {
-		r.startupDone.Store(false)
-	}
-}
-
 // Write routes to the primary plugin.
 func (r *Registry) Write(ctx context.Context, cfg *config.Config, e plugin.MemoryEntry) error {
 	if r == nil {
@@ -107,30 +95,11 @@ func formatEntries(entries []plugin.MemoryEntry) string {
 		return ""
 	}
 	var sb strings.Builder
-	var facts, events []plugin.MemoryEntry
+	sb.WriteString("# Long-term Memory\n")
 	for _, e := range entries {
-		switch e.Kind {
-		case plugin.MemoryKindEvent:
-			events = append(events, e)
-		default:
-			facts = append(facts, e)
-		}
-	}
-	if len(facts) > 0 {
-		sb.WriteString("# Long-term Memory\n")
-		for _, e := range facts {
-			content := truncateChars(e.Content, memoryMdMaxChars)
-			sb.WriteString(content)
-			sb.WriteString("\n")
-		}
+		content := truncateChars(e.Content, memoryMdMaxChars)
+		sb.WriteString(content)
 		sb.WriteString("\n")
-	}
-	if len(events) > 0 {
-		sb.WriteString("# Recent Journal\n")
-		for _, e := range events {
-			date := e.Timestamp.Format("2006-01-02")
-			fmt.Fprintf(&sb, "## %s\n%s\n\n", date, e.Content)
-		}
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
@@ -140,6 +109,5 @@ func truncateChars(s string, maxChars int) string {
 	if utf8.RuneCountInString(s) <= maxChars {
 		return s
 	}
-	runes := []rune(s)
-	return string(runes[:maxChars]) + "…"
+	return string([]rune(s)[:maxChars]) + "…"
 }
