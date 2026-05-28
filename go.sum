@@ -4,8 +4,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/adhocore/gronx v1.19.6 h1:5KNVcoR9ACgL9HhEqCm5QXsab/gI4QDIybTAWcXDKDc=
 github.com/adhocore/gronx v1.19.6/go.mod h1:7oUY1WAU8rEJWmAxXR2DN0JaO4gi9khSgKjiRypqteg=
-github.com/ageneralai/ageneral-agents-go v0.1.1 h1:lG22JohnbHtjoXAIv7O6ABfDHBwdPh1S4miVU74iJas=
-github.com/ageneralai/ageneral-agents-go v0.1.1/go.mod h1:CrUH9WVesOq5Lg16pn6kEk8BjEYPI3/UUx6Vgyz15/I=
+github.com/ageneralai/ageneral-agents-go v0.1.2 h1:ndI7fuFDEnMP362+KOQgEkklHvx1l1s3l+6FiL6PKxg=
+github.com/ageneralai/ageneral-agents-go v0.1.2/go.mod h1:CrUH9WVesOq5Lg16pn6kEk8BjEYPI3/UUx6Vgyz15/I=
 github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM=
 github.com/agnivade/levenshtein v1.2.1/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=

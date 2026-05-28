@@ -4,7 +4,7 @@ go 1.25.5
 
 require (
 	github.com/adhocore/gronx v1.19.6
-	github.com/ageneralai/ageneral-agents-go v0.1.1
+	github.com/ageneralai/ageneral-agents-go v0.1.2
 	github.com/coder/acp-go-sdk v0.12.2
 	github.com/coder/websocket v1.8.14
 	github.com/fsnotify/fsnotify v1.10.1
@@ -14,6 +14,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	go.mau.fi/whatsmeow v0.0.0-20260129212019-7787ab952245
 	golang.org/x/sync v0.20.0
+	golang.org/x/term v0.43.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.28.0
@@ -76,7 +77,6 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260203192932-546029d2fa20 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260203192932-546029d2fa20 // indirect
