@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestApplyLogLevel(t *testing.T) {
 	if err := g.applyLogLevel(cfg); err != nil {
 		t.Fatalf("applyLogLevel(debug): %v", err)
 	}
-	if !logger.Enabled(nil, slog.LevelDebug) {
+	if !logger.Enabled(context.TODO(), slog.LevelDebug) {
 		t.Fatal("expected debug enabled after applyLogLevel")
 	}
 	cfg.Logging.Level = "bogus"
