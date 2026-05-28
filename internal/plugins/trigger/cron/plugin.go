@@ -56,13 +56,7 @@ func (p *Plugin) Triggers(*config.Config) []plugin.Trigger {
 }
 
 func (p *Plugin) Tools(*config.Config) []tool.Tool {
-	p.mu.RLock()
-	svc := p.svc
-	p.mu.RUnlock()
-	if svc == nil {
-		return nil
-	}
-	return Tools(svc, p.log)
+	return Tools(p, p.log)
 }
 
 func (p *Plugin) SlashCommands(*config.Config) []plugin.SlashCommand {

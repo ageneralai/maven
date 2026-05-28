@@ -95,7 +95,9 @@ func TestScheduleToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tools := Tools(svc, toolTestLog)
+	p := &Plugin{log: toolTestLog}
+	p.svc = svc
+	tools := Tools(p, toolTestLog)
 	if len(tools) != 3 {
 		t.Fatalf("tools=%d", len(tools))
 	}
