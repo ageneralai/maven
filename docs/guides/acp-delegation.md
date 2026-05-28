@@ -1,6 +1,6 @@
 # ACP delegation
 
-Maven can delegate coding tasks to **external [ACP](https://agentclientprotocol.com)** processes via the `DelegateTask` custom tool. Protocol implementation: `github.com/coder/acp-go-sdk` (pinned in `go.mod`). Maven code: `internal/plugins/tool/acp`.
+Maven can delegate coding tasks to **external [ACP](https://agentclientprotocol.com)** processes via the `DelegateTask` tool. Protocol implementation: `github.com/coder/acp-go-sdk` (pinned in `go.mod`). Maven code: `internal/plugins/tool/acp`.
 
 ## Model
 
@@ -31,18 +31,18 @@ Maven can delegate coding tasks to **external [ACP](https://agentclientprotocol.
 }
 ```
 
-| Field | Description |
-|-------|-------------|
+| Field     | Description                                                                      |
+| --------- | -------------------------------------------------------------------------------- |
 | `enabled` | When `true` and at least one valid agent entry exists, registers `DelegateTask`. |
-| `agents` | Map of logical name → `ACPAgent`. The model passes the logical name as `agent`. |
+| `agents`  | Map of logical name → `ACPAgent`. The model passes the logical name as `agent`.  |
 
 **`ACPAgent`** (one per map entry):
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `command` | string | Executable name or path on `PATH`. Required. **Never** taken from tool JSON. |
-| `args` | []string | Fixed arguments. Optional. |
-| `env` | []string | Extra `KEY=value` entries appended to the process env. Optional. |
+| Field     | Type     | Description                                                                  |
+| --------- | -------- | ---------------------------------------------------------------------------- |
+| `command` | string   | Executable name or path on `PATH`. Required. **Never** taken from tool JSON. |
+| `args`    | []string | Fixed arguments. Optional.                                                   |
+| `env`     | []string | Extra `KEY=value` entries appended to the process env. Optional.             |
 
 The agent binary and arguments come **only from config**. The model cannot supply arbitrary shell commands.
 
@@ -69,12 +69,12 @@ Untick this if you have a deliberate reason; defaults are safe.
 }
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `agent` | yes | Map key from `tools.acp.agents`. |
-| `prompt` | yes | Task text sent as the ACP `Prompt`. |
-| `cwd` | no | Working directory for the subprocess. Defaults to `agent.workspace`. |
-| `timeout` | no | Seconds before the subprocess is killed. Default 120. |
+| Parameter | Required | Description                                                          |
+| --------- | -------- | -------------------------------------------------------------------- |
+| `agent`   | yes      | Map key from `tools.acp.agents`.                                     |
+| `prompt`  | yes      | Task text sent as the ACP `Prompt`.                                  |
+| `cwd`     | no       | Working directory for the subprocess. Defaults to `agent.workspace`. |
+| `timeout` | no       | Seconds before the subprocess is killed. Default 120.                |
 
 The tool is marked `IsDestructive: true` in `tool.Metadata` so SDK consumers can prompt for confirmation.
 
@@ -99,11 +99,11 @@ Currently **not** supported. The ACP `CreateTerminal` / `TerminalOutput` / `Kill
 
 ## Related files
 
-| File | Role |
-|------|------|
-| `internal/plugins/tool/acp/plugin.go` | Plugin axis adapter. |
-| `internal/plugins/tool/acp/tool.go` | `DelegateTask` schema and execution. |
-| `internal/plugins/tool/acp/client.go` | ACP client, FS hooks, permission auto-allow. |
-| `internal/plugins/tool/acp/sdk.go` | Build tools from config. |
-| `internal/plugins/tool/acp/path.go` | Workspace-aware path resolver. |
-| `internal/plugins/channel/telegram/stream_state.go`, `card.go` | Status card streaming for tool output. |
+| File                                                           | Role                                         |
+| -------------------------------------------------------------- | -------------------------------------------- |
+| `internal/plugins/tool/acp/plugin.go`                          | Plugin axis adapter.                         |
+| `internal/plugins/tool/acp/tool.go`                            | `DelegateTask` schema and execution.         |
+| `internal/plugins/tool/acp/client.go`                          | ACP client, FS hooks, permission auto-allow. |
+| `internal/plugins/tool/acp/sdk.go`                             | Build tools from config.                     |
+| `internal/plugins/tool/acp/path.go`                            | Workspace-aware path resolver.               |
+| `internal/plugins/channel/telegram/stream_state.go`, `card.go` | Status card streaming for tool output.       |
