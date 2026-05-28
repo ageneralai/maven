@@ -53,7 +53,7 @@ type Pipeline struct {
 	sessions      session.Resolver
 	posts         postaction.Handler
 	liveness      health.HealthReporter
-	postTurnHook  hook.PostTurnHandler
+	postTurnHooks []hook.PostTurnHandler
 	turnMu        sync.RWMutex
 	rt            agent.Runtime
 }
@@ -68,9 +68,12 @@ func (p *Pipeline) Posts() postaction.Handler {
 	return p.posts
 }
 
-// SetPostTurnHook registers a handler invoked in a goroutine after each successful user conversation turn.
-func (p *Pipeline) SetPostTurnHook(fn hook.PostTurnHandler) {
-	p.postTurnHook = fn
+// SetPostTurnHooks registers handlers invoked concurrently in goroutines after each successful
+// user conversation turn. Protected by the same turnMu as the runtime swap.
+func (p *Pipeline) SetPostTurnHooks(fns []hook.PostTurnHandler) {
+	p.turnMu.Lock()
+	defer p.turnMu.Unlock()
+	p.postTurnHooks = fns
 }
 
 // SetSlashRegistry replaces the slash command registry. Called during gateway wiring and on Apply.
@@ -258,6 +261,7 @@ func (p *Pipeline) runSlash(ctx context.Context, msg bus.InboundMessage, session
 }
 
 func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.InboundMessage, sessionKey string, meta map[string]any, ch channels.StreamChannel, plan turnPlan) error {
+	hooks := p.postTurnHooks // copied while caller holds turnMu.RLock
 	msgCtx := p.turnContext(ctx, msg, sessionKey)
 	streamHints := bus.StreamHints{Channel: msg.Channel, ChatID: msg.ChatID}
 	streamCtx := p.bus.OnStreamBegin(msgCtx, streamHints)
@@ -266,10 +270,9 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		p.bus.OnStreamEnd(streamCtx, streamHints, err)
 		return err
 	}
-	hookFn := p.postTurnHook
 	var intercepted <-chan api.StreamEvent
 	var outputCollector *strings.Builder
-	if hookFn != nil && plan.sessionMode == session.SessionModeCurrent {
+	if len(hooks) > 0 && plan.sessionMode == session.SessionModeCurrent {
 		var sb strings.Builder
 		outputCollector = &sb
 		intercepted = collectStreamOutput(streamEvents, &sb)
@@ -283,7 +286,7 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		p.reportStreamFailed(ctx, msg.Channel, msg.ChatID, sendErr)
 	}
 	p.bus.OnStreamEnd(streamCtx, streamHints, sendErr)
-	if sendErr == nil && hookFn != nil && outputCollector != nil {
+	if sendErr == nil && outputCollector != nil {
 		ev := hook.PostTurnEvent{
 			UserMsg:      msg.Content,
 			AssistantMsg: outputCollector.String(),
@@ -292,7 +295,11 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 			ChatID:       msg.ChatID,
 			At:           time.Now(),
 		}
-		go hookFn(context.WithoutCancel(ctx), ev)
+		bgCtx := context.WithoutCancel(ctx)
+		for _, h := range hooks {
+			h := h
+			go h(bgCtx, ev)
+		}
 	}
 	return sendErr
 }
@@ -337,7 +344,8 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 			p.log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
 		}
 	}
-	if p.postTurnHook != nil && plan.sessionMode == session.SessionModeCurrent {
+	hooks := p.postTurnHooks // copied while caller holds turnMu.RLock
+	if len(hooks) > 0 && plan.sessionMode == session.SessionModeCurrent {
 		ev := hook.PostTurnEvent{
 			UserMsg:      msg.Content,
 			AssistantMsg: result,
@@ -346,8 +354,11 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 			ChatID:       msg.ChatID,
 			At:           time.Now(),
 		}
-		h := p.postTurnHook
-		go h(context.WithoutCancel(ctx), ev)
+		bgCtx := context.WithoutCancel(ctx)
+		for _, h := range hooks {
+			h := h
+			go h(bgCtx, ev)
+		}
 	}
 	return nil
 }

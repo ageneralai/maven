@@ -162,6 +162,6 @@ func (g *Gateway) wirePostActionHooks() {
 		})
 	}
 	if g.plugins != nil {
-		g.pipe.SetPostTurnHook(g.plugins.PostTurnHandler(g.cfg))
+		g.pipe.SetPostTurnHooks(g.plugins.PostTurnHandlers(g.cfg))
 	}
 }
