@@ -29,6 +29,7 @@ sequenceDiagram
     participant RT as Runtime
     participant Post as Post-actions
     participant Out as Outbound bus
+    participant J as Journaler (goroutine)
     Bus->>P: InboundMessage
     P->>P: handle builtins (/new)
     P->>Sess: ResolveSDKSessionID(channel, chat, mode)
@@ -43,11 +44,13 @@ sequenceDiagram
             RT-->>P: <-chan StreamEvent
             P->>Out: SendStream(chatID, meta, events)
             Note over Out,RT: channel reads events directly<br/>(framing, batching, edits)
+            P->>J: postTurnHook(userMsg, output) [SessionModeCurrent only]
         else sync
             P->>RT: Run
             RT-->>P: Response
             P->>Post: HandlePostResponse (compact rotation, etc.)
             P->>Out: publish reply
+            P->>J: postTurnHook(userMsg, output) [SessionModeCurrent only]
         end
     end
 ```
@@ -112,6 +115,18 @@ After a sync run, `postaction.Handler.HandlePostResponse` inspects the slash exe
 - **`CompactRotateAction`** (from built-in `/compact`): flush hook fires on the current session, the router rotates the session, the model's compact summary is seeded into the new session's history file, and the reply is either the summary or a fixed ack ("Conversation compacted and continued in a fresh session.").
 
 Plugins can introduce new post-action types by returning them from slash handlers; the handler picks the first non-nil `PostAction` from the slash trail.
+
+## Post-turn hooks
+
+The pipeline exposes a single post-turn callback registered by the gateway:
+
+```go
+pipeline.SetPostTurnHook(func(ctx context.Context, userMsg, assistantMsg string) { ... })
+```
+
+The hook fires after the reply is delivered — after `PublishOutbound` for sync turns and after `SendStream` drains for streaming turns. It only fires for `SessionModeCurrent` turns; cron and other isolated sessions are excluded.
+
+Today the only registered hook is the **shadow journaler**: an isolated LLM pass that writes net-new facts from the exchange to the episodic journal. See [Guides: Memory — Shadow journaler](../guides/memory.md#shadow-journaler).
 
 ## Errors and user replies
 

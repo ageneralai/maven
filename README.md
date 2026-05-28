@@ -27,7 +27,7 @@
 - **Run on a schedule.** Persistent cron jobs and a periodic heartbeat call the same execution path the chat surfaces use.
 - **Speak and listen.** Realtime browser voice via Deepgram STT and OpenAI / Deepgram / ElevenLabs / Cartesia TTS.
 - **Delegate work.** A `Task` tool runs in-process subagents (explore, plan, general-purpose); a `DelegateTask` tool launches external [ACP](https://agentclientprotocol.com) coding agents (Claude Code, Gemini CLI, …) as subprocesses.
-- **Remember.** Long-term `MEMORY.md` plus daily journals, queryable via `remember`, `memory_search`, and `memory_get`. A background pass consolidates worth-keeping facts.
+- **Remember.** Long-term `MEMORY.md` plus daily journals. A shadow journaler automatically records net-new facts from every conversation turn; a background pass promotes them to long-term memory.
 - **Stay private.** Process-wide egress honors `HTTPS_PROXY`, `SSL_CERT_FILE`, and `NO_PROXY` so you can route everything through a vault like [OneCLI](https://github.com/onecli/onecli).
 - **Hot reload.** Edit `~/.maven/config.json` and the gateway re-applies without restarting.
 

@@ -55,6 +55,27 @@ Case-insensitive substring match across journal files. Returns up to `limit` (de
 
 Accepts `today`, `yesterday`, or `YYYY-MM-DD`. Returns the file content with a heading or "No journal entry for {date}." when absent.
 
+## Shadow journaler
+
+After every real conversation turn (any channel, sync or streaming), Maven runs a lightweight shadow pass in a separate goroutine. It is not visible to the user and does not delay the reply.
+
+The shadow pass receives the user message and assistant response and runs an isolated LLM call with only two tools exposed — `memory_search` and `remember`. It uses `memory_search` to check whether the fact is already recorded today, then calls `remember` only for net-new information. Greetings, clarifications, and routine replies produce no journal entry.
+
+```
+user message
+    ↓
+main runtime → reply delivered to user
+    ↓ goroutine
+shadow LLM call
+    ↓ memory_search (check today's journal)
+    ↓ remember (only if net-new)
+    ↓ done — no user-visible output
+```
+
+The shadow runtime is stateless: each pass gets a fresh ephemeral session (UUID) with no prior history and no disk persistence. It shares the same provider and model as the main runtime.
+
+**When it fires:** only on `SessionModeCurrent` turns (real user conversations). Cron jobs, heartbeat ticks, and memory consolidation passes do not trigger the journaler.
+
 ## Background consolidation
 
 When enabled, `memconsolidate` reviews recent journals and asks the model to promote worth-keeping facts to `MEMORY.md`.
