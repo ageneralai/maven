@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 # Maven
 
 A personal AI assistant. One Go binary that runs locally or in a container, talks to your favorite chat apps, schedules its own work, and delegates coding tasks to external agents.
