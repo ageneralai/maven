@@ -62,7 +62,7 @@ func (t *listTool) Schema() *tool.JSONSchema { return cronListToolSchema }
 func (t *listTool) Execute(_ context.Context, _ map[string]any) (*tool.ToolResult, error) {
 	svc := t.plugin.Service()
 	if svc == nil {
-		return &tool.ToolResult{Success: true, Output: "No jobs."}, nil
+		return &tool.ToolResult{Success: false, Output: "cron service not ready"}, nil
 	}
 	out := FormatList(svc.ListJobs())
 	return &tool.ToolResult{Success: true, Output: out}, nil

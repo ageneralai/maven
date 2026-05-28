@@ -297,7 +297,6 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 		}
 		bgCtx := context.WithoutCancel(ctx)
 		for _, h := range hooks {
-			h := h
 			go h(bgCtx, ev)
 		}
 	}
@@ -356,7 +355,6 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 		}
 		bgCtx := context.WithoutCancel(ctx)
 		for _, h := range hooks {
-			h := h
 			go h(bgCtx, ev)
 		}
 	}
