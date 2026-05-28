@@ -69,7 +69,7 @@ func TestSlashCronRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := svc.ListJobs()[0].ID
-	remH := cmds[2].Handler
+	remH := cmds[3].Handler
 	remInv := mustParseSlash(t, `/cron-remove --id `+id)
 	if _, err := remH.Handle(context.Background(), toPluginInv(remInv)); err != nil {
 		t.Fatal(err)

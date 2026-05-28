@@ -14,7 +14,14 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 )
+
+type slashHandlerFunc func(context.Context, plugin.SlashInvocation) (plugin.SlashResult, error)
+
+func (f slashHandlerFunc) Handle(ctx context.Context, inv plugin.SlashInvocation) (plugin.SlashResult, error) {
+	return f(ctx, inv)
+}
 
 type rememberTool struct {
 	cfg *config.Config
@@ -59,6 +66,33 @@ func (p *Plugin) Tools(cfg *config.Config) []tool.Tool {
 		&memorySearchTool{cfg: cfg},
 		&memoryGetTool{cfg: cfg},
 	}
+}
+
+func (p *Plugin) SlashCommands(cfg *config.Config) []plugin.SlashCommand {
+	return []plugin.SlashCommand{{
+		Definition: plugin.SlashDefinition{
+			Name:        "memory",
+			Description: "Show current long-term memory (MEMORY.md).",
+		},
+		Handler: slashHandlerFunc(func(_ context.Context, _ plugin.SlashInvocation) (plugin.SlashResult, error) {
+			if cfg == nil {
+				return plugin.SlashResult{Output: "No config."}, nil
+			}
+			path := filepath.Join(memoryDir(cfg), "MEMORY.md")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					return plugin.SlashResult{Output: "No long-term memory yet."}, nil
+				}
+				return plugin.SlashResult{}, err
+			}
+			content := strings.TrimSpace(string(data))
+			if content == "" {
+				return plugin.SlashResult{Output: "No long-term memory yet."}, nil
+			}
+			return plugin.SlashResult{Output: "📚 Long-term memory:\n\n" + content}, nil
+		}),
+	}}
 }
 
 func (t *rememberTool) Name() string { return "remember" }

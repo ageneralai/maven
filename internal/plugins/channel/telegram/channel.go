@@ -43,6 +43,7 @@ type TelegramChannel struct {
 	mgBuffer map[string]*mediaGroup
 
 	slashCommands map[string]Command
+	pipelineSlashes map[string]string
 }
 
 func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Logger, b *bus.MessageBus) (*TelegramChannel, error) {
@@ -177,7 +178,8 @@ func (t *TelegramChannel) syncBotCommands(ctx context.Context) error {
 }
 
 var (
-	_ channels.Channel             = (*TelegramChannel)(nil)
-	_ channels.StreamChannel       = (*TelegramChannel)(nil)
-	_ channels.InboundPreprocessor = (*TelegramChannel)(nil)
+	_ channels.Channel                 = (*TelegramChannel)(nil)
+	_ channels.StreamChannel           = (*TelegramChannel)(nil)
+	_ channels.InboundPreprocessor     = (*TelegramChannel)(nil)
+	_ channels.PipelineSlashConfigurer = (*TelegramChannel)(nil)
 )

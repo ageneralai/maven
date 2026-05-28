@@ -92,6 +92,19 @@ func TestFromRouteKey(t *testing.T) {
 	}
 }
 
+func TestNewRotatedLongSeed(t *testing.T) {
+	t.Parallel()
+	longSeed := strings.Repeat("a", 200)
+	id := New(KindRotated, longSeed)
+	s := id.String()
+	if len(s) >= 60 {
+		t.Fatalf("expected short session id (<60 chars), got %d: %q", len(s), s)
+	}
+	if !strings.HasPrefix(s, "r") || !strings.Contains(s, ":rotated:") {
+		t.Fatalf("expected hashed rotated form, got %q", s)
+	}
+}
+
 func TestParseRoundTrip(t *testing.T) {
 	t.Parallel()
 	cases := []SessionID{

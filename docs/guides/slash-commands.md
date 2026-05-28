@@ -29,6 +29,8 @@ The lexer mirrors `agentsdk-go/pkg/runtime/commands`:
 
 The dispatcher applies an optional **expected slash name** filter: channels that parsed `/command` themselves (like Telegram's workspace slashes) set `ExpectedSlashName` so PreTurn only fires when the parsed name matches; otherwise it falls through to the model.
 
+On Telegram, kernel and plugin slashes are registered in the BotFather menu automatically on gateway start (merged with workspace defs under `.telegram/slashes/`; workspace overrides description and handling when names collide).
+
 ## Built-in: `/compact`
 
 `/compact [free-form focus text]` compresses the current conversation into a continuation summary and rotates the chat session. Implementation: `internal/kernel/slash/builtin_compact.go`.

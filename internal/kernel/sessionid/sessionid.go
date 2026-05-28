@@ -1,6 +1,7 @@
 package sessionid
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,7 +68,14 @@ func New(kind Kind, seed string) SessionID {
 		if seed == "" {
 			seed = "session"
 		}
-		return SessionID{Kind: KindRotated, Owner: seed, Token: strconv.FormatInt(time.Now().UnixNano(), 10)}
+		owner := seed
+		if len(owner) > 80 {
+			// Repeated /new calls chain session IDs indefinitely. Cap the owner to a
+			// short stable hash to prevent exceeding OS filename limits (255 bytes).
+			sum := sha256.Sum256([]byte(owner))
+			owner = fmt.Sprintf("r%x", sum[:8])
+		}
+		return SessionID{Kind: KindRotated, Owner: owner, Token: strconv.FormatInt(time.Now().UnixNano(), 10)}
 	case KindTask:
 		return SessionID{Kind: KindTask, Token: uuid.NewString()}
 	default:

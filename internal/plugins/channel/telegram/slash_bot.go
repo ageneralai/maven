@@ -11,12 +11,25 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
+	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/session"
 	"github.com/ageneralai/maven/internal/kernel/sessionid"
 	"github.com/ageneralai/maven/internal/kernel/slashkind"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
+
+func (t *TelegramChannel) SetPipelineSlashCommands(defs []channels.PipelineSlashDefinition) {
+	m := make(map[string]string, len(defs))
+	for _, def := range defs {
+		name := strings.ToLower(strings.TrimSpace(def.Name))
+		if name == "" || name == "new" {
+			continue
+		}
+		m[name] = def.Description
+	}
+	t.pipelineSlashes = m
+}
 
 func (t *TelegramChannel) loadSlashCommands() {
 	t.slashCommands = make(map[string]Command)
@@ -42,8 +55,9 @@ func (t *TelegramChannel) loadSlashCommands() {
 }
 
 func (t *TelegramChannel) registeredBotCommands() []telego.BotCommand {
-	descriptions := map[string]string{
-		"new": "Start a fresh session",
+	descriptions := make(map[string]string, len(t.pipelineSlashes)+len(t.slashCommands)+1)
+	for name, desc := range t.pipelineSlashes {
+		descriptions[name] = telegramCommandDescription(name, desc)
 	}
 	for name, cmd := range t.slashCommands {
 		if strings.TrimSpace(name) == "" {
@@ -51,21 +65,37 @@ func (t *TelegramChannel) registeredBotCommands() []telego.BotCommand {
 		}
 		descriptions[name] = telegramCommandDescription(name, cmd.Description)
 	}
-
+	descriptions["new"] = "Start a fresh session"
 	names := make([]string, 0, len(descriptions))
 	for name := range descriptions {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-
 	commands := make([]telego.BotCommand, 0, len(names))
 	for _, name := range names {
+		if !validTelegramBotCommand(name) {
+			t.log.Info("telegram skip bot command menu entry", "command", name, "reason", "Bot API allows only [a-z0-9_]")
+			continue
+		}
 		commands = append(commands, telego.BotCommand{
 			Command:     name,
-			Description: descriptions[name],
+			Description: telegramCommandDescription(name, descriptions[name]),
 		})
 	}
 	return commands
+}
+
+func validTelegramBotCommand(name string) bool {
+	if name == "" || len(name) > 32 {
+		return false
+	}
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func telegramCommandDescription(name, desc string) string {
@@ -118,6 +148,10 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 
 	cmd, ok := t.slashCommands[cmdName]
 	if !ok {
+		if t.isPipelineSlash(cmdName) {
+			t.publishPipelineSlash(msg, cmdName, args)
+			return
+		}
 		t.sendBotReply(msg.Chat.ID, "Unknown command: /"+cmdName)
 		return
 	}
@@ -152,6 +186,31 @@ func (t *TelegramChannel) handleSlashCommand(msg *telego.Message) {
 			Hints:     hints,
 		})
 	}
+}
+
+func (t *TelegramChannel) isPipelineSlash(name string) bool {
+	if t.pipelineSlashes == nil {
+		return false
+	}
+	_, ok := t.pipelineSlashes[strings.ToLower(strings.TrimSpace(name))]
+	return ok
+}
+
+func (t *TelegramChannel) publishPipelineSlash(msg *telego.Message, cmdName, args string) {
+	_ = t.bus.PublishInbound(t.runCtx, bus.InboundMessage{
+		Channel:   telegramChannelName,
+		SenderID:  strconv.FormatInt(msg.From.ID, 10),
+		ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
+		Content:   msg.Text,
+		Timestamp: time.Now(),
+		Hints: bus.RoutingHints{
+			SlashCommand: cmdName,
+			SlashType:    string(slashkind.CommandKindPipeline),
+			SlashArgs:    args,
+			MessageID:    msg.MessageID,
+			ForceSync:    true,
+		},
+	})
 }
 
 func (t *TelegramChannel) handleBuiltinSlashCommand(msg *telego.Message, cmdName string) bool {

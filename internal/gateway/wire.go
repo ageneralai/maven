@@ -89,7 +89,7 @@ func wirePlanes(core *coreDeps) (*planeDeps, error) {
 	pipe := pipeline.New(core.logger, core.bus, nil, sessRes, posts, channelMgr, core.liveness)
 	webPlug.SetStreamRunner(pipe)
 	cronPlug := cron.NewPlugin(
-		filepath.Join(config.ConfigDir(), "data", "cron", "jobs.json"),
+		filepath.Join(core.cfg.Agent.Workspace, ".maven", "cron", "jobs.json"),
 		core.cfg.Gateway.Cron.MaxConcurrentRuns,
 		channelMgr,
 		core.logger,

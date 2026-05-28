@@ -708,6 +708,10 @@ func TestTelegramChannel_Send_UTF8ChunkBoundaries(t *testing.T) {
 // === WeChat Image Test (unchanged, no tgbotapi dependency) ===
 func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 	ch, _, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
+	ch.pipelineSlashes = map[string]string{
+		"memory": "Show long-term memory",
+		"jobs":   "List cron jobs",
+	}
 	ch.slashCommands = map[string]Command{
 		"status": {Name: "status", Description: "Check bot status"},
 		"help":   {Name: "help", Description: "  Show\navailable commands  "},
@@ -715,8 +719,8 @@ func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 	}
 
 	commands := ch.registeredBotCommands()
-	if len(commands) != 4 {
-		t.Fatalf("registeredBotCommands len = %d, want 4", len(commands))
+	if len(commands) != 6 {
+		t.Fatalf("registeredBotCommands len = %d, want 6", len(commands))
 	}
 
 	gotNames := make([]string, 0, len(commands))
@@ -726,8 +730,8 @@ func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 		gotDesc[cmd.Command] = cmd.Description
 	}
 
-	if strings.Join(gotNames, ",") != "echo,help,new,status" {
-		t.Fatalf("registered command names = %v, want [echo help new status]", gotNames)
+	if strings.Join(gotNames, ",") != "echo,help,jobs,memory,new,status" {
+		t.Fatalf("registered command names = %v, want [echo help jobs memory new status]", gotNames)
 	}
 	if gotDesc["new"] != "Start a fresh session" {
 		t.Fatalf("/new description = %q", gotDesc["new"])
@@ -737,6 +741,40 @@ func TestTelegramChannel_RegisteredBotCommands(t *testing.T) {
 	}
 	if gotDesc["echo"] != "Run /echo" {
 		t.Fatalf("/echo description = %q", gotDesc["echo"])
+	}
+	if gotDesc["memory"] != "Show long-term memory" {
+		t.Fatalf("/memory description = %q", gotDesc["memory"])
+	}
+}
+
+func TestTelegramChannel_RegisteredBotCommands_SkipsInvalidNames(t *testing.T) {
+	ch, _, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
+	ch.pipelineSlashes = map[string]string{
+		"cron-add":    "Schedule a job",
+		"cron-list":   "List jobs",
+		"cron-remove": "Remove a job",
+		"memory":      "Show memory",
+		"jobs":        "List cron jobs",
+	}
+	commands := ch.registeredBotCommands()
+	names := make([]string, 0, len(commands))
+	for _, cmd := range commands {
+		names = append(names, cmd.Command)
+	}
+	if strings.Join(names, ",") != "jobs,memory,new" {
+		t.Fatalf("registered command names = %v, want [jobs memory new]", names)
+	}
+}
+
+func TestValidTelegramBotCommand(t *testing.T) {
+	tests := map[string]bool{
+		"new": true, "compact": true, "memory": true, "jobs": true, "cron_add": true,
+		"": false, "cron-add": false, "Cron": false, "a-b": false, strings.Repeat("a", 33): false,
+	}
+	for name, want := range tests {
+		if got := validTelegramBotCommand(name); got != want {
+			t.Fatalf("validTelegramBotCommand(%q) = %v, want %v", name, got, want)
+		}
 	}
 }
 
@@ -753,6 +791,7 @@ func TestTelegramChannel_TelegramRootOverride(t *testing.T) {
 
 func TestTelegramChannel_SyncBotCommands(t *testing.T) {
 	ch, caller, _ := newTestChannel(t, config.TelegramConfig{Token: fakeToken})
+	ch.pipelineSlashes = map[string]string{"memory": "Show long-term memory"}
 	ch.slashCommands = map[string]Command{
 		"compact": {Name: "compact", Description: "Compress conversation history"},
 		"status":  {Name: "status", Description: "Check bot status"},
@@ -796,12 +835,12 @@ func TestTelegramChannel_SyncBotCommands(t *testing.T) {
 	}
 
 	for i, payload := range payloads {
-		if len(payload.Commands) != 3 {
-			t.Fatalf("payload %d command count = %d, want 3", i, len(payload.Commands))
+		if len(payload.Commands) != 4 {
+			t.Fatalf("payload %d command count = %d, want 4", i, len(payload.Commands))
 		}
-		names := []string{payload.Commands[0].Command, payload.Commands[1].Command, payload.Commands[2].Command}
-		if strings.Join(names, ",") != "compact,new,status" {
-			t.Fatalf("payload %d commands = %v, want [compact new status]", i, names)
+		names := []string{payload.Commands[0].Command, payload.Commands[1].Command, payload.Commands[2].Command, payload.Commands[3].Command}
+		if strings.Join(names, ",") != "compact,memory,new,status" {
+			t.Fatalf("payload %d commands = %v, want [compact memory new status]", i, names)
 		}
 	}
 

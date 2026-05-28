@@ -15,11 +15,12 @@ import (
 )
 
 type ChannelManager struct {
-	mu       sync.RWMutex
-	channels map[string]channels.Channel
-	bus      *bus.MessageBus
-	log      *slog.Logger
-	registry *plugin.Registry
+	mu              sync.RWMutex
+	channels        map[string]channels.Channel
+	bus             *bus.MessageBus
+	log             *slog.Logger
+	registry        *plugin.Registry
+	pipelineSlashes []channels.PipelineSlashDefinition
 }
 
 func New(b *bus.MessageBus, lg *slog.Logger, reg *plugin.Registry) *ChannelManager {
@@ -33,6 +34,10 @@ func New(b *bus.MessageBus, lg *slog.Logger, reg *plugin.Registry) *ChannelManag
 
 func (m *ChannelManager) SetRegistry(reg *plugin.Registry) {
 	m.registry = reg
+}
+
+func (m *ChannelManager) SetPipelineSlashCommands(defs []channels.PipelineSlashDefinition) {
+	m.pipelineSlashes = defs
 }
 
 func (m *ChannelManager) channelsFromRegistry(cfg *config.Config) (map[string]channels.Channel, error) {
@@ -94,6 +99,11 @@ func (m *ChannelManager) Apply(ctx context.Context, cfg *config.Config) error {
 	m.mu.Lock()
 	m.channels = next
 	m.mu.Unlock()
+	for _, ch := range next {
+		if cfg, ok := ch.(channels.PipelineSlashConfigurer); ok {
+			cfg.SetPipelineSlashCommands(m.pipelineSlashes)
+		}
+	}
 	return m.startAll(ctx, next)
 }
 

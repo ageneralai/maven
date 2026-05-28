@@ -73,7 +73,7 @@ The Telegram channel supports three sources:
 
 1. **`/new`** — built-in routing hint that rotates the session.
 2. **Workspace slashes** under `<workspace>/.telegram/slashes/*.md` — markdown with YAML frontmatter (see [Guides: Slash commands](../guides/slash-commands.md)).
-3. **Plugin slashes** like `/cron-add`, `/cron-list`, `/cron-remove` — surfaced as Telegram BotFather commands on `Start`.
+3. **Plugin slashes** like `/compact`, `/status`, `/memory`, `/jobs` — registered automatically via `SetMyCommands` on gateway start (merged with workspace defs; workspace overrides description and handling when names collide). Commands with hyphens (e.g. `/cron-add`) still work when typed but are omitted from the Telegram menu because Bot API names must match `[a-z0-9_]{1,32}`.
 
 `SetMyCommands` registers the merged list with Telegram so users see autocomplete.
 

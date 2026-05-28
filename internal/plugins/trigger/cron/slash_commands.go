@@ -33,6 +33,15 @@ func slashCommands(svc *Service) []plugin.SlashCommand {
 			}),
 		},
 		{
+			Definition: plugin.SlashDefinition{
+				Name:        "jobs",
+				Description: "List persisted cron jobs (alias for /cron-list).",
+			},
+			Handler: slashHandlerFunc(func(ctx context.Context, inv plugin.SlashInvocation) (plugin.SlashResult, error) {
+				return slashCronList(ctx, svc, inv)
+			}),
+		},
+		{
 			Definition: plugin.SlashDefinition{Name: "cron-remove", Description: "Remove a persisted cron job by id (see /cron-list)."},
 			Handler: slashHandlerFunc(func(ctx context.Context, inv plugin.SlashInvocation) (plugin.SlashResult, error) {
 				return slashCronRemove(ctx, svc, inv)
