@@ -1,62 +1,121 @@
-# Contributing to the docs
+# Contributing
 
-User-facing docs live under `docs/` and publish to [https://ageneralai.github.io/maven/](https://ageneralai.github.io/maven/) from the **`gh-pages`** branch. Merges to `main` run `mkdocs gh-deploy` in CI (`.github/workflows/ci.yml`); PRs run `mkdocs build --strict` only.
+This page covers the contributor workflow: code, tests, and these docs. For high-level design, see [Concepts: Architecture](concepts/architecture.md).
 
-## Prerequisites
+## Project layout
 
-- Python 3.9+ with `pip`
-- Git clone of [ageneralai/maven](https://github.com/ageneralai/maven)
-- Repo root is the MkDocs project (contains `mkdocs.yml` and `docs/`)
+```text
+maven/
+  cmd/maven/            # CLI entry point
+  internal/
+    gateway/            # Composition root (wire.go) and lifecycle
+    kernel/             # Plugin-agnostic core (no plugin imports)
+    plugins/            # Channel, tool, skill, voice, trigger, memory plugins
+    testutil/           # Test helpers (golden files)
+    version/            # Build-stamped version info
+  scripts/setup.sh      # Interactive setup
+  docs/                 # MkDocs source (this site)
+  website/              # Marketing site assets
+```
 
-## One-time setup
+## Development standards
 
-From the repository root:
+The full standards live in [`AGENTS.md`](https://github.com/ageneralai/maven/blob/main/AGENTS.md). Highlights:
+
+- **Greenfield.** No legacy constraints. Delete the wrong path; write the correct one.
+- **One mutation path.** `Gateway.Apply` is the only way to change active state.
+- **Kernel wall.** `internal/kernel/` never imports `internal/plugins/`. Enforced by the `kernel_no_plugins` depguard rule.
+- **Functional default.** Use classes only when state demands it.
+- **No empty lines inside method bodies.** Keep functions compact for skimming.
+- **No comments that narrate what the code does.** Only `why`, trade-offs, constraints.
+- **`tsx` over `ts-node`** for any TypeScript scripts.
+
+## Branching and commits
+
+The repository follows a simple message format: `{top-directory} {<=7 words lowercase}`.
+
+```text
+api fix user validation logic
+docs rewrite channel pages
+internal/kernel rename TurnExecutor
+```
+
+One logical change per commit. No `--no-verify`. No force-push to `main`.
+
+## Build, test, lint
+
+```bash
+make build         # binary
+make test          # tests
+make test-race     # race detector
+make test-cover    # coverage
+make lint          # golangci-lint v2
+make ci            # lint + vet + race tests
+```
+
+CI runs `make ci` plus `mkdocs build --strict` on every PR.
+
+### Golden files
+
+Channels write outbound payloads through tested formatters; goldens live under `internal/plugins/channel/<name>/testdata/`. Update with:
+
+```bash
+UPDATE_GOLDEN=1 go test ./internal/plugins/channel/feishu/...
+```
+
+Review the diff carefully before committing.
+
+## Adding a plugin
+
+See [Concepts: Plugins](concepts/plugins.md). The short version:
+
+1. Create `internal/plugins/<axis>/<name>/`.
+2. Implement `plugin.Plugin` plus the axis interfaces (channel, tool, skill, …).
+3. Add a config struct (and validation) under `kernel/config` if needed.
+4. Add one line to `internal/gateway/wire.go`.
+
+You will **not** edit anything under `internal/kernel/`. If you find yourself wanting to, stop and design a kernel interface change first.
+
+## Working on docs
+
+Docs live under `docs/`. The site is MkDocs Material; the nav is in `mkdocs.yml`.
+
+### Local preview
 
 ```bash
 pip install -r requirements-docs.txt
-```
-
-Or install the same packages directly:
-
-```bash
-pip install mkdocs mkdocs-material
-```
-
-If `docs/` already exists, do **not** run `mkdocs new .` on top of this repo — it overwrites `mkdocs.yml`. The project is already initialized.
-
-## Preview locally
-
-```bash
 mkdocs serve
 ```
 
-Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). MkDocs reloads when you edit files under `docs/` or change `mkdocs.yml`.
+Open <http://127.0.0.1:8000>. Changes to `docs/` or `mkdocs.yml` hot reload.
 
-Build static HTML without serving:
+### Build (without serving)
 
 ```bash
-mkdocs build
+mkdocs build           # → site/ (gitignored)
+mkdocs build --strict  # fail on broken links / nav warnings
 ```
 
-Output goes to `site/` (gitignored).
+CI runs `mkdocs build --strict` on every PR. Fix link errors before opening a PR.
 
-## Add or edit a page
+### Style
 
-1. Add or edit a Markdown file under `docs/`, e.g. `docs/my-topic.md`.
-2. Register it in `mkdocs.yml` under `nav:` so it appears in the sidebar. Unlisted files still build but MkDocs warns they are missing from nav.
-3. Run `mkdocs serve` and fix any broken links or nav warnings before opening a PR.
+- **Plain English.** Terse, technical, no marketing.
+- **Use tables for option lists.** Default value + description columns.
+- **Use Mermaid for flows.** `flowchart`, `sequenceDiagram`, `stateDiagram` render natively.
+- **Backtick file/dir/identifier names** (`internal/kernel/pipeline`, `Gateway.Apply`).
+- **Don't apologize.** Don't pad. State the fact.
+- **Cross-link.** Use relative links between docs (`[…](../concepts/sessions.md)`).
 
-Example nav entry:
+### Adding a page
 
-```yaml
-nav:
-  - Home: index.md
-  - My topic: my-topic.md
-```
+1. Add the markdown under `docs/<section>/<page>.md`.
+2. Register it in `mkdocs.yml` under `nav:`.
+3. `mkdocs serve` and verify it appears in the sidebar.
 
-## Mermaid diagrams
+Unlisted files build but trigger warnings.
 
-Material for MkDocs renders [Mermaid](https://mermaid.js.org/) when `mkdocs.yml` defines the `mermaid` superfences block (already configured in this repo). Use a fenced code block with language `mermaid`:
+### Mermaid
 
 ````markdown
 ```mermaid
@@ -66,30 +125,28 @@ flowchart LR
 ```
 ````
 
-Supported well with theme fonts/colors: flowchart, sequence, state, class, ER. Other types (Gantt, pie, etc.) work but may look off on mobile. See [architecture.md](architecture.md) for examples already in the docs.
+Supported diagram types: `flowchart`, `sequenceDiagram`, `stateDiagram`, `classDiagram`, `erDiagram`. The Material theme styles them; check mobile rendering for wide flowcharts.
 
-## Publish to GitHub Pages
+### What not to commit
 
-Docs deploy on every push to `main` after CI passes (`deploy-docs` job pushes built HTML to **`gh-pages`**). No manual step.
+- `site/` (build output, gitignored).
+- Secrets or real tokens in examples — use `…`, `sk-ant-…`, `placeholder`.
 
-Repo setting: **Settings → Pages → Build and deployment → Source: Deploy from branch → `gh-pages` / `/ (root)`**.
+## Deploying docs
 
-Local fallback:
+Pushes to `main` deploy via CI:
+
+- PRs run `mkdocs build --strict`.
+- Merges trigger `mkdocs gh-deploy` on the `gh-pages` branch (`.github/workflows/ci.yml`).
+
+GitHub Pages serves `gh-pages` (repo **Settings → Pages → Source: Deploy from branch → `gh-pages` / `/`**).
+
+Manual fallback (rarely needed):
 
 ```bash
 mkdocs gh-deploy --force
 ```
 
-## What not to commit
+## Questions
 
-- `site/` — build output (listed in `.gitignore`)
-- Secrets or real tokens in doc examples
-
-## Go code vs docs
-
-| Change | Workflow |
-|--------|----------|
-| Markdown under `docs/` | Edit, update `nav` in `mkdocs.yml`, `mkdocs serve`, PR; merge to `main` deploys |
-| Go / config / channels | `make test`, normal PR; update docs in the same PR when behavior changes |
-
-Questions about doc structure: open an issue or PR on [ageneralai/maven](https://github.com/ageneralai/maven).
+Open an issue on [ageneralai/maven](https://github.com/ageneralai/maven/issues) or start a discussion. For sensitive reports (security), email the maintainers listed in the repository.

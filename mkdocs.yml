@@ -1,41 +1,103 @@
-site_name: Maven Agent
+site_name: Maven
+site_description: Personal AI assistant built on ageneral-agents-go — CLI agent, gateway, channels, voice.
 site_url: https://ageneralai.github.io/maven/
+repo_url: https://github.com/ageneralai/maven
+repo_name: ageneralai/maven
+edit_uri: edit/main/docs/
 
 theme:
   name: material
   features:
+    - content.action.edit
     - content.code.copy
-    - navigation.tabs
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.instant
     - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
     - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 
 markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.highlight
-  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Architecture: architecture.md
+  - Get started: getting-started.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Pipeline: concepts/pipeline.md
+      - Plugins: concepts/plugins.md
+      - Sessions: concepts/sessions.md
+      - Streaming: concepts/streaming.md
+  - Guides:
+      - Workspace: guides/workspace.md
+      - Memory: guides/memory.md
+      - Skills: guides/skills.md
+      - Slash commands: guides/slash-commands.md
+      - Subagents (Task): guides/subagents.md
+      - ACP delegation: guides/acp-delegation.md
+      - Cron jobs: guides/cron.md
+      - Heartbeat: guides/heartbeat.md
+      - Voice (Web UI): guides/voice.md
+      - Hot reload: guides/hot-reload.md
   - Channels:
-    - Telegram: telegram-setup.md
-    - Feishu: feishu-setup.md
-    - WeCom: wecom-setup.md
-    - Matrix: matrix-setup.md
-  - Features:
-    - Subagents: subagents.md
-    - ACP: acp.md
-    - Voice: voice.md
-    - Plugins: plugins.md
-    - Workspace: workspace.md
-  - Networking:
-    - Proxy: proxy.md
-    - OneCLI Vault: onecli.md
+      - Overview: channels/index.md
+      - Telegram: channels/telegram.md
+      - Feishu: channels/feishu.md
+      - WeCom: channels/wecom.md
+      - Matrix: channels/matrix.md
+      - WhatsApp: channels/whatsapp.md
+      - Web UI: channels/web.md
+  - Deployment:
+      - Docker: deployment/docker.md
+      - Proxy: deployment/proxy.md
+      - OneCLI vault: deployment/onecli.md
+  - Reference:
+      - Configuration: reference/configuration.md
+      - CLI: reference/cli.md
+      - Environment: reference/environment.md
+      - HTTP API: reference/http-api.md
   - Contributing: contributing.md
 
 exclude_docs: |
