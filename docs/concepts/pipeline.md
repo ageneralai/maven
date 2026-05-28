@@ -29,7 +29,7 @@ sequenceDiagram
     participant RT as Runtime
     participant Post as Post-actions
     participant Out as Outbound bus
-    participant J as Journaler (goroutine)
+    participant H as PostTurnHooks (goroutines)
     Bus->>P: InboundMessage
     P->>P: handle builtins (/new)
     P->>Sess: ResolveSDKSessionID(channel, chat, mode)
@@ -44,13 +44,13 @@ sequenceDiagram
             RT-->>P: <-chan StreamEvent
             P->>Out: SendStream(chatID, meta, events)
             Note over Out,RT: channel reads events directly<br/>(framing, batching, edits)
-            P->>J: postTurnHook(userMsg, output) [SessionModeCurrent only]
+            P->>H: PostTurnEvent (one goroutine per hook) [SessionModeCurrent only]
         else sync
             P->>RT: Run
             RT-->>P: Response
             P->>Post: HandlePostResponse (compact rotation, etc.)
             P->>Out: publish reply
-            P->>J: postTurnHook(userMsg, output) [SessionModeCurrent only]
+            P->>H: PostTurnEvent (one goroutine per hook) [SessionModeCurrent only]
         end
     end
 ```
@@ -118,15 +118,23 @@ Plugins can introduce new post-action types by returning them from slash handler
 
 ## Post-turn hooks
 
-The pipeline exposes a single post-turn callback registered by the gateway:
+After delivering a reply the pipeline fans out a `hook.PostTurnEvent` to every registered handler, each in its own goroutine:
 
 ```go
-pipeline.SetPostTurnHook(func(ctx context.Context, userMsg, assistantMsg string) { ... })
+type PostTurnEvent struct {
+    UserMsg, AssistantMsg string
+    SessionID, Channel, ChatID string
+    At time.Time
+}
+
+type PostTurnHandler func(ctx context.Context, ev PostTurnEvent)
 ```
 
-The hook fires after the reply is delivered — after `PublishOutbound` for sync turns and after `SendStream` drains for streaming turns. It only fires for `SessionModeCurrent` turns; cron and other isolated sessions are excluded.
+Hooks fire after `PublishOutbound` (sync) or after `SendStream` drains (streaming), and only for `SessionModeCurrent` turns — cron and isolated sessions are excluded. The context passed to each goroutine is detached from the request context (`context.WithoutCancel`) so it outlives the inbound message.
 
-Today the only registered hook is the **shadow journaler**: an isolated LLM pass that writes net-new facts from the exchange to the episodic journal. See [Guides: Memory — Shadow journaler](../guides/memory.md#shadow-journaler).
+Hooks are plugin-driven. Any plugin that implements `plugin.PostTurnPlugin` contributes a handler; the gateway discovers them via `plugin.Registry.PostTurnHandlers` and registers the full slice with `pipeline.SetPostTurnHooks`. The registry update is protected by the same `turnMu` write lock as the runtime swap.
+
+Today the only registered hook is the **shadow journaler** (contributed by the `memory-file` plugin): an isolated LLM pass that writes net-new facts from the exchange to the episodic journal. See [Guides: Memory — Shadow journaler](../guides/memory.md#shadow-journaler).
 
 ## Errors and user replies
 
