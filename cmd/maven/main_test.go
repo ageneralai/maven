@@ -13,12 +13,12 @@ import (
 
 	"log/slog"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
+	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/memory"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
-	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -222,7 +222,9 @@ func TestRunOnboard(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -275,7 +277,9 @@ func TestRunOnboard_AlreadyExists(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -303,7 +307,9 @@ func TestRunStatus(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -354,7 +360,9 @@ func TestRunStatus_WithAPIKey(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -384,7 +392,9 @@ func TestRunStatus_WithShortAPIKey(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -421,7 +431,9 @@ func TestRunStatus_WithWorkspace(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -458,7 +470,9 @@ func TestRunStatus_WorkspaceNotFound(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -900,7 +914,9 @@ func TestRunStatus_EmptyMemory(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil { t.Fatalf("io.Copy: %v", err) }
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
 	output := buf.String()
 
 	if err != nil {
@@ -925,8 +941,26 @@ func (m *mockRuntime) Run(ctx context.Context, req api.Request) (*api.Response, 
 }
 
 func (m *mockRuntime) RunStream(ctx context.Context, req api.Request) (<-chan api.StreamEvent, error) {
-	ch := make(chan api.StreamEvent)
-	close(ch)
+	if m.err != nil {
+		return nil, m.err
+	}
+	ch := make(chan api.StreamEvent, 4)
+	go func() {
+		defer close(ch)
+		if m.response != nil && m.response.Result != nil {
+			out := m.response.Result.Output
+			if out != "" {
+				select {
+				case <-ctx.Done():
+					return
+				case ch <- api.StreamEvent{
+					Type:  api.EventContentBlockDelta,
+					Delta: &api.Delta{Text: out},
+				}:
+				}
+			}
+		}
+	}()
 	return ch, nil
 }
 
@@ -1011,8 +1045,12 @@ func TestRunAgentWithOptions_REPLMode(t *testing.T) {
 		t.Errorf("expected REPL welcome message, got: %s", stdout.String())
 	}
 
-	if !strings.Contains(stdout.String(), "REPL response") {
-		t.Errorf("expected 'REPL response' in output, got: %s", stdout.String())
+	out := stdout.String()
+	if !strings.Contains(out, "you ▸") {
+		t.Errorf("expected user prompt label, got: %s", out)
+	}
+	if !strings.Contains(out, "maven ▸ REPL response") {
+		t.Errorf("expected labeled agent reply, got: %s", out)
 	}
 }
 

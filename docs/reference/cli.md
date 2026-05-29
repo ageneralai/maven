@@ -8,15 +8,16 @@ maven <command> [flags]
 
 ## `maven agent`
 
-Run the agent in CLI mode. Without flags, drops into an interactive REPL. With `-m`, runs a single message and exits.
+Run the agent in CLI mode. Without flags, drops into an interactive REPL. With `-m`, runs a single message and exits. With `--voice`, the REPL also listens on the microphone and speaks replies aloud.
 
 ```bash
-maven agent                       # interactive REPL
+maven agent                       # interactive REPL (keyboard)
+maven agent --voice               # keyboard + mic + speaker, one shared session
 maven agent -m "Summarize today"  # one-shot
 make run                          # alias for `maven agent`
 ```
 
-Output goes to stdout. Errors go to stderr.
+Replies stream to stdout as `maven ▸`; the next `you ▸` line appears when the reply finishes (type on it or, with `--voice`, speak to fill it). Errors go to stderr. With `--voice`, replies are also spoken; speaking or typing again preempts the in-flight reply (barge-in, always on). **PulseAudio is required** — Maven loads `module-echo-cancel` automatically on startup; without `pactl` the command fails fast. Mic/speaker I/O uses echo-cancelled PulseAudio devices via `parec`/`pacat`; see [Guides: Voice](../guides/voice.md#cli-repl-and-android).
 
 ## `maven gateway`
 

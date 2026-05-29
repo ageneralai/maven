@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,12 +16,24 @@ import (
 	"github.com/ageneralai/maven/internal/gateway"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	mavenlog "github.com/ageneralai/maven/internal/kernel/log"
+	"github.com/ageneralai/maven/internal/kernel/converse"
+	"github.com/ageneralai/maven/internal/kernel/converse/adapter"
+	"github.com/ageneralai/maven/internal/kernel/log"
 	"github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
+	"github.com/ageneralai/maven/internal/kernel/voice"
+	terminalmod "github.com/ageneralai/maven/internal/plugins/modality/terminal"
+	voicemod "github.com/ageneralai/maven/internal/plugins/modality/voice"
 	skills "github.com/ageneralai/maven/internal/plugins/skill/file"
+	"github.com/ageneralai/maven/internal/plugins/voice/audio"
+	"github.com/ageneralai/maven/internal/plugins/voice/cartesia"
+	"github.com/ageneralai/maven/internal/plugins/voice/deepgram"
+	"github.com/ageneralai/maven/internal/plugins/voice/elevenlabs"
+	voiceopenai "github.com/ageneralai/maven/internal/plugins/voice/openai"
 	"github.com/ageneralai/maven/internal/version"
 	"github.com/spf13/cobra"
+	_ "github.com/ageneralai/maven/internal/kernel/dnsfix"
 )
 
 type cmdContext struct {
@@ -52,6 +63,15 @@ func (app *cmdContext) defaultAgentRuntime(cfg *config.Config) (agent.Runtime, e
 	}
 	skillRegs := app.loadRuntimeSkills(cfg)
 	return agent.NewSDKRuntime(cfg, sysPrompt, skillRegs, nil, nil, app.log)
+}
+
+func cliVoiceRegistry() voice.ProviderRegistry {
+	return plugin.NewRegistry(
+		cartesia.NewPlugin(),
+		deepgram.NewPlugin(),
+		elevenlabs.NewPlugin(),
+		voiceopenai.NewPlugin(),
+	)
 }
 
 func (app *cmdContext) bindCommands() {
@@ -111,11 +131,13 @@ var skillsCheckCmd = &cobra.Command{
 }
 
 var messageFlag string
+var voiceFlag bool
 
 const skillsJSONSchemaVersion = 1
 
 func init() {
 	agentCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "Single message to send")
+	agentCmd.Flags().BoolVar(&voiceFlag, "voice", false, "Enable mic and speaker in REPL")
 	skillsListCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsInfoCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsCheckCmd.Flags().Bool("json", false, "Output as JSON")
@@ -130,7 +152,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "maven: %v\n", err)
 		os.Exit(1)
 	}
-	app := cmdContext{log: mavenlog.New(level)}
+	app := cmdContext{log: log.New(level)}
 	slog.SetDefault(app.log)
 	app.bindCommands()
 	if err := rootCmd.Execute(); err != nil {
@@ -198,39 +220,42 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 	if _, err := fmt.Fprintln(stdout, "maven agent (type 'exit' to quit)"); err != nil {
 		return err
 	}
-	scanner := bufio.NewScanner(stdin)
-	for {
-		if _, err := fmt.Fprint(stdout, "\n> "); err != nil {
-			return err
+	repl := terminalmod.NewSession(stdout, stdin)
+	repl.PrintYouPrompt()
+	sources := []converse.Source{repl.Keyboard()}
+	sinks := []converse.Sink{repl.Screen()}
+	if voiceFlag {
+		aec := audio.NewEchoCancel()
+		if err := aec.Ensure(ctx); err != nil {
+			return fmt.Errorf("voice echo cancel: %w", err)
 		}
-		if !scanner.Scan() {
-			break
-		}
-		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
-			continue
-		}
-		if input == "exit" || input == "quit" {
-			break
-		}
-
-		resp, err := rt.Run(ctx, api.Request{
-			Prompt:    input,
-			SessionID: "cli",
-		})
+		defer func() { _ = aec.Teardown(context.Background()) }()
+		voiceReg := cliVoiceRegistry()
+		stt, err := voice.NewSTT(cfg, voiceReg)
 		if err != nil {
-			if _, werr := fmt.Fprintf(stderr, "Error: %v\n", err); werr != nil {
-				return werr
-			}
-			continue
+			return fmt.Errorf("voice stt: %w", err)
 		}
-		if resp != nil && resp.Result != nil {
-			if _, err := fmt.Fprintln(stdout, resp.Result.Output); err != nil {
-				return err
-			}
+		tts, err := voice.NewTTS(cfg, voiceReg)
+		if err != nil {
+			return fmt.Errorf("voice tts: %w", err)
 		}
+		capture := aec.Capture(cfg.Speech)
+		voiceSrc := adapter.NewVoiceSource(adapter.VoiceSourceConfig{
+			Open:    capture.Capture,
+			STT:     stt,
+			Log:     app.log,
+			Session: "cli",
+		})
+		sources = append(sources, repl.Voice(voiceSrc))
+		sinks = append(sinks, &voicemod.Sink{
+			TTS:      tts,
+			Playback: aec.Playback(cfg.Speech),
+			Log:      app.log,
+			Session:  "cli",
+		})
 	}
-	return nil
+	convAgent := &adapter.RuntimeAgent{Runtime: rt, SessionID: "cli", ErrOut: stderr, Log: app.log}
+	return converse.Converse(ctx, sources, sinks, convAgent)
 }
 
 func (app *cmdContext) runGateway(cmd *cobra.Command, args []string) error {

@@ -85,7 +85,7 @@ Errors short-circuit with a synthetic message frame.
 
 The voice transport wraps a `kernel/voice.Session`. Each `api.EventContentBlockDelta` text chunk feeds a sentence segmenter (`kernel/voice.TakeCompleteSentences`); whole sentences become TTS requests; raw PCM (signed 16-bit LE, mono, 24 kHz) is written as binary WebSocket frames. A one-byte `0x00` sentinel tells the browser to flush the audio queue when the user starts speaking again (voice activity detection on the client triggers `sess.Interrupt()`).
 
-See [Guides: Voice (Web UI)](../guides/voice.md).
+See [Guides: Voice](../guides/voice.md).
 
 ## Backpressure and cancellation
 

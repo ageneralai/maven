@@ -24,18 +24,18 @@ const (
 )
 
 type Config struct {
-	Agent         AgentConfig         `json:"agent"`
-	Channels      ChannelsConfig      `json:"channels"`
-	Provider      ProviderConfig      `json:"provider"`
-	Tools         ToolsConfig         `json:"tools"`
-	Skills        SkillsConfig        `json:"skills"`
-	MCP           MCPConfig           `json:"mcp"`
-	AutoCompact   AutoCompactConfig   `json:"autoCompact"`
+	Agent          AgentConfig          `json:"agent"`
+	Channels       ChannelsConfig       `json:"channels"`
+	Provider       ProviderConfig       `json:"provider"`
+	Tools          ToolsConfig          `json:"tools"`
+	Skills         SkillsConfig         `json:"skills"`
+	MCP            MCPConfig            `json:"mcp"`
+	AutoCompact    AutoCompactConfig    `json:"autoCompact"`
 	MemConsolidate MemConsolidateConfig `json:"memConsolidate,omitempty"`
 	ShadowJournal  ShadowJournalConfig  `json:"shadowJournal,omitempty"`
 	Gateway        GatewayConfig        `json:"gateway"`
-	Speech        SpeechConfig        `json:"speech,omitempty"`
-	Logging       LoggingConfig       `json:"logging,omitempty"`
+	Speech         SpeechConfig         `json:"speech,omitempty"`
+	Logging        LoggingConfig        `json:"logging,omitempty"`
 }
 
 type LoggingConfig struct {
@@ -43,10 +43,10 @@ type LoggingConfig struct {
 }
 
 type AgentConfig struct {
-	Workspace         string  `json:"workspace"`
-	Model             string  `json:"model"`
-	MaxTokens         int     `json:"maxTokens"`
-	MaxToolIterations int     `json:"maxToolIterations"`
+	Workspace         string `json:"workspace"`
+	Model             string `json:"model"`
+	MaxTokens         int    `json:"maxTokens"`
+	MaxToolIterations int    `json:"maxToolIterations"`
 }
 
 type ProviderConfig struct {
@@ -96,8 +96,8 @@ type WeComConfig struct {
 }
 
 type ToolsConfig struct {
-	ExecTimeout         int           `json:"execTimeout"`
-	RestrictToWorkspace bool          `json:"restrictToWorkspace"`
+	ExecTimeout         int            `json:"execTimeout"`
+	RestrictToWorkspace bool           `json:"restrictToWorkspace"`
 	ACP                 ACPToolConfig  `json:"acp,omitempty"`
 	Task                TaskToolConfig `json:"task,omitempty"`
 }
@@ -151,13 +151,13 @@ type WhatsAppConfig struct {
 }
 
 type MatrixConfig struct {
-	Enabled      bool     `json:"enabled"`
-	Homeserver   string   `json:"homeserver"`
-	AccessToken  string   `json:"accessToken"`
-	UserID       string   `json:"userId"`
-	DeviceID     string   `json:"deviceId,omitempty"`
-	AllowFrom    []string `json:"allowFrom"`
-	AllowRooms   []string `json:"allowRooms"`
+	Enabled     bool     `json:"enabled"`
+	Homeserver  string   `json:"homeserver"`
+	AccessToken string   `json:"accessToken"`
+	UserID      string   `json:"userId"`
+	DeviceID    string   `json:"deviceId,omitempty"`
+	AllowFrom   []string `json:"allowFrom"`
+	AllowRooms  []string `json:"allowRooms"`
 }
 
 type WebConfig struct {
@@ -169,12 +169,38 @@ type WebConfig struct {
 // SpeechConfig selects platform STT/TTS providers.
 // sttProvider: deepgram (default). ttsProvider: openai (default) | deepgram | elevenlabs | cartesia.
 type SpeechConfig struct {
-	STTProvider string           `json:"sttProvider,omitempty"`
-	TTSProvider string           `json:"ttsProvider,omitempty"`
-	Cartesia    CartesiaConfig   `json:"cartesia,omitempty"`
-	ElevenLabs  ElevenLabsConfig `json:"elevenlabs,omitempty"`
-	Deepgram    DeepgramConfig   `json:"deepgram,omitempty"`
+	STTProvider string             `json:"sttProvider,omitempty"`
+	TTSProvider string             `json:"ttsProvider,omitempty"`
+	Capture     SpeechExecConfig   `json:"capture,omitempty"`
+	Playback    SpeechExecConfig   `json:"playback,omitempty"`
+	Cartesia    CartesiaConfig     `json:"cartesia,omitempty"`
+	ElevenLabs  ElevenLabsConfig   `json:"elevenlabs,omitempty"`
+	Deepgram    DeepgramConfig     `json:"deepgram,omitempty"`
 	OpenAI      OpenAISpeechConfig `json:"openai,omitempty"`
+}
+
+// SpeechExecConfig runs an external process for raw PCM I/O (parec/pacat on PulseAudio).
+type SpeechExecConfig struct {
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
+}
+
+// CaptureCommand returns the mic capture command (default parec s16le 16 kHz mono).
+// Low --latency-msec keeps mic frames small so VAD detects speech onset promptly (fast barge-in).
+func (s SpeechConfig) CaptureCommand() (string, []string) {
+	if cmd := strings.TrimSpace(s.Capture.Command); cmd != "" {
+		return cmd, append([]string(nil), s.Capture.Args...)
+	}
+	return "parec", []string{"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=50"}
+}
+
+// PlaybackCommand returns the speaker playback command (default pacat s16le 24 kHz mono).
+// Low --latency-msec bounds the daemon buffer so killing playback on barge-in cuts near-instantly.
+func (s SpeechConfig) PlaybackCommand() (string, []string) {
+	if cmd := strings.TrimSpace(s.Playback.Command); cmd != "" {
+		return cmd, append([]string(nil), s.Playback.Args...)
+	}
+	return "pacat", []string{"--format=s16le", "--rate=24000", "--channels=1", "--latency-msec=100"}
 }
 
 type CartesiaConfig struct {

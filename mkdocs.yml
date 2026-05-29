@@ -83,7 +83,7 @@ nav:
       - ACP delegation: guides/acp-delegation.md
       - Cron jobs: guides/cron.md
       - Heartbeat: guides/heartbeat.md
-      - Voice (Web UI): guides/voice.md
+      - Voice: guides/voice.md
       - Hot reload: guides/hot-reload.md
   - Channels:
       - Overview: channels/index.md

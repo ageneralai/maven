@@ -1,4 +1,55 @@
-# Voice (Web UI)
+# Voice
+
+Maven speaks and listens through a single, transport-agnostic conversation core (`internal/kernel/converse`). The core deals only in **text turns**; microphones, speakers, terminals, and browsers are pluggable modalities behind two one-method ports:
+
+- `Source` — produces user text (keyboard, or mic → STT).
+- `Sink` — renders an assistant reply stream (screen, or TTS → speaker).
+
+Speech-to-text and text-to-speech are just codecs at the edge; the core knows nothing about audio. Two transports use it today: the **Web UI** (browser mic/speaker) and the **CLI REPL** (local or Android mic/speaker).
+
+## CLI REPL (and Android)
+
+`maven agent --voice` runs a multimodal REPL: you can type **and** speak at the same time, and replies are simultaneously printed to the terminal and spoken aloud. Typed and spoken turns share one `cli` session, so the conversation is continuous regardless of modality. Speaking or typing again mid-reply **preempts** the in-flight turn (barge-in) — always on, no toggle.
+
+**PulseAudio is required** for CLI voice. On startup Maven transparently loads PulseAudio `module-echo-cancel` with `aec_method=webrtc` (the same WebRTC algorithm browsers use for echo cancellation). Capture and playback route through dedicated echo-cancelled devices (`maven_echocancel_source` / `maven_echocancel_sink` by default), so the mic no longer picks up the agent's TTS and barge-in works without feedback loops. If `pactl` is missing or the module cannot be loaded, Maven exits with an actionable error — there is no fallback to raw mic capture.
+
+Install PulseAudio on your platform.
+
+The CLI REPL uses one transcript shape (keyboard-only or `--voice`): after each `maven ▸` reply, the next line is `you ▸` (type on it or speak to populate via STT). Empty Enter does not add another prompt.
+
+```mermaid
+flowchart LR
+    KB[Keyboard] --> CORE
+    MIC[Echo-cancel mic<br/>parec → AEC source] -->|PCM s16le 16kHz| STT[STT provider] --> CORE[converse core]
+    CORE -->|RunStream deltas| SCR[Screen maven ▸]
+    CORE -->|sentences| TTS[TTS provider] -->|PCM s16le 24kHz| SPK[Echo-cancel sink<br/>pacat → AEC sink]
+```
+
+Audio device I/O is delegated to external processes that stream **raw PCM** over stdout/stdin — no CGO, no ALSA/PulseAudio linkage in the binary. The same binary therefore runs unchanged on a Linux desktop and on Android; only the configured commands differ.
+
+| Direction | Format | Default command |
+|-----------|--------|-----------------|
+| Mic → STT | PCM s16le, 16 kHz, mono | `parec --format=s16le --rate=16000 --channels=1 --latency-msec=50 --device=maven_echocancel_source` |
+| TTS → Speaker | PCM s16le, 24 kHz, mono | `pacat --format=s16le --rate=24000 --channels=1 --latency-msec=100 --device=maven_echocancel_sink` |
+
+The low `--latency-msec` values are deliberate: small mic fragments let the VAD detect speech onset within ~50 ms, and a bounded playback buffer means killing `pacat` on barge-in silences the speaker near-instantly (matching the browser's queue flush). Without them, PulseAudio's default buffering delays both onset detection and the barge-in cut.
+
+Echo cancellation is automatic and not configurable: Maven loads PulseAudio `module-echo-cancel` (webrtc — the same algorithm the browser enables) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit. The only overridable knobs are `speech.capture` / `speech.playback` (command + args) for environments without `parec`/`pacat`. PulseAudio provides `parec`, `pacat`, and `pactl`.
+
+```json
+{
+  "speech": {
+    "sttProvider": "deepgram",
+    "ttsProvider": "openai",
+    "capture":  { "command": "parec", "args": ["--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=50"] },
+    "playback": { "command": "pacat", "args": ["--format=s16le", "--rate=24000", "--channels=1", "--latency-msec=100"] }
+  }
+}
+```
+
+STT/TTS providers and credentials are identical to the Web UI (see below). The CLI builds its own minimal voice provider registry; no gateway or channels are required.
+
+## Web UI
 
 The Web UI ships an optional voice mode: microphone capture in the browser → STT → agent → TTS → playback. Maven owns the realtime contract; provider plugins handle the actual STT and TTS.
 
@@ -80,7 +131,7 @@ The browser generates a UUID at page load and includes it as `?session=<uuid>` w
 
 ## Voice activity detection
 
-A simple RMS threshold on the inbound PCM gates a `sess.Interrupt()` + queue flush. When the user starts talking, in-flight TTS aborts, the browser drops its playback queue, and the new transcript starts a fresh agent turn.
+A simple RMS threshold on the inbound PCM triggers barge-in: in-flight TTS aborts, the browser drops its playback queue, and the new transcript starts a fresh agent turn.
 
 ## Sentence segmentation
 

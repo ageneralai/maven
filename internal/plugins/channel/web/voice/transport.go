@@ -2,31 +2,26 @@ package voice
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"math"
 	"net/http"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
-	"github.com/ageneralai/maven/internal/plugins/channel/web/wsmsg"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/voice"
+	"github.com/ageneralai/maven/internal/kernel/converse"
+	"github.com/ageneralai/maven/internal/kernel/converse/adapter"
 	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
+	"github.com/ageneralai/maven/internal/kernel/voice"
+	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
+	"github.com/ageneralai/maven/internal/plugins/channel/web/wsmsg"
 	"github.com/coder/websocket"
 	"log/slog"
 )
 
 const voiceClearSentinel = byte(0)
-
-const voiceDetectRMSThreshold = 0.01
 
 type Transport struct {
 	log              *slog.Logger
@@ -63,7 +58,7 @@ func (t *Transport) Stop() {
 	t.voiceClients.Range(func(key, value any) bool {
 		vc, ok := value.(*client)
 		if ok {
-			vc.sess.Close()
+			vc.close()
 			_ = vc.conn.CloseNow()
 		}
 		return true
@@ -76,9 +71,32 @@ func (t *Transport) HasSession(chatID string) bool {
 }
 
 type client struct {
-	sess    *voice.Session
 	conn    *websocket.Conn
 	writeMu sync.Mutex
+	tts     voice.TTS
+	cancel  context.CancelFunc
+}
+
+func (c *client) close() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+}
+
+func (c *client) writeBinary(ctx context.Context, data []byte) error {
+	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.conn.Write(writeCtx, websocket.MessageBinary, data)
+}
+
+func (c *client) writeText(ctx context.Context, data []byte) error {
+	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.conn.Write(writeCtx, websocket.MessageText, data)
 }
 
 func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
@@ -110,9 +128,14 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		_ = conn.CloseNow()
 		return
 	}
-	sess := voice.NewSession(r.Context(), stt, tts)
-	defer sess.Close()
-	vc := &client{sess: sess, conn: conn}
+	clientCtx, clientCancel := context.WithCancel(r.Context())
+	defer clientCancel()
+	vc := &client{
+		conn:   conn,
+		tts:    tts,
+		cancel: clientCancel,
+	}
+	defer vc.close()
 	t.voiceClients.Store(sessionID, vc)
 	t.log.Info("web voice client connected", "session", sessionID)
 	defer func() {
@@ -120,79 +143,17 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		_ = conn.CloseNow()
 		t.log.Info("web voice client disconnected", "session", sessionID)
 	}()
-	audioCh := make(chan []byte, 64)
-	go func() {
-		defer close(audioCh)
-		voiceDetectArmed := true
-		for {
-			typ, data, err := conn.Read(r.Context())
-			if err != nil {
-				return
-			}
-			if typ != websocket.MessageBinary {
-				continue
-			}
-			if len(data) == 0 {
-				continue
-			}
-			speaking := pcmRMS(data) > voiceDetectRMSThreshold
-			if speaking && voiceDetectArmed {
-				voiceDetectArmed = false
-				t.log.Debug("web voice vad interrupt", "session", sessionID, "rms", pcmRMS(data))
-				sess.Interrupt()
-				vc.writeCancel()
-			} else if !speaking {
-				voiceDetectArmed = true
-			}
-			select {
-			case <-r.Context().Done():
-				return
-			case audioCh <- data:
-			}
-		}
-	}()
-	var transcriptCount atomic.Int64
-	go func() {
-		err := sess.RunSTT(audioCh, func(text string) {
-			t.log.Debug("web voice transcript", "session", sessionID, "n", transcriptCount.Add(1), "text", text)
-			sess.Interrupt()
-			vc.writeCancel()
-			events, err := t.runner.RunStream(r.Context(), text, sessionID)
-			if err != nil {
-				t.log.Error("web voice agent stream", "session", sessionID, "err", err)
-				return
-			}
-			if err := t.SendStream(r.Context(), sessionID, events); err != nil {
-				t.log.Error("web voice tts stream", "session", sessionID, "err", err)
-			}
-		})
-		if err != nil && !errors.Is(err, context.Canceled) {
-			t.log.Error("web voice STT", "err", err)
-		}
-	}()
-	<-r.Context().Done()
-}
-
-func (c *client) writeCancel() {
-	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-	_ = c.conn.Write(writeCtx, websocket.MessageBinary, []byte{voiceClearSentinel})
-}
-
-func pcmRMS(pcm []byte) float64 {
-	samples := len(pcm) / 2
-	if samples == 0 {
-		return 0
+	src := adapter.NewVoiceSource(adapter.VoiceSourceConfig{
+		Open:    wsPCMOpener(conn),
+		STT:     stt,
+		Log:     t.log,
+		Session: sessionID,
+	})
+	sink := &wsVoiceSink{w: vc, tts: tts, log: t.log, session: sessionID}
+	ag := &adapter.StreamRunnerAgent{Runner: t.runner, SessionID: sessionID, Log: t.log}
+	if err := converse.Converse(clientCtx, []converse.Source{src}, []converse.Sink{sink}, ag); err != nil && !errors.Is(err, context.Canceled) {
+		t.log.Error("web voice converse", "session", sessionID, "err", err)
 	}
-	var sum float64
-	for i := 0; i+1 < len(pcm); i += 2 {
-		v := int16(binary.LittleEndian.Uint16(pcm[i:]))
-		x := float64(v) / 32768
-		sum += x * x
-	}
-	return math.Sqrt(sum / float64(samples))
 }
 
 func (t *Transport) Send(ctx context.Context, chatID string, content string) error {
@@ -219,14 +180,6 @@ func (t *Transport) writeClient(ctx context.Context, chatID string, typ websocke
 	return vc.conn.Write(ctx, typ, data)
 }
 
-func streamEventError(ev api.StreamEvent) error {
-	msg := strings.TrimSpace(fmt.Sprintf("%v", ev.Output))
-	if msg == "" {
-		msg = "stream error"
-	}
-	return fmt.Errorf("%s", msg)
-}
-
 func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
 	v, ok := t.voiceClients.Load(chatID)
 	if !ok {
@@ -236,90 +189,24 @@ func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan
 	if !ok {
 		return nil
 	}
-	sess := vc.sess
-	conn := vc.conn
-	micAgentCtx := sess.NewAgentCtx()
-	agentCtx, cancelAgent := context.WithCancel(micAgentCtx)
-	defer cancelAgent()
+	evFwd := make(chan api.StreamEvent, 8)
 	go func() {
-		<-ctx.Done()
-		cancelAgent()
-	}()
-	textCh := make(chan string, 8)
-	var wg sync.WaitGroup
-	var drainErr error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(textCh)
-		buf := ""
-		for {
-			select {
-			case <-agentCtx.Done():
-				t.log.Debug("web voice turn interrupted", "session", chatID, "err", agentCtx.Err())
+		defer close(evFwd)
+		for ev := range events {
+			if ev.Type == api.EventError {
 				return
-			case ev, ok := <-events:
-				if !ok {
-					tail := voice.FlushRemainder(&buf)
-					t.log.Debug("web voice turn complete", "session", chatID, "tailLen", len(tail))
-					if tail != "" {
-						select {
-						case textCh <- tail:
-						case <-agentCtx.Done():
-							return
-						}
-					}
-					return
-				}
-				if ev.Type == api.EventError {
-					drainErr = streamEventError(ev)
-					sess.Interrupt()
-					return
-				}
-				if ev.Type == api.EventContentBlockDelta && ev.Delta != nil && ev.Delta.Text != "" {
-					buf += ev.Delta.Text
-					for _, sent := range voice.TakeCompleteSentences(&buf) {
-						select {
-						case textCh <- sent:
-						case <-agentCtx.Done():
-							return
-						}
-					}
-				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case evFwd <- ev:
 			}
 		}
 	}()
-	writeAudio := func(b []byte) error {
-		writeCtx, cancel := context.WithTimeout(agentCtx, 5*time.Second)
-		defer cancel()
-		vc.writeMu.Lock()
-		defer vc.writeMu.Unlock()
-		return conn.Write(writeCtx, websocket.MessageBinary, b)
-	}
-	ttsErr := sess.RunTTS(agentCtx, textCh, writeAudio)
-	t.log.Debug("web voice tts done", "session", chatID, "ttsErr", ttsErr, "drainErr", drainErr, "agentCtxErr", agentCtx.Err())
-	if ttsErr != nil {
-		sess.Interrupt()
-	}
-	wg.Wait()
-	done, err := json.Marshal(wsmsg.Message{Type: "stream_done"})
-	if err != nil {
+	sink := &wsVoiceSink{w: vc, tts: vc.tts, log: t.log, session: chatID}
+	err := sink.Render(ctx, adapter.Deltas(ctx, evFwd))
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		return err
-	}
-	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	vc.writeMu.Lock()
-	defer vc.writeMu.Unlock()
-	if werr := conn.Write(writeCtx, websocket.MessageText, done); werr != nil {
-		if drainErr == nil && ttsErr == nil {
-			return werr
-		}
-	}
-	if drainErr != nil {
-		return drainErr
-	}
-	if ttsErr != nil && !errors.Is(ttsErr, context.Canceled) && !errors.Is(ttsErr, context.DeadlineExceeded) {
-		return ttsErr
 	}
 	return nil
 }
