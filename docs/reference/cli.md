@@ -6,6 +6,27 @@
 maven <command> [flags]
 ```
 
+## Daemon mode
+
+`-d` / `--daemon` is a persistent flag on any subcommand. The parent re-execs the same binary without `-d`, starts it in a new session (`setsid`), redirects stdout and stderr to a log file, writes a PID file, prints both paths, and exits. The child runs the command normally until `SIGINT` or `SIGTERM`.
+
+| Path | Contents |
+|------|----------|
+| `~/.maven/<subcmd>.log` | stdout + stderr (append) |
+| `~/.maven/<subcmd>.pid` | child PID |
+
+`<subcmd>` is the first non-flag argument (`agent`, `gateway`, …). If none is given, files are named `maven.log` / `maven.pid`.
+
+```bash
+maven gateway -d
+maven agent --voice -d
+
+tail -f ~/.maven/gateway.log
+kill $(cat ~/.maven/gateway.pid)
+```
+
+Environment variables are inherited from the shell that ran `-d` — export voice or provider keys before starting a detached agent.
+
 ## `maven agent`
 
 Run the agent in CLI mode. Without flags, drops into an interactive REPL. With `-m`, runs a single message and exits. With `--voice`, the REPL also listens on the microphone and speaks replies aloud.
@@ -13,6 +34,7 @@ Run the agent in CLI mode. Without flags, drops into an interactive REPL. With `
 ```bash
 maven agent                       # interactive REPL (keyboard)
 maven agent --voice               # keyboard + mic + speaker, one shared session
+maven agent --voice -d            # detached; log ~/.maven/agent.log
 maven agent -m "Summarize today"  # one-shot
 make run                          # alias for `maven agent`
 ```
@@ -25,6 +47,7 @@ Start the persistent gateway: channels, cron, heartbeat, memory consolidation.
 
 ```bash
 maven gateway
+maven gateway -d                  # detached; log ~/.maven/gateway.log
 make gateway
 ```
 

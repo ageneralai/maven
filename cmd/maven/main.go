@@ -7,9 +7,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	runtimeskills "github.com/ageneralai/ageneral-agents-go/pkg/runtime/skills"
@@ -132,11 +136,15 @@ var skillsCheckCmd = &cobra.Command{
 
 var messageFlag string
 var voiceFlag bool
+var daemonFlag bool
 var wakePhraseFlag string
+
+var runCtx context.Context
 
 const skillsJSONSchemaVersion = 1
 
 func init() {
+	rootCmd.PersistentFlags().BoolVarP(&daemonFlag, "daemon", "d", false, "Run detached in background")
 	agentCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "Single message to send")
 	agentCmd.Flags().BoolVar(&voiceFlag, "voice", false, "Enable mic and speaker in REPL")
 	agentCmd.Flags().StringVar(&wakePhraseFlag, "wake-phrase", "", "Gate voice turns behind a wake phrase (empty = always listen)")
@@ -149,17 +157,84 @@ func init() {
 }
 
 func main() {
+	if shouldDaemonize() {
+		if err := spawnDaemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "maven: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	level, err := config.BootstrapLogLevel()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "maven: %v\n", err)
 		os.Exit(1)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	runCtx = ctx
 	app := cmdContext{log: log.New(level)}
 	slog.SetDefault(app.log)
 	app.bindCommands()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func shouldDaemonize() bool {
+	for _, arg := range os.Args[1:] {
+		if arg == "-d" || arg == "--daemon" {
+			return true
+		}
+	}
+	return false
+}
+
+func daemonSubcmd() string {
+	for _, arg := range os.Args[1:] {
+		if !strings.HasPrefix(arg, "-") {
+			return arg
+		}
+	}
+	return "maven"
+}
+
+func spawnDaemon() error {
+	subcmd := daemonSubcmd()
+	cfgDir := config.ConfigDir()
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		return fmt.Errorf("config dir: %w", err)
+	}
+	logPath := filepath.Join(cfgDir, subcmd+".log")
+	pidPath := filepath.Join(cfgDir, subcmd+".pid")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open log: %w", err)
+	}
+	defer func() { _ = logFile.Close() }()
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("executable: %w", err)
+	}
+	var childArgs []string
+	for _, arg := range os.Args[1:] {
+		if arg != "-d" && arg != "--daemon" {
+			childArgs = append(childArgs, arg)
+		}
+	}
+	cmd := exec.Command(exe, childArgs...)
+	cmd.Env = os.Environ()
+	cmd.Stdin = nil
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start: %w", err)
+	}
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
+		return fmt.Errorf("write pid: %w", err)
+	}
+	fmt.Printf("maven %s daemon started (pid %d)\n  log: %s\n  pid: %s\n", subcmd, cmd.Process.Pid, logPath, pidPath)
+	return nil
 }
 
 func (app *cmdContext) runAgent(cmd *cobra.Command, args []string) error {
@@ -199,7 +274,10 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 		stderr = os.Stderr
 	}
 
-	ctx := context.Background()
+	ctx := runCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// Single message mode
 	if messageFlag != "" {
@@ -286,7 +364,7 @@ func (app *cmdContext) runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create gateway: %w", err)
 	}
 
-	return gw.Run(context.Background())
+	return gw.Run(runCtx)
 }
 
 func (app *cmdContext) runOnboard(cmd *cobra.Command, args []string) error {
