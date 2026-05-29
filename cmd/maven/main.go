@@ -225,11 +225,11 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 	sources := []converse.Source{repl.Keyboard()}
 	sinks := []converse.Sink{repl.Screen()}
 	if voiceFlag {
-		aec := audio.NewEchoCancel()
-		if err := aec.Ensure(ctx); err != nil {
-			return fmt.Errorf("voice echo cancel: %w", err)
+		route := audio.NewVoiceRoute(cfg.Speech)
+		if err := route.Ensure(ctx); err != nil {
+			return fmt.Errorf("voice audio: %w", err)
 		}
-		defer func() { _ = aec.Teardown(context.Background()) }()
+		defer func() { _ = route.Teardown(context.Background()) }()
 		voiceReg := cliVoiceRegistry()
 		stt, err := voice.NewSTT(cfg, voiceReg)
 		if err != nil {
@@ -239,7 +239,7 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 		if err != nil {
 			return fmt.Errorf("voice tts: %w", err)
 		}
-		capture := aec.Capture(cfg.Speech)
+		capture := route.Capture()
 		voiceSrc := adapter.NewVoiceSource(adapter.VoiceSourceConfig{
 			Open:    capture.Capture,
 			STT:     stt,
@@ -249,7 +249,7 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 		sources = append(sources, repl.Voice(voiceSrc))
 		sinks = append(sinks, &voicemod.Sink{
 			TTS:      tts,
-			Playback: aec.Playback(cfg.Speech),
+			Playback: route.Playback(),
 			Log:      app.log,
 			Session:  "cli",
 		})

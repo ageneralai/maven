@@ -171,12 +171,30 @@ type WebConfig struct {
 type SpeechConfig struct {
 	STTProvider string             `json:"sttProvider,omitempty"`
 	TTSProvider string             `json:"ttsProvider,omitempty"`
+	EchoCancel  string             `json:"echoCancel,omitempty"`
 	Capture     SpeechExecConfig   `json:"capture,omitempty"`
 	Playback    SpeechExecConfig   `json:"playback,omitempty"`
 	Cartesia    CartesiaConfig     `json:"cartesia,omitempty"`
 	ElevenLabs  ElevenLabsConfig   `json:"elevenlabs,omitempty"`
 	Deepgram    DeepgramConfig     `json:"deepgram,omitempty"`
 	OpenAI      OpenAISpeechConfig `json:"openai,omitempty"`
+}
+
+// EchoCancelDisabled reports whether CLI voice should skip PulseAudio
+// module-echo-cancel and run capture/playback as configured (Android/Termux).
+func (s SpeechConfig) EchoCancelDisabled() bool {
+	return strings.EqualFold(strings.TrimSpace(s.EchoCancel), "off")
+}
+
+// Validate checks the echoCancel mode. Empty/"pulse" load module-echo-cancel;
+// "off" runs configured I/O directly.
+func (s SpeechConfig) Validate() error {
+	switch strings.ToLower(strings.TrimSpace(s.EchoCancel)) {
+	case "", "pulse", "off":
+		return nil
+	default:
+		return fmt.Errorf("speech.echoCancel must be \"pulse\" or \"off\", got %q", s.EchoCancel)
+	}
 }
 
 // SpeechExecConfig runs an external process for raw PCM I/O (parec/pacat on PulseAudio).
@@ -299,6 +317,7 @@ func (c *Config) Validate() error {
 		c.Channels.Validate(),
 		c.AutoCompact.Validate(),
 		c.Logging.Validate(),
+		c.Speech.Validate(),
 	)
 }
 

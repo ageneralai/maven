@@ -11,9 +11,19 @@ Speech-to-text and text-to-speech are just codecs at the edge; the core knows no
 
 `maven agent --voice` runs a multimodal REPL: you can type **and** speak at the same time, and replies are simultaneously printed to the terminal and spoken aloud. Typed and spoken turns share one `cli` session, so the conversation is continuous regardless of modality. Speaking or typing again mid-reply **preempts** the in-flight turn (barge-in) — always on, no toggle.
 
-**PulseAudio is required** for CLI voice. On startup Maven transparently loads PulseAudio `module-echo-cancel` with `aec_method=webrtc` (the same WebRTC algorithm browsers use for echo cancellation). Capture and playback route through dedicated echo-cancelled devices (`maven_echocancel_source` / `maven_echocancel_sink` by default), so the mic no longer picks up the agent's TTS and barge-in works without feedback loops. If `pactl` is missing or the module cannot be loaded, Maven exits with an actionable error — there is no fallback to raw mic capture.
+**PulseAudio is the default backend** for CLI voice. With `speech.echoCancel: "pulse"` (default) Maven loads `module-echo-cancel` on startup — trying `aec_method=webrtc` (the same WebRTC algorithm browsers use), then `speex` — and routes capture/playback through dedicated echo-cancelled devices (`maven_echocancel_source` / `maven_echocancel_sink`), so the mic no longer picks up the agent's TTS and barge-in works without feedback loops. Maven distinguishes two failures: PulseAudio unreachable (`pulseaudio unavailable`) vs the module failing to initialize (`echo-cancel module unavailable`). There is no silent fallback — it exits with the exact PulseAudio diagnostic.
 
 Install PulseAudio on your platform.
+
+### Android / Termux
+
+Termux's PulseAudio ships `module-echo-cancel.so` **without** a working AEC backend — every `aec_method` (including `speex`) fails `Module initialization failed`. Set `speech.echoCancel: "off"` to skip the module entirely and run capture/playback verbatim:
+
+```json
+{ "speech": { "echoCancel": "off" } }
+```
+
+`off` only disables echo cancellation. Voice still needs a **real Android mic/speaker exposed to your capture/playback commands** — stock Termux PulseAudio shows only `auto_null` (a null sink), so default `parec`/`pacat` capture silence. Provide working commands via `speech.capture` / `speech.playback` (e.g. a Termux-API based PCM streamer) or load a real audio module before starting. Without echo cancellation, use headphones; otherwise TTS leaks into the mic and triggers false barge-in.
 
 The CLI REPL uses one transcript shape (keyboard-only or `--voice`): after each `maven ▸` reply, the next line is `you ▸` (type on it or speak to populate via STT). Empty Enter does not add another prompt.
 
@@ -34,7 +44,7 @@ Audio device I/O is delegated to external processes that stream **raw PCM** over
 
 The low `--latency-msec` values are deliberate: small mic fragments let the VAD detect speech onset within ~50 ms, and a bounded playback buffer means killing `pacat` on barge-in silences the speaker near-instantly (matching the browser's queue flush). Without them, PulseAudio's default buffering delays both onset detection and the barge-in cut.
 
-Echo cancellation is automatic and not configurable: Maven loads PulseAudio `module-echo-cancel` (webrtc — the same algorithm the browser enables) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit. The only overridable knobs are `speech.capture` / `speech.playback` (command + args) for environments without `parec`/`pacat`. PulseAudio provides `parec`, `pacat`, and `pactl`.
+Echo cancellation is selected by `speech.echoCancel`. Default `pulse` loads `module-echo-cancel` (webrtc, then speex) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit. `off` skips PulseAudio management and runs `speech.capture` / `speech.playback` (command + args) verbatim with no forced device — for Android/Termux and environments without a working AEC backend. PulseAudio provides `parec`, `pacat`, and `pactl`.
 
 ```json
 {

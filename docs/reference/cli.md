@@ -17,7 +17,7 @@ maven agent -m "Summarize today"  # one-shot
 make run                          # alias for `maven agent`
 ```
 
-Replies stream to stdout as `maven ▸`; the next `you ▸` line appears when the reply finishes (type on it or, with `--voice`, speak to fill it). Errors go to stderr. With `--voice`, replies are also spoken; speaking or typing again preempts the in-flight reply (barge-in, always on). **PulseAudio is required** — Maven loads `module-echo-cancel` automatically on startup; without `pactl` the command fails fast. Mic/speaker I/O uses echo-cancelled PulseAudio devices via `parec`/`pacat`; see [Guides: Voice](../guides/voice.md#cli-repl-and-android).
+Replies stream to stdout as `maven ▸`; the next `you ▸` line appears when the reply finishes (type on it or, with `--voice`, speak to fill it). Errors go to stderr. With `--voice`, replies are also spoken; speaking or typing again preempts the in-flight reply (barge-in, always on). By default (`speech.echoCancel: "pulse"`) Maven loads `module-echo-cancel` on startup and routes mic/speaker I/O through echo-cancelled PulseAudio devices via `parec`/`pacat`; it fails fast with the exact PulseAudio diagnostic if the module can't initialize. On Android/Termux set `speech.echoCancel: "off"` to run capture/playback directly — see [Guides: Voice](../guides/voice.md#android--termux).
 
 ## `maven gateway`
 

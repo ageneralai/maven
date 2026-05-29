@@ -187,15 +187,16 @@ Post-turn shadow journal pass. See [Guides: Memory — Shadow journaler](../guid
 
 ## `speech`
 
-Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice](../guides/voice.md). Echo cancellation for CLI `--voice` is automatic and not configurable — Maven loads PulseAudio `module-echo-cancel` (webrtc) under internal device names and tears it down on exit.
+Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice](../guides/voice.md). For CLI `--voice`, `echoCancel` (default `pulse`) loads PulseAudio `module-echo-cancel` under internal device names and tears it down on exit; `off` skips it and runs `capture`/`playback` verbatim (Android/Termux, where `module-echo-cancel` has no working AEC backend).
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `sttProvider` | `deepgram` | Currently only `deepgram` is implemented. |
 | `ttsProvider` | `openai` | `openai` / `deepgram` / `elevenlabs` / `cartesia`. |
-| `capture.command` | `parec` | Mic capture process for the CLI voice REPL. Must emit raw PCM s16le 16 kHz mono on stdout. Maven appends the echo-cancel `--device` automatically. |
+| `echoCancel` | `pulse` | `pulse` loads `module-echo-cancel` (tries `webrtc` then `speex`) and routes through Maven's AEC devices. `off` disables echo cancellation and PulseAudio management; `capture`/`playback` run as configured with no forced `--device`. |
+| `capture.command` | `parec` | Mic capture process for the CLI voice REPL. Must emit raw PCM s16le 16 kHz mono on stdout. With `echoCancel: pulse`, Maven appends the echo-cancel `--device`. |
 | `capture.args` | `["--format=s16le","--rate=16000","--channels=1","--latency-msec=50"]` | Arguments for the capture command. Low latency keeps mic fragments small so VAD detects speech onset promptly (fast barge-in). |
-| `playback.command` | `pacat` | Speaker playback process. Must accept raw PCM s16le 24 kHz mono on stdin. Maven appends the echo-cancel `--device` automatically. |
+| `playback.command` | `pacat` | Speaker playback process. Must accept raw PCM s16le 24 kHz mono on stdin. With `echoCancel: pulse`, Maven appends the echo-cancel `--device`. |
 | `playback.args` | `["--format=s16le","--rate=24000","--channels=1","--latency-msec=100"]` | Arguments for the playback command. Low latency bounds the daemon buffer so barge-in cuts the speaker near-instantly. |
 | `cartesia.voiceId` | `""` | Required when `cartesia` is selected. Or use `CARTESIA_VOICE_ID` env. |
 | `cartesia.modelId` | `"sonic-2"` | TTS model. |
