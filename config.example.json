@@ -13,6 +13,11 @@
   "speech": {
     "sttProvider": "deepgram",
     "ttsProvider": "openai",
+    "echoCancel": "pulse",
+    "wake": {
+      "phrase": "",
+      "timeoutMs": 8000
+    },
     "cartesia": {
       "apiKey": "",
       "voiceId": "",
