@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	kvoice "github.com/ageneralai/maven/internal/kernel/voice"
-	"github.com/ageneralai/maven/internal/plugins/voice/audio"
+	"github.com/ageneralai/maven/internal/modality/audio"
 )
 
 // Sink segments reply text, synthesizes speech, and plays PCM.
