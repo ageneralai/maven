@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os/exec"
 )
 
@@ -46,8 +47,8 @@ func (c *ExecCapture) Capture(ctx context.Context) (<-chan []byte, error) {
 				if errors.Is(rerr, io.EOF) {
 					return
 				}
-				if ctx.Err() != nil {
-					return
+				if ctx.Err() == nil {
+					slog.Error("audio capture read", "command", c.Command, "err", rerr)
 				}
 				return
 			}
@@ -97,13 +98,10 @@ func (p *ExecPlayback) Play(ctx context.Context, pcm <-chan []byte) error {
 			}
 		}
 	}()
+	werr := <-writeDone
 	waitErr := cmd.Wait()
-	select {
-	case werr := <-writeDone:
-		if werr != nil {
-			return werr
-		}
-	default:
+	if werr != nil {
+		return werr
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()

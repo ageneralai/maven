@@ -2,8 +2,10 @@ package adapter
 
 import (
 	"context"
+	"io"
 	"log/slog"
 
+	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/kernel/converse"
 	"github.com/ageneralai/maven/internal/kernel/executor"
 )
@@ -12,33 +14,18 @@ import (
 type StreamRunnerAgent struct {
 	Runner    executor.StreamRunner
 	SessionID string
+	ErrOut    io.Writer
 	Log       *slog.Logger
 }
 
 func (a *StreamRunnerAgent) Stream(ctx context.Context, prompt string) <-chan string {
-	out := make(chan string, 64)
-	go func() {
-		defer close(out)
+	cfg := streamConfig{session: a.SessionID, log: a.Log, errOut: a.ErrOut}
+	return streamDeltas(ctx, cfg, func() (<-chan api.StreamEvent, error) {
 		if a.Runner == nil {
-			return
+			return nil, nil
 		}
-		events, err := a.Runner.RunStream(ctx, prompt, a.SessionID)
-		if err != nil {
-			if a.Log != nil {
-				a.Log.Error("voice agent stream", "session", a.SessionID, "err", err)
-			}
-			return
-		}
-		for delta := range Deltas(ctx, events) {
-			select {
-			case <-ctx.Done():
-				logVoiceTurnInterrupted(a.Log, a.SessionID, ctx)
-				return
-			case out <- delta:
-			}
-		}
-	}()
-	return out
+		return a.Runner.RunStream(ctx, prompt, a.SessionID)
+	})
 }
 
 var _ converse.Agent = (*StreamRunnerAgent)(nil)

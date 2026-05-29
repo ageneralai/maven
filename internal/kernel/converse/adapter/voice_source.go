@@ -56,7 +56,8 @@ func (s *voiceSource) Listen(ctx context.Context) <-chan converse.Event {
 			s.logError("voice pcm open", "err", err)
 			return
 		}
-		pcmVAD, pcmSTT := teePCM(ctx, pcm)
+		tees := converse.Tee(ctx, pcm, 2)
+		pcmVAD, pcmSTT := tees[0], tees[1]
 		vad := &voice.VAD{}
 		wg.Add(1)
 		go func() {
@@ -123,33 +124,6 @@ func (s *voiceSource) logArgs(args []any) []any {
 	out := make([]any, 0, len(args)+2)
 	out = append(out, "session", s.session)
 	return append(out, args...)
-}
-
-func teePCM(ctx context.Context, in <-chan []byte) (<-chan []byte, <-chan []byte) {
-	a := make(chan []byte, 64)
-	b := make(chan []byte, 64)
-	go func() {
-		defer close(a)
-		defer close(b)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case chunk, ok := <-in:
-				if !ok {
-					return
-				}
-				for _, ch := range []chan []byte{a, b} {
-					select {
-					case <-ctx.Done():
-						return
-					case ch <- chunk:
-					}
-				}
-			}
-		}
-	}()
-	return a, b
 }
 
 var _ converse.Source = (*voiceSource)(nil)

@@ -10,13 +10,10 @@ import (
 func Converse(ctx context.Context, sources []Source, sinks []Sink, agent Agent) error {
 	events := fanIn(ctx, sources)
 	var (
-		turnMu     sync.Mutex
 		turnCancel context.CancelFunc
 		turnWg     sync.WaitGroup
 	)
 	cancelTurn := func() {
-		turnMu.Lock()
-		defer turnMu.Unlock()
 		if turnCancel != nil {
 			turnCancel()
 			turnCancel = nil
@@ -31,9 +28,7 @@ func Converse(ctx context.Context, sources []Source, sinks []Sink, agent Agent) 
 			return ctx.Err()
 		case ev, ok := <-events:
 			if !ok {
-				turnMu.Lock()
 				turnWg.Wait()
-				turnMu.Unlock()
 				return nil
 			}
 			cancelTurn()
@@ -42,11 +37,9 @@ func Converse(ctx context.Context, sources []Source, sinks []Sink, agent Agent) 
 				continue
 			case Utterance:
 				turnCtx, cancel := context.WithCancel(ctx)
-				turnMu.Lock()
 				turnCancel = cancel
-				turnMu.Unlock()
 				reply := agent.Stream(turnCtx, e.Text)
-				tees := tee(turnCtx, reply, len(sinks))
+				tees := Tee(turnCtx, reply, len(sinks))
 				for i, sink := range sinks {
 					turnWg.Add(1)
 					go func(s Sink, ch <-chan string) {
@@ -80,40 +73,4 @@ func fanIn(ctx context.Context, sources []Source) <-chan Event {
 		close(out)
 	}()
 	return out
-}
-
-func tee(ctx context.Context, in <-chan string, n int) []<-chan string {
-	outs := make([]chan string, n)
-	for i := range outs {
-		outs[i] = make(chan string, 64)
-	}
-	go func() {
-		defer func() {
-			for _, ch := range outs {
-				close(ch)
-			}
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case s, ok := <-in:
-				if !ok {
-					return
-				}
-				for _, ch := range outs {
-					select {
-					case <-ctx.Done():
-						return
-					case ch <- s:
-					}
-				}
-			}
-		}
-	}()
-	readOnly := make([]<-chan string, n)
-	for i, ch := range outs {
-		readOnly[i] = ch
-	}
-	return readOnly
 }
