@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ageneralai/maven/internal/testutil"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
+	"github.com/ageneralai/maven/internal/testutil"
 )
 
 func TestGolden_matrixSendChunks(t *testing.T) {

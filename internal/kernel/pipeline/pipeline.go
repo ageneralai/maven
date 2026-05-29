@@ -3,7 +3,9 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,17 +30,7 @@ import (
 const userErrMessage = "Sorry, I encountered an error processing your message."
 const userErrCommand = "Sorry, I encountered an error processing your command."
 
-type errPostActionHandle struct {
-	err error
-}
-
-func (e errPostActionHandle) Error() string {
-	return e.err.Error()
-}
-
-func (e errPostActionHandle) Unwrap() error {
-	return e.err
-}
+var errPostAction = errors.New("post-action handler failed")
 
 // Pipeline runs the inbound loop and owns the agent runtime pointer. turnMu implements
 // drain-safe reload: each handle and each automation RunTurn holds RLock for the full
@@ -153,17 +145,6 @@ func (p *Pipeline) TakeRuntimeForShutdown() agent.Runtime {
 	return old
 }
 
-func cloneTransportMeta(meta map[string]any) map[string]any {
-	if len(meta) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
-	return out
-}
-
 func (p *Pipeline) Run(ctx context.Context) {
 	for {
 		select {
@@ -241,7 +222,7 @@ func (p *Pipeline) handleBuiltin(ctx context.Context, msg bus.InboundMessage) bo
 		Channel:  msg.Channel,
 		ChatID:   msg.ChatID,
 		Content:  "✅ Started a fresh session.",
-		Metadata: cloneTransportMeta(msg.TransportMeta),
+		Metadata: maps.Clone(msg.TransportMeta),
 	}); err != nil {
 		p.log.Error("pipeline publish session reset reply", "channel", msg.Channel, "err", err)
 	}
@@ -276,7 +257,7 @@ func (p *Pipeline) runStream(ctx context.Context, rt agent.Runtime, msg bus.Inbo
 	} else {
 		intercepted = streamEvents
 	}
-	sendMeta := cloneTransportMeta(msg.TransportMeta)
+	sendMeta := maps.Clone(msg.TransportMeta)
 	sendErr := ch.SendStream(streamCtx, msg.ChatID, sendMeta, intercepted)
 	if sendErr != nil {
 		sendErr = channels.WrapDeliveryFailed(sendErr)
@@ -329,7 +310,7 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 	}
 	if postResult, handled, postErr := p.posts.HandlePostResponse(msgCtx, msg.StableRouteKey(), resp, slashOut.Trail); handled || postErr != nil {
 		if postErr != nil {
-			return errPostActionHandle{postErr}
+			return fmt.Errorf("%w: %w", errPostAction, postErr)
 		}
 		result = postResult
 	}
@@ -338,7 +319,7 @@ func (p *Pipeline) runSync(ctx context.Context, rt agent.Runtime, msg bus.Inboun
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  result,
-			Metadata: cloneTransportMeta(msg.TransportMeta),
+			Metadata: maps.Clone(msg.TransportMeta),
 		}); err != nil {
 			p.log.Error("pipeline publish sync reply", "channel", msg.Channel, "err", err)
 		}
@@ -387,7 +368,7 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 			Channel:  msg.Channel,
 			ChatID:   msg.ChatID,
 			Content:  slashOut.DirectReply,
-			Metadata: cloneTransportMeta(msg.TransportMeta),
+			Metadata: maps.Clone(msg.TransportMeta),
 		}); err != nil {
 			p.log.Error("pipeline publish slash reply", "channel", msg.Channel, "err", err)
 		}
@@ -405,9 +386,8 @@ func (p *Pipeline) handle(ctx context.Context, msg bus.InboundMessage) {
 		}
 	}
 	if err := p.runSync(ctx, rt, msg, sessionKey, slashOut.RequestMetadata, slashOut, plan); err != nil {
-		var ep errPostActionHandle
-		if errors.As(err, &ep) {
-			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, ep.err)
+		if errors.Is(err, errPostAction) {
+			p.sendError(ctx, msg.Channel, msg.ChatID, userErrCommand, err)
 			return
 		}
 		p.sendError(ctx, msg.Channel, msg.ChatID, userErrMessage, err)

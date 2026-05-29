@@ -14,10 +14,10 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/channel"
 	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
+	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/plugins/channel/web/responses"
 	webvoice "github.com/ageneralai/maven/internal/plugins/channel/web/voice"
 	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
-	"github.com/ageneralai/maven/internal/kernel/config"
 	"log/slog"
 
 	"github.com/ageneralai/maven/internal/kernel/plugin"

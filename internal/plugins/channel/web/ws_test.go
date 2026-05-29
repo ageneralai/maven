@@ -10,8 +10,8 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/plugins/channel/web/wsmsg"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	"github.com/ageneralai/maven/internal/plugins/channel/web/wsmsg"
 	"github.com/coder/websocket"
 	"log/slog"
 )

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
-	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
 	"github.com/ageneralai/maven/internal/kernel/executor"
+	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
 	"github.com/google/uuid"
 )
 

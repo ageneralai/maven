@@ -12,7 +12,7 @@ import (
 
 type Plugin struct{}
 
-func NewPlugin() plugin.Plugin { return Plugin{} }
+func NewPlugin() Plugin { return Plugin{} }
 
 func (Plugin) Name() string { return "cartesia" }
 
@@ -44,3 +44,5 @@ func (Plugin) TTSProvider(cfg *config.Config) pkgvoice.TTSProvider {
 func (Plugin) Start(context.Context) error { return nil }
 
 func (Plugin) Stop() error { return nil }
+
+var _ plugin.TTSPlugin = Plugin{}

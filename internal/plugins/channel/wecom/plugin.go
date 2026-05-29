@@ -15,7 +15,7 @@ type Plugin struct {
 	log *slog.Logger
 }
 
-func NewPlugin(b *bus.MessageBus, lg *slog.Logger) plugin.ChannelPlugin {
+func NewPlugin(b *bus.MessageBus, lg *slog.Logger) *Plugin {
 	return &Plugin{bus: b, log: lg}
 }
 
@@ -36,3 +36,5 @@ func (p *Plugin) Channels(cfg *config.Config) []channels.Channel {
 	}
 	return []channels.Channel{ch}
 }
+
+var _ plugin.ChannelPlugin = (*Plugin)(nil)

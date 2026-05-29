@@ -12,7 +12,7 @@ import (
 type Plugin struct{}
 
 // NewPlugin returns a ToolPlugin for gateway registration.
-func NewPlugin() plugin.ToolPlugin { return Plugin{} }
+func NewPlugin() Plugin { return Plugin{} }
 
 func (Plugin) Name() string { return "acp" }
 
@@ -26,3 +26,5 @@ func (Plugin) Tools(cfg *config.Config) []tool.Tool {
 func (Plugin) Start(context.Context) error { return nil }
 
 func (Plugin) Stop() error { return nil }
+
+var _ plugin.ToolPlugin = Plugin{}

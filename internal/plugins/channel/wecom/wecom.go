@@ -27,9 +27,9 @@ import (
 const wecomChannelName = "wecom"
 
 const (
-	wecomDefaultPort         = 9886
+	wecomDefaultPort          = 9886
 	wecomInboundImageMaxBytes = 10 << 20 // 10MB
-	wecomSendMaxRetries      = 3
+	wecomSendMaxRetries       = 3
 )
 
 // wecomMarkdownMaxBytes is the WeCom API hard limit on markdown message length.

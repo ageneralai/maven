@@ -10,11 +10,11 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"log/slog"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
+	"log/slog"
 )
 
 var waTestLog = slog.New(slog.DiscardHandler)

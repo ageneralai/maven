@@ -23,11 +23,11 @@ import (
 const telegramChannelName = "telegram"
 
 type TelegramChannel struct {
-	name           string
-	log            *slog.Logger
-	bus            *bus.MessageBus
-	allow          allowlist.Matcher
-	token          string
+	name       string
+	log        *slog.Logger
+	bus        *bus.MessageBus
+	allow      allowlist.Matcher
+	token      string
 	bot        *telego.Bot
 	proxy      string
 	httpClient *http.Client
@@ -37,12 +37,12 @@ type TelegramChannel struct {
 	streaming  bool
 	workspace  string // workspace root for file saving
 	rootDir    string // telegram assets root, default <workspace>/.telegram
-	caps           channels.CapabilitySet
+	caps       channels.CapabilitySet
 
 	mgMu     sync.Mutex
 	mgBuffer map[string]*mediaGroup
 
-	slashCommands map[string]Command
+	slashCommands   map[string]Command
 	pipelineSlashes map[string]string
 }
 
@@ -52,18 +52,18 @@ func NewTelegramChannel(cfg config.TelegramConfig, workspace string, lg *slog.Lo
 		feedback = "normal"
 	}
 	tc := &TelegramChannel{
-		name:      telegramChannelName,
-		log:       lg,
-		bus:       b,
-		allow:     allowlist.NewMatcher(cfg.AllowFrom),
-		token:     cfg.Token,
-		proxy:       cfg.Proxy,
-		httpClient:  http.DefaultClient,
-		feedback:    feedback,
-		streaming:   cfg.Streaming,
-		rootDir:     strings.TrimSpace(cfg.RootDir),
-		workspace:   strings.TrimSpace(workspace),
-		runCtx:      context.Background(),
+		name:       telegramChannelName,
+		log:        lg,
+		bus:        b,
+		allow:      allowlist.NewMatcher(cfg.AllowFrom),
+		token:      cfg.Token,
+		proxy:      cfg.Proxy,
+		httpClient: http.DefaultClient,
+		feedback:   feedback,
+		streaming:  cfg.Streaming,
+		rootDir:    strings.TrimSpace(cfg.RootDir),
+		workspace:  strings.TrimSpace(workspace),
+		runCtx:     context.Background(),
 		caps: channels.CapabilitySet{
 			Reactions:  true,
 			FileUpload: true,

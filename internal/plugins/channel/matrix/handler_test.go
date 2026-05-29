@@ -9,8 +9,8 @@ import (
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
-	"log/slog"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
+	"log/slog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"

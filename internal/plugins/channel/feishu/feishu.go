@@ -175,13 +175,13 @@ func NewFeishuChannel(cfg config.FeishuConfig, lg *slog.Logger, b *bus.MessageBu
 	}
 	client := newFeishuClient(cfg.AppID, cfg.AppSecret, httpClient)
 	ch := &FeishuChannel{
-		name:  feishuChannelName,
-		log:   lg,
-		bus:   b,
-		allow: allowlist.NewMatcher(cfg.AllowFrom),
-		cfg:   cfg,
-		client:      client,
-		httpClient:  httpClient,
+		name:       feishuChannelName,
+		log:        lg,
+		bus:        b,
+		allow:      allowlist.NewMatcher(cfg.AllowFrom),
+		cfg:        cfg,
+		client:     client,
+		httpClient: httpClient,
 	}
 	ch.imageDownloader = func(ctx context.Context, tenantAccessToken, imageKey string) (string, string, error) {
 		return ch.client.downloadImageAsBase64(ctx, tenantAccessToken, imageKey)

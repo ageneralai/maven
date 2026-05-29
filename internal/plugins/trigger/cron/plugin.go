@@ -14,12 +14,12 @@ import (
 
 // Plugin owns the cron scheduler, agent tools, slash commands, and background trigger.
 type Plugin struct {
-	storePath       string
-	maxConcurrent   int
-	channels        *manager.ChannelManager
-	log             *slog.Logger
-	mu              sync.RWMutex
-	svc             *Service
+	storePath     string
+	maxConcurrent int
+	channels      *manager.ChannelManager
+	log           *slog.Logger
+	mu            sync.RWMutex
+	svc           *Service
 }
 
 // NewPlugin wires cron with store path and channel lookup for delivery. Service is created on trigger Start.

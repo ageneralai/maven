@@ -3,9 +3,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
@@ -115,16 +112,8 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 			return fmt.Errorf("slash plugins: %w", err)
 		}
 	}
-	if err := g.registerReloadSlash(slashReg); err != nil {
-		return fmt.Errorf("slash reload: %w", err)
-	}
-	if err := slashReg.Register(
-		slash.Definition{Name: "status", Description: "Show gateway status: cron jobs, memory size."},
-		slash.HandlerFunc(func(ctx context.Context, inv slash.Invocation) (slash.Result, error) {
-			return g.slashStatus(ctx), nil
-		}),
-	); err != nil {
-		return fmt.Errorf("slash status: %w", err)
+	if err := g.registerGatewaySlashes(slashReg); err != nil {
+		return err
 	}
 	rt, err := g.buildRuntime(cfg, sysPrompt, g.skillRegs)
 	if err != nil {
@@ -137,32 +126,6 @@ func (g *Gateway) Apply(ctx context.Context, cfg *config.Config) error {
 	g.cfg = cfg
 	g.wirePostActionHooks()
 	return g.startTriggers(ctx)
-}
-
-func (g *Gateway) slashStatus(_ context.Context) slash.Result {
-	var parts []string
-	if svc := g.cronService(); svc != nil {
-		jobs := svc.ListJobs()
-		enabled := 0
-		for _, j := range jobs {
-			if j.Enabled {
-				enabled++
-			}
-		}
-		parts = append(parts, fmt.Sprintf("🕐 Cron jobs: %d active / %d total", enabled, len(jobs)))
-	}
-	if g.cfg != nil {
-		memPath := filepath.Join(g.cfg.Agent.Workspace, "memory", "MEMORY.md")
-		if fi, err := os.Stat(memPath); err == nil {
-			parts = append(parts, fmt.Sprintf("🧠 MEMORY.md: %d bytes", fi.Size()))
-		} else {
-			parts = append(parts, "🧠 MEMORY.md: empty")
-		}
-	}
-	if len(parts) == 0 {
-		return slash.Result{Output: "No status available."}
-	}
-	return slash.Result{Output: strings.Join(parts, "\n")}
 }
 
 // wirePostActionHooks registers pre-compact flush and post-turn journaling callbacks.

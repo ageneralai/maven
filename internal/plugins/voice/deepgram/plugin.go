@@ -12,7 +12,7 @@ import (
 
 type Plugin struct{}
 
-func NewPlugin() plugin.Plugin { return Plugin{} }
+func NewPlugin() Plugin { return Plugin{} }
 
 func (Plugin) Name() string { return "deepgram" }
 
@@ -49,3 +49,6 @@ func (Plugin) STTProvider(cfg *config.Config) pkgvoice.STTProvider {
 func (Plugin) Start(context.Context) error { return nil }
 
 func (Plugin) Stop() error { return nil }
+
+var _ plugin.TTSPlugin = Plugin{}
+var _ plugin.STTPlugin = Plugin{}

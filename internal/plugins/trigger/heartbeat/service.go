@@ -9,10 +9,10 @@ import (
 
 	"log/slog"
 
+	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/health"
 	"github.com/ageneralai/maven/internal/kernel/scheduling"
 	"github.com/ageneralai/maven/internal/kernel/sessionid"
-	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
 )
 

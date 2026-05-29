@@ -4,21 +4,7 @@ import (
 	"context"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/kernel/slash"
 )
-
-func (g *Gateway) registerReloadSlash(slashReg *slash.Registry) error {
-	return slashReg.Register(
-		slash.Definition{
-			Name:        "reload",
-			Description: "Re-read config, AGENTS.md, SOUL.md, MEMORY.md, skills; rebuild runtime.",
-		},
-		slash.HandlerFunc(func(context.Context, slash.Invocation) (slash.Result, error) {
-			g.requestReload()
-			return slash.Result{Output: "Reloading…"}, nil
-		}),
-	)
-}
 
 func (g *Gateway) requestReload() {
 	select {

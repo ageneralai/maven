@@ -8,9 +8,9 @@ import (
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"log/slog"
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
+	"log/slog"
 )
 
 const fakeToken = "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefgh"

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ageneralai/maven/internal/kernel/sessionid"
 	"github.com/ageneralai/maven/internal/kernel/executor"
+	"github.com/ageneralai/maven/internal/kernel/sessionid"
 )
 
 func TestServiceFiresJobViaExecutor(t *testing.T) {

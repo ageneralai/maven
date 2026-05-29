@@ -15,7 +15,7 @@ type Plugin struct {
 	log *slog.Logger
 }
 
-func NewPlugin(lg *slog.Logger) plugin.SkillPlugin {
+func NewPlugin(lg *slog.Logger) *Plugin {
 	return &Plugin{log: lg}
 }
 
@@ -40,3 +40,5 @@ func (p *Plugin) Skills(cfg *config.Config) []api.SkillRegistration {
 	}
 	return regs
 }
+
+var _ plugin.SkillPlugin = (*Plugin)(nil)
