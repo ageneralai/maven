@@ -15,6 +15,22 @@ Speech-to-text and text-to-speech are just codecs at the edge; the core knows no
 
 Install PulseAudio on your platform.
 
+### Wake phrase (conversation window)
+
+By default `--voice` listens continuously — every transcript becomes a turn. Set a wake phrase to gate turns Siri-style: the phrase opens a conversation window, turns flow until the window idles out (default 8s), then the gate re-arms.
+
+```bash
+maven agent --voice --wake-phrase "hey maven"
+```
+
+Or in config (the `--wake-phrase` flag overrides it):
+
+```json
+{ "speech": { "wake": { "phrase": "hey maven", "timeoutMs": 8000 } } }
+```
+
+The phrase is matched on normalized leading words. Say it alone ("hey maven") and the wake utterance is sent to the agent as a greeting so it responds; say it with a command in one breath ("hey maven what's the weather") and the wake words are stripped, sending just "what's the weather". Either way the conversation window opens and stays open until it idles out — the timeout is measured from when Maven **finishes replying** (or from your last words if you keep talking), so you get the full window to respond before it re-arms. While dormant, speech is ignored; the keyboard always works regardless of wake state. An empty phrase is stock always-on.
+
 ### Android / Termux
 
 Install Maven on Termux with the same script as other platforms — it detects `$TERMUX_VERSION`, downloads the **`android/arm64`** release binary (not `linux/arm64`), and prints voice next steps when done:

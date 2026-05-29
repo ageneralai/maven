@@ -132,12 +132,14 @@ var skillsCheckCmd = &cobra.Command{
 
 var messageFlag string
 var voiceFlag bool
+var wakePhraseFlag string
 
 const skillsJSONSchemaVersion = 1
 
 func init() {
 	agentCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "Single message to send")
 	agentCmd.Flags().BoolVar(&voiceFlag, "voice", false, "Enable mic and speaker in REPL")
+	agentCmd.Flags().StringVar(&wakePhraseFlag, "wake-phrase", "", "Gate voice turns behind a wake phrase (empty = always listen)")
 	skillsListCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsInfoCmd.Flags().Bool("json", false, "Output as JSON")
 	skillsCheckCmd.Flags().Bool("json", false, "Output as JSON")
@@ -246,13 +248,19 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 			Log:     app.log,
 			Session: "cli",
 		})
-		sources = append(sources, repl.Voice(voiceSrc))
-		sinks = append(sinks, &voicemod.Sink{
+		wakePhrase := wakePhraseFlag
+		if wakePhrase == "" {
+			wakePhrase = cfg.Speech.Wake.Phrase
+		}
+		replyDone := make(chan struct{}, 1)
+		gatedVoice := voice.NewWakeGate(voiceSrc, wakePhrase, cfg.Speech.WakeWindow(), replyDone, app.log)
+		sources = append(sources, repl.Voice(gatedVoice))
+		sinks = append(sinks, converse.NotifyOnDone(&voicemod.Sink{
 			TTS:      tts,
 			Playback: route.Playback(),
 			Log:      app.log,
 			Session:  "cli",
-		})
+		}, replyDone))
 	}
 	convAgent := adapter.NewAgent("cli", app.log, stderr, func(ctx context.Context, prompt string) (<-chan api.StreamEvent, error) {
 		return rt.RunStream(ctx, api.Request{Prompt: prompt, SessionID: "cli"})

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var telegramTokenPattern = regexp.MustCompile(`^\d+:[A-Za-z0-9_-]+$`)
@@ -178,6 +179,7 @@ type SpeechConfig struct {
 	ElevenLabs  ElevenLabsConfig   `json:"elevenlabs,omitempty"`
 	Deepgram    DeepgramConfig     `json:"deepgram,omitempty"`
 	OpenAI      OpenAISpeechConfig `json:"openai,omitempty"`
+	Wake        WakeConfig         `json:"wake,omitempty"`
 }
 
 // EchoCancelDisabled reports whether CLI voice should skip PulseAudio
@@ -191,10 +193,13 @@ func (s SpeechConfig) EchoCancelDisabled() bool {
 func (s SpeechConfig) Validate() error {
 	switch strings.ToLower(strings.TrimSpace(s.EchoCancel)) {
 	case "", "pulse", "off":
-		return nil
 	default:
 		return fmt.Errorf("speech.echoCancel must be \"pulse\" or \"off\", got %q", s.EchoCancel)
 	}
+	if s.Wake.TimeoutMs < 0 {
+		return fmt.Errorf("speech.wake.timeoutMs must be non-negative, got %d", s.Wake.TimeoutMs)
+	}
+	return nil
 }
 
 // SpeechExecConfig runs an external process for raw PCM I/O (parec/pacat on PulseAudio).
@@ -219,6 +224,23 @@ func (s SpeechConfig) PlaybackCommand() (string, []string) {
 		return cmd, append([]string(nil), s.Playback.Args...)
 	}
 	return "pacat", []string{"--format=s16le", "--rate=24000", "--channels=1", "--latency-msec=100"}
+}
+
+// DefaultWakeTimeoutMs is the idle window (ms) before a wake conversation re-arms.
+const DefaultWakeTimeoutMs = 8000
+
+// WakeConfig gates CLI voice turns behind a spoken wake phrase (empty = always listen).
+type WakeConfig struct {
+	Phrase    string `json:"phrase,omitempty"`
+	TimeoutMs int    `json:"timeoutMs,omitempty"`
+}
+
+// WakeWindow is the idle timeout before a wake conversation window re-arms to dormant.
+func (s SpeechConfig) WakeWindow() time.Duration {
+	if s.Wake.TimeoutMs <= 0 {
+		return DefaultWakeTimeoutMs * time.Millisecond
+	}
+	return time.Duration(s.Wake.TimeoutMs) * time.Millisecond
 }
 
 type CartesiaConfig struct {
