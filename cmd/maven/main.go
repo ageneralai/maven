@@ -254,7 +254,9 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 			Session:  "cli",
 		})
 	}
-	convAgent := &adapter.RuntimeAgent{Runtime: rt, SessionID: "cli", ErrOut: stderr, Log: app.log}
+	convAgent := adapter.NewAgent("cli", app.log, stderr, func(ctx context.Context, prompt string) (<-chan api.StreamEvent, error) {
+		return rt.RunStream(ctx, api.Request{Prompt: prompt, SessionID: "cli"})
+	})
 	return converse.Converse(ctx, sources, sinks, convAgent)
 }
 

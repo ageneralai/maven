@@ -2,7 +2,6 @@ package voice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"sync"
@@ -16,7 +15,6 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/plugin"
 	"github.com/ageneralai/maven/internal/kernel/voice"
 	"github.com/ageneralai/maven/internal/plugins/channel/web/wsession"
-	"github.com/ageneralai/maven/internal/plugins/channel/web/wsmsg"
 	"github.com/coder/websocket"
 	"log/slog"
 )
@@ -63,11 +61,6 @@ func (t *Transport) Stop() {
 		}
 		return true
 	})
-}
-
-func (t *Transport) HasSession(chatID string) bool {
-	_, ok := t.voiceClients.Load(chatID)
-	return ok
 }
 
 type client struct {
@@ -150,63 +143,11 @@ func (t *Transport) handleVoiceWS(wr http.ResponseWriter, r *http.Request) {
 		Session: sessionID,
 	})
 	sink := &wsVoiceSink{w: vc, tts: tts, log: t.log, session: sessionID}
-	ag := &adapter.StreamRunnerAgent{Runner: t.runner, SessionID: sessionID, Log: t.log}
+	runner := t.runner
+	ag := adapter.NewAgent(sessionID, t.log, nil, func(ctx context.Context, prompt string) (<-chan api.StreamEvent, error) {
+		return runner.RunStream(ctx, prompt, sessionID)
+	})
 	if err := converse.Converse(clientCtx, []converse.Source{src}, []converse.Sink{sink}, ag); err != nil && !errors.Is(err, context.Canceled) {
 		t.log.Error("web voice converse", "session", sessionID, "err", err)
 	}
-}
-
-func (t *Transport) Send(ctx context.Context, chatID string, content string) error {
-	data, err := json.Marshal(wsmsg.Message{Type: "message", Content: content})
-	if err != nil {
-		return err
-	}
-	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	return t.writeClient(writeCtx, chatID, websocket.MessageText, data)
-}
-
-func (t *Transport) writeClient(ctx context.Context, chatID string, typ websocket.MessageType, data []byte) error {
-	v, ok := t.voiceClients.Load(chatID)
-	if !ok {
-		return nil
-	}
-	vc, ok := v.(*client)
-	if !ok {
-		return nil
-	}
-	vc.writeMu.Lock()
-	defer vc.writeMu.Unlock()
-	return vc.conn.Write(ctx, typ, data)
-}
-
-func (t *Transport) SendStream(ctx context.Context, chatID string, events <-chan api.StreamEvent) error {
-	v, ok := t.voiceClients.Load(chatID)
-	if !ok {
-		return nil
-	}
-	vc, ok := v.(*client)
-	if !ok {
-		return nil
-	}
-	evFwd := make(chan api.StreamEvent, 8)
-	go func() {
-		defer close(evFwd)
-		for ev := range events {
-			if ev.Type == api.EventError {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case evFwd <- ev:
-			}
-		}
-	}()
-	sink := &wsVoiceSink{w: vc, tts: vc.tts, log: t.log, session: chatID}
-	err := sink.Render(ctx, adapter.Deltas(ctx, evFwd))
-	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-	return nil
 }

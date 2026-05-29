@@ -83,9 +83,6 @@ func (w *WebChannel) writeToClient(ctx context.Context, chatID string, data []by
 }
 
 func (w *WebChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
-	if w.voice != nil && w.voice.HasSession(msg.ChatID) {
-		return w.voice.Send(ctx, msg.ChatID, msg.Content)
-	}
 	data, err := json.Marshal(wsmsg.Message{Type: "message", Content: msg.Content})
 	if err != nil {
 		return err
@@ -97,9 +94,6 @@ func (w *WebChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 
 func (w *WebChannel) SendStream(ctx context.Context, chatID string, metadata map[string]any, events <-chan api.StreamEvent) error {
 	_ = metadata
-	if w.voice != nil && w.voice.HasSession(chatID) {
-		return w.voice.SendStream(ctx, chatID, events)
-	}
 	for {
 		select {
 		case <-ctx.Done():
