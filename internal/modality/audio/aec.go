@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,11 +21,60 @@ const (
 	aecMethod     = "webrtc"
 )
 
-// Runner execs a command and returns combined stdout.
+// PulseUnavailableError means pactl is missing or cannot reach a PulseAudio server.
+type PulseUnavailableError struct {
+	Err error
+}
+
+func (e *PulseUnavailableError) Error() string {
+	return fmt.Sprintf("audio: pulseaudio unavailable for voice mode: %v", e.Err)
+}
+
+func (e *PulseUnavailableError) Unwrap() error { return e.Err }
+
+// EchoCancelUnavailableError means PulseAudio is reachable but module-echo-cancel failed to load.
+type EchoCancelUnavailableError struct {
+	Err    error
+	Method string
+}
+
+func (e *EchoCancelUnavailableError) Error() string {
+	return fmt.Sprintf("audio: echo-cancel module unavailable (aec_method=%s): %v", e.Method, e.Err)
+}
+
+func (e *EchoCancelUnavailableError) Unwrap() error { return e.Err }
+
+// Runner execs a command and returns stdout.
 type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
 func defaultRunner(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).Output()
+	return runCommand(ctx, name, args...)
+}
+
+func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		if msg := commandOutputDiagnostics(stdout.String(), stderr.String()); msg != "" {
+			return stdout.Bytes(), fmt.Errorf("%w: %s", err, msg)
+		}
+		return stdout.Bytes(), err
+	}
+	return stdout.Bytes(), nil
+}
+
+func commandOutputDiagnostics(stdout, stderr string) string {
+	var parts []string
+	if s := strings.TrimSpace(stdout); s != "" {
+		parts = append(parts, s)
+	}
+	if s := strings.TrimSpace(stderr); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "\n")
 }
 
 // EchoCancel applies PulseAudio module-echo-cancel and routes capture/playback through it.
@@ -53,7 +103,7 @@ func (e *EchoCancel) Ensure(ctx context.Context) error {
 	}
 	out, err := e.run(ctx, "pactl", "list", "short", "sources")
 	if err != nil {
-		return pulseRequiredErr(err)
+		return &PulseUnavailableError{Err: err}
 	}
 	if sourcePresent(out, aecSourceName) {
 		return nil
@@ -65,7 +115,7 @@ func (e *EchoCancel) Ensure(ctx context.Context) error {
 		"aec_method="+aecMethod,
 	)
 	if err != nil {
-		return pulseRequiredErr(err)
+		return &EchoCancelUnavailableError{Err: err, Method: aecMethod}
 	}
 	idx, err := parseModuleIndex(loadOut)
 	if err != nil {
@@ -97,10 +147,6 @@ func (e *EchoCancel) Playback(speech config.SpeechConfig) Playback {
 	cmd, args := speech.PlaybackCommand()
 	args = appendDeviceArg(args, aecSinkName)
 	return &ExecPlayback{Command: cmd, Args: args}
-}
-
-func pulseRequiredErr(cause error) error {
-	return fmt.Errorf("audio: pulseaudio required for voice mode — install pulseaudio: %w", cause)
 }
 
 func sourcePresent(listOut []byte, name string) bool {
