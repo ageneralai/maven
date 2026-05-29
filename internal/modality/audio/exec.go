@@ -5,7 +5,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"syscall"
+	"time"
 )
 
 // ExecCapture runs command+args and streams stdout as raw PCM chunks.
@@ -38,7 +41,7 @@ func (c *ExecCapture) Capture(ctx context.Context) (<-chan []byte, error) {
 				copy(cp, buf[:n])
 				select {
 				case <-ctx.Done():
-					_ = cmd.Process.Kill()
+					terminateProcess(cmd.Process)
 					return
 				case out <- cp:
 				}
@@ -107,4 +110,21 @@ func (p *ExecPlayback) Play(ctx context.Context, pcm <-chan []byte) error {
 		return ctx.Err()
 	}
 	return waitErr
+}
+
+func terminateProcess(p *os.Process) {
+	if p == nil {
+		return
+	}
+	_ = p.Signal(syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		_, _ = p.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(300 * time.Millisecond):
+		_ = p.Kill()
+	}
 }

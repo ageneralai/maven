@@ -219,6 +219,14 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 	}
 
 	// REPL mode
+	var voiceRoute audio.Route
+	if voiceFlag {
+		voiceRoute = audio.NewVoiceRoute(cfg.Speech)
+		if err := voiceRoute.Ensure(ctx); err != nil {
+			return fmt.Errorf("voice audio: %w", err)
+		}
+		defer func() { _ = voiceRoute.Teardown(context.Background()) }()
+	}
 	if _, err := fmt.Fprintln(stdout, "maven agent (type 'exit' to quit)"); err != nil {
 		return err
 	}
@@ -227,11 +235,6 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 	sources := []converse.Source{repl.Keyboard()}
 	sinks := []converse.Sink{repl.Screen()}
 	if voiceFlag {
-		route := audio.NewVoiceRoute(cfg.Speech)
-		if err := route.Ensure(ctx); err != nil {
-			return fmt.Errorf("voice audio: %w", err)
-		}
-		defer func() { _ = route.Teardown(context.Background()) }()
 		voiceReg := cliVoiceRegistry()
 		stt, err := voice.NewSTT(cfg, voiceReg)
 		if err != nil {
@@ -241,7 +244,7 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 		if err != nil {
 			return fmt.Errorf("voice tts: %w", err)
 		}
-		capture := route.Capture()
+		capture := voiceRoute.Capture()
 		voiceSrc := adapter.NewVoiceSource(adapter.VoiceSourceConfig{
 			Open:    capture.Capture,
 			STT:     stt,
@@ -257,7 +260,7 @@ func (app *cmdContext) runAgentWithOptions(opts AgentOptions) error {
 		sources = append(sources, repl.Voice(gatedVoice))
 		sinks = append(sinks, converse.NotifyOnDone(&voicemod.Sink{
 			TTS:      tts,
-			Playback: route.Playback(),
+			Playback: voiceRoute.Playback(),
 			Log:      app.log,
 			Session:  "cli",
 		}, replyDone))
