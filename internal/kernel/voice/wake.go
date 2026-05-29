@@ -15,9 +15,11 @@ import (
 const DefaultWakeWindow = 8 * time.Second
 
 // NewWakeGate wraps src so voice turns require a spoken wake phrase. The phrase
-// opens a conversation window: utterances pass through until the window elapses
-// with no speech, then the gate re-arms to dormant. An empty (or punctuation-only)
-// phrase returns src unchanged, preserving stock always-on voice.
+// opens a conversation window: utterances pass through until the window idles
+// out with no speech, then the gate re-arms to dormant. The idle timer runs
+// only between turns — it pauses while Maven is generating or playing a reply.
+// An empty (or punctuation-only) phrase returns src unchanged, preserving stock
+// always-on voice.
 func NewWakeGate(src converse.Source, phrase string, window time.Duration, replyDone <-chan struct{}, log *slog.Logger) converse.Source {
 	normalized := normalizeWake(phrase)
 	if normalized == "" {
@@ -43,10 +45,9 @@ func (g *wakeGate) Listen(ctx context.Context) <-chan converse.Event {
 	go func() {
 		defer close(out)
 		active := false
+		awaitingReply := false
 		timer := time.NewTimer(g.window)
-		if !timer.Stop() {
-			drainTimer(timer)
-		}
+		stopTimer(timer)
 		defer timer.Stop()
 		for {
 			select {
@@ -54,9 +55,11 @@ func (g *wakeGate) Listen(ctx context.Context) <-chan converse.Event {
 				return
 			case <-timer.C:
 				active = false
+				awaitingReply = false
 				g.logDebug("wake window closed")
 			case <-g.replyDone:
 				if active {
+					awaitingReply = false
 					resetTimer(timer, g.window)
 					g.logDebug("wake window extended", "reason", "reply finished")
 				}
@@ -64,7 +67,7 @@ func (g *wakeGate) Listen(ctx context.Context) <-chan converse.Event {
 				if !ok {
 					return
 				}
-				if !g.step(ctx, out, ev, &active, timer) {
+				if !g.step(ctx, out, ev, &active, &awaitingReply, timer) {
 					return
 				}
 			}
@@ -73,17 +76,17 @@ func (g *wakeGate) Listen(ctx context.Context) <-chan converse.Event {
 	return out
 }
 
-func (g *wakeGate) step(ctx context.Context, out chan<- converse.Event, ev converse.Event, active *bool, timer *time.Timer) bool {
+func (g *wakeGate) step(ctx context.Context, out chan<- converse.Event, ev converse.Event, active, awaitingReply *bool, timer *time.Timer) bool {
 	switch e := ev.(type) {
 	case converse.SpeechStart:
 		if !*active {
 			return true
 		}
-		resetTimer(timer, g.window)
 		return g.forward(ctx, out, ev)
 	case converse.Utterance:
 		if *active {
-			resetTimer(timer, g.window)
+			*awaitingReply = true
+			stopTimer(timer)
 			return g.forward(ctx, out, ev)
 		}
 		remainder, matched := matchWake(e.Text, g.phrase)
@@ -91,7 +94,8 @@ func (g *wakeGate) step(ctx context.Context, out chan<- converse.Event, ev conve
 			return true
 		}
 		*active = true
-		resetTimer(timer, g.window)
+		*awaitingReply = true
+		stopTimer(timer)
 		g.logDebug("wake activated", "phrase", g.phrase, "command", remainder)
 		prompt := remainder
 		if prompt == "" {
@@ -119,10 +123,14 @@ func (g *wakeGate) forward(ctx context.Context, out chan<- converse.Event, ev co
 	}
 }
 
-func resetTimer(t *time.Timer, d time.Duration) {
+func stopTimer(t *time.Timer) {
 	if !t.Stop() {
 		drainTimer(t)
 	}
+}
+
+func resetTimer(t *time.Timer, d time.Duration) {
+	stopTimer(t)
 	t.Reset(d)
 }
 

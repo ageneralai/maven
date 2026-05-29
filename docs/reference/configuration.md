@@ -207,7 +207,7 @@ Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice]
 | `deepgram.proxy` | `""` | Per-provider proxy URL. |
 | `openai.proxy` | `""` | Per-provider proxy URL. |
 | `wake.phrase` | `""` | CLI `--voice` only. When set, voice turns require this spoken wake phrase, which opens a conversation window. Empty = always listen. The `--wake-phrase` flag overrides this. |
-| `wake.timeoutMs` | `8000` | Idle timeout before the wake conversation window re-arms to dormant, measured from when Maven finishes replying or you stop speaking. |
+| `wake.timeoutMs` | `8000` | Idle timeout before the wake conversation window re-arms to dormant, measured from when Maven finishes replying. Paused while a turn is in flight. |
 
 Credentials come from environment variables; see [Reference: Environment](environment.md).
 

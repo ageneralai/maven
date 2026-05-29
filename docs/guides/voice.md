@@ -29,7 +29,7 @@ Or in config (the `--wake-phrase` flag overrides it):
 { "speech": { "wake": { "phrase": "hey maven", "timeoutMs": 8000 } } }
 ```
 
-The phrase is matched on normalized leading words. Say it alone ("hey maven") and the wake utterance is sent to the agent as a greeting so it responds; say it with a command in one breath ("hey maven what's the weather") and the wake words are stripped, sending just "what's the weather". Either way the conversation window opens and stays open until it idles out — the timeout is measured from when Maven **finishes replying** (or from your last words if you keep talking), so you get the full window to respond before it re-arms. While dormant, speech is ignored; the keyboard always works regardless of wake state. An empty phrase is stock always-on.
+The phrase is matched on normalized leading words. Say it alone ("hey maven") and the wake utterance is sent to the agent as a greeting so it responds; say it with a command in one breath ("hey maven what's the weather") and the wake words are stripped, sending just "what's the weather". Either way the conversation window opens and stays open until it idles out. The idle timer runs only **between** turns — it pauses while Maven is generating or playing a reply, so a long story cannot expire the window mid-speech. After Maven finishes, you get the full timeout to respond; barge-in while Maven is speaking always reaches the agent. While dormant, speech is ignored; the keyboard always works regardless of wake state. An empty phrase is stock always-on.
 
 ### Android / Termux
 
