@@ -10,7 +10,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/manager"
+	"github.com/ageneralai/maven/internal/kernel/channels/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/health"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"

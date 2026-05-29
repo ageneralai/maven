@@ -46,7 +46,6 @@ func (m *MemoryStore) WriteLongTerm(content string) error {
 
 // Daily journal
 
-
 // GetRecentMemories returns journal sections from dated .md files in memory/, newest first.
 // limit is the maximum number of daily files to include; 0 means no limit.
 func (m *MemoryStore) GetRecentMemories(limit int) (string, error) {

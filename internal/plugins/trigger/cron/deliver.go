@@ -5,7 +5,7 @@ import (
 
 	"log/slog"
 
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
 )
 

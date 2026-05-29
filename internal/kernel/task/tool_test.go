@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	turnctx "github.com/ageneralai/maven/internal/kernel/turnctx"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/config"
+	turnctx "github.com/ageneralai/maven/internal/kernel/turnctx"
 )
 
 func TestTools_DisabledReturnsNil(t *testing.T) {

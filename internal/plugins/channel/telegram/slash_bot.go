@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"github.com/ageneralai/maven/internal/kernel/session"
 	"github.com/ageneralai/maven/internal/kernel/sessionid"
 	"github.com/ageneralai/maven/internal/kernel/slashkind"

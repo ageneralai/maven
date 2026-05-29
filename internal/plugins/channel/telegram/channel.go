@@ -13,8 +13,8 @@ import (
 	"log/slog"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel"
-	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
+	"github.com/ageneralai/maven/internal/kernel/channels"
+	"github.com/ageneralai/maven/internal/kernel/channels/allowlist"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"

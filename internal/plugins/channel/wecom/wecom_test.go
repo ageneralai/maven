@@ -19,7 +19,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/model"
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/webhook"
+	"github.com/ageneralai/maven/internal/kernel/channels/webhook"
 	"github.com/ageneralai/maven/internal/kernel/config"
 )
 

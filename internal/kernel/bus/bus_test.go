@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ageneralai/maven/internal/kernel/health"
-	"github.com/ageneralai/maven/internal/kernel/health/healthtest"
 	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/events/eventsfake"
+	"github.com/ageneralai/maven/internal/kernel/health"
+	"github.com/ageneralai/maven/internal/kernel/health/healthtest"
 	"log/slog"
 )
 

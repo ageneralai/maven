@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
+	"github.com/ageneralai/maven/internal/kernel/channels/allowlist"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

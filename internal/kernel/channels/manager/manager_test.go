@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"log/slog"
 )
 
@@ -99,7 +99,7 @@ func (c *ctxCaptureChannel) Start(ctx context.Context) error {
 	c.capturedCtx = ctx
 	return nil
 }
-func (c *ctxCaptureChannel) Stop() error                                        { return nil }
+func (c *ctxCaptureChannel) Stop() error                                         { return nil }
 func (c *ctxCaptureChannel) Send(_ context.Context, _ bus.OutboundMessage) error { return nil }
 func (c *ctxCaptureChannel) Capabilities() channels.CapabilitySet                { return channels.CapabilitySet{} }
 

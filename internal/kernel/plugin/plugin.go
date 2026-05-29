@@ -5,7 +5,7 @@ import (
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/executor"

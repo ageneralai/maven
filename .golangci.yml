@@ -76,7 +76,7 @@ linters:
       - path: internal/kernel/prompt/
         linters:
           - gosec
-      - path: internal/kernel/channel/webhook/
+      - path: internal/kernel/channels/webhook/
         linters:
           - gosec
       - path: internal/testutil/

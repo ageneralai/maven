@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
+	"github.com/ageneralai/maven/internal/kernel/channels/allowlist"
 	"github.com/ageneralai/maven/internal/kernel/stringutil"
 	"log/slog"
 	"maunium.net/go/mautrix"

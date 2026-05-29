@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
-	"github.com/ageneralai/maven/internal/kernel/channel/manager"
+	"github.com/ageneralai/maven/internal/kernel/channels/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/executor"
 	"github.com/ageneralai/maven/internal/kernel/plugin"

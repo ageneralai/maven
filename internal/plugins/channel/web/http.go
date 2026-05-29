@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel"
-	"github.com/ageneralai/maven/internal/kernel/channel/allowlist"
+	"github.com/ageneralai/maven/internal/kernel/channels"
+	"github.com/ageneralai/maven/internal/kernel/channels/allowlist"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/plugins/channel/web/responses"
 	webvoice "github.com/ageneralai/maven/internal/plugins/channel/web/voice"

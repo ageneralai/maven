@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ageneralai/maven/internal/kernel/channel/webhook"
+	"github.com/ageneralai/maven/internal/kernel/channels/webhook"
 )
 
 func wecomDecrypt(encodingAESKey, expectedReceiveID, encrypted string) (string, string, error) {

@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	DefaultMsgCacheTTL        = 5 * time.Minute
-	DefaultReplyCacheTTL      = 1 * time.Hour
-	DefaultCacheScanInterval  = 1 * time.Minute
+	DefaultMsgCacheTTL       = 5 * time.Minute
+	DefaultReplyCacheTTL     = 1 * time.Hour
+	DefaultCacheScanInterval = 1 * time.Minute
 )
 
 type MsgIDCache struct {

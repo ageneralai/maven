@@ -17,21 +17,21 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/agent"
 	"github.com/ageneralai/maven/internal/kernel/agent/postaction"
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/manager"
+	"github.com/ageneralai/maven/internal/kernel/channels/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
-	"github.com/ageneralai/maven/internal/plugins/trigger/cron"
-	"github.com/ageneralai/maven/internal/kernel/sessionid"
-	"github.com/ageneralai/maven/internal/kernel/health"
-	"github.com/ageneralai/maven/internal/plugins/trigger/heartbeat"
-	"github.com/ageneralai/maven/internal/kernel/pipeline"
-	"github.com/ageneralai/maven/internal/kernel/session"
-	"github.com/ageneralai/maven/internal/kernel/slash"
-	"github.com/ageneralai/maven/internal/kernel/health/healthtest"
 	"github.com/ageneralai/maven/internal/kernel/executor"
+	"github.com/ageneralai/maven/internal/kernel/health"
+	"github.com/ageneralai/maven/internal/kernel/health/healthtest"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"
+	"github.com/ageneralai/maven/internal/kernel/pipeline"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
-	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
 	"github.com/ageneralai/maven/internal/kernel/prompt"
+	"github.com/ageneralai/maven/internal/kernel/session"
+	"github.com/ageneralai/maven/internal/kernel/sessionid"
+	"github.com/ageneralai/maven/internal/kernel/slash"
+	fmemory "github.com/ageneralai/maven/internal/plugins/memory/file"
+	"github.com/ageneralai/maven/internal/plugins/trigger/cron"
+	"github.com/ageneralai/maven/internal/plugins/trigger/heartbeat"
 	"log/slog"
 )
 
@@ -1207,4 +1207,3 @@ func TestGateway_ProcessLoop_BuiltinNewSkipsRuntime(t *testing.T) {
 		t.Fatalf("expected rotated session prefix %q:rotated:, got %q", defaultSession, currentSession)
 	}
 }
-

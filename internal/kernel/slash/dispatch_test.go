@@ -75,9 +75,9 @@ func TestEnrichRequestMetadataWithTurnRouting(t *testing.T) {
 			ctx:  baseCtx,
 			md:   map[string]any{"k": float64(1)},
 			want: map[string]any{
-				"k":                    float64(1),
-				"slash.turn.channel":   "telegram",
-				"slash.turn.chat_id":   "4242",
+				"k":                  float64(1),
+				"slash.turn.channel": "telegram",
+				"slash.turn.chat_id": "4242",
 			},
 		},
 		{

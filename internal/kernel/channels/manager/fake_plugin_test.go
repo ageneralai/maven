@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/plugin"
 )

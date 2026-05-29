@@ -48,7 +48,6 @@ func TestLongTermMemory(t *testing.T) {
 	}
 }
 
-
 func TestGetRecentMemories(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
@@ -234,4 +233,3 @@ func TestMemoryDir(t *testing.T) {
 		t.Errorf("memoryDir = %q, want %q", ms.memoryDir(), expected)
 	}
 }
-

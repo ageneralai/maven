@@ -7,7 +7,7 @@ import (
 	"github.com/ageneralai/ageneral-agents-go/pkg/api"
 	"github.com/ageneralai/ageneral-agents-go/pkg/tool"
 	"github.com/ageneralai/maven/internal/kernel/agent"
-	"github.com/ageneralai/maven/internal/kernel/channel"
+	"github.com/ageneralai/maven/internal/kernel/channels"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	mavenlog "github.com/ageneralai/maven/internal/kernel/log"
 	kmemory "github.com/ageneralai/maven/internal/kernel/memory"

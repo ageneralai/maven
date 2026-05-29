@@ -8,7 +8,7 @@ import (
 
 	"github.com/ageneralai/maven/internal/kernel/agent/postaction"
 	"github.com/ageneralai/maven/internal/kernel/bus"
-	"github.com/ageneralai/maven/internal/kernel/channel/manager"
+	"github.com/ageneralai/maven/internal/kernel/channels/manager"
 	"github.com/ageneralai/maven/internal/kernel/config"
 	"github.com/ageneralai/maven/internal/kernel/events"
 	"github.com/ageneralai/maven/internal/kernel/executor"
