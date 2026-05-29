@@ -17,15 +17,113 @@ Install PulseAudio on your platform.
 
 ### Android / Termux
 
-Termux's PulseAudio ships `module-echo-cancel.so` **without** a working AEC backend — every `aec_method` (including `speex`) fails `Module initialization failed`. Set `speech.echoCancel: "off"` to skip the module entirely and run capture/playback verbatim:
+Install Maven on Termux with the same script as other platforms — it detects `$TERMUX_VERSION`, downloads the **`android/arm64`** release binary (not `linux/arm64`), and prints voice next steps when done:
 
-```json
-{ "speech": { "echoCancel": "off" } }
+```bash
+curl -fsSL https://ageneral.ai/maven/install.sh | bash
 ```
 
-`off` only disables echo cancellation. Voice still needs a **real Android mic/speaker exposed to your capture/playback commands** — stock Termux PulseAudio shows only `auto_null` (a null sink), so default `parec`/`pacat` capture silence. Provide working commands via `speech.capture` / `speech.playback` (e.g. a Termux-API based PCM streamer) or load a real audio module before starting. Without echo cancellation, use headphones; otherwise TTS leaks into the mic and triggers false barge-in.
+Then complete the voice setup below. Voice also needs a working LLM key in `~/.maven/config.json` (`provider.apiKey`) from `maven onboard` — same as desktop.
 
-The CLI REPL uses one transcript shape (keyboard-only or `--voice`): after each `maven ▸` reply, the next line is `you ▸` (type on it or speak to populate via STT). Empty Enter does not add another prompt.
+#### 1. Packages and permissions
+
+```bash
+pkg install pulseaudio termux-api
+```
+
+Install the **Termux:API** companion app ([F-Droid](https://f-droid.org/en/packages/com.termux.api/)) and grant **Microphone** permission to it in Android Settings. The `termux-api` package alone is not enough — mic access is propagated through the companion app.
+
+Trigger the permission prompt once (optional sanity check):
+
+```bash
+termux-microphone-record -f /tmp/test.wav -l 1
+termux-microphone-record -q
+rm -f /tmp/test.wav
+```
+
+#### 2. PulseAudio
+
+Termux ships PulseAudio with speaker modules (`module-aaudio-sink` or `module-sles-sink`) but **does not load a microphone source by default**. Without a source, `parec` captures silence.
+
+Start PulseAudio and load the mic module:
+
+```bash
+pulseaudio --start --exit-idle-time=-1 --load=module-aaudio-sink
+pactl load-module module-sles-source
+```
+
+Verify:
+
+```bash
+pactl list sources short   # expect OpenSL_ES_source
+pactl list sinks short     # expect AAudio_sink or similar
+```
+
+Quick mic check (~1 s of PCM should be non-zero size):
+
+```bash
+timeout 1 parec --format=s16le --rate=16000 --channels=1 | wc -c
+```
+
+Re-run the `pactl load-module` line after each PulseAudio restart. A future Termux release may ship `module-aaudio-source` for devices where OpenSL ES input fails (Android 12+); until then, `module-sles-source` works on many phones including recent Samsung devices.
+
+#### 3. Config
+
+Set `speech.echoCancel` to **`"off"`**. Termux's `module-echo-cancel` does not have a reliable AEC backend — default `"pulse"` tries `webrtc` (fails) and exits before voice starts.
+
+```json
+{
+  "speech": {
+    "echoCancel": "off",
+    "sttProvider": "deepgram",
+    "ttsProvider": "cartesia",
+    "cartesia": {
+      "voiceId": "your-voice-id"
+    }
+  }
+}
+```
+
+Default `parec` / `pacat` commands work once PulseAudio has real source and sink devices; no custom `speech.capture` / `speech.playback` needed unless you prefer otherwise.
+
+#### 4. Voice credentials
+
+STT and TTS keys are separate from your LLM provider key. Export before running:
+
+```bash
+export DEEPGRAM_API_KEY=...
+export CARTESIA_API_KEY=...
+export CARTESIA_VOICE_ID=...   # optional if already in config
+```
+
+See [Credentials](#credentials) for all providers and env fallbacks.
+
+#### 5. Run
+
+```bash
+maven agent --voice
+```
+
+Use **headphones**. With `echoCancel: "off"`, speaker output feeds back into the mic and can trigger false barge-in.
+
+#### Termux checklist
+
+| Step | Required for `--voice` |
+|------|------------------------|
+| `install.sh` or `maven-android-arm64` binary | Yes |
+| Termux:API app + mic permission | Yes |
+| `pkg install pulseaudio termux-api` | Yes |
+| PulseAudio running + mic source loaded | Yes |
+| `speech.echoCancel: "off"` | Yes |
+| `DEEPGRAM_API_KEY` + TTS provider key | Yes |
+| LLM `provider.apiKey` | Yes |
+| Headphones | Strongly recommended |
+
+#### Echo cancellation on Termux
+
+`off` only disables echo cancellation and PulseAudio module management. Maven still runs `parec` / `pacat` for capture and playback — see the CLI diagram and PCM table below.
+
+Stock Termux PulseAudio may show only `auto_null` until you load a real sink/source module. `termux-microphone-record` writes files, not stdout — it is not a drop-in `parec` replacement without a wrapper script.
 
 ```mermaid
 flowchart LR
@@ -34,6 +132,8 @@ flowchart LR
     CORE -->|RunStream deltas| SCR[Screen maven ▸]
     CORE -->|sentences| TTS[TTS provider] -->|PCM s16le 24kHz| SPK[Echo-cancel sink<br/>pacat → AEC sink]
 ```
+
+The CLI REPL uses one transcript shape (keyboard-only or `--voice`): after each `maven ▸` reply, the next line is `you ▸` (type on it or speak to populate via STT). Empty Enter does not add another prompt.
 
 Audio device I/O is delegated to external processes that stream **raw PCM** over stdout/stdin — no CGO, no ALSA/PulseAudio linkage in the binary. The same binary therefore runs unchanged on a Linux desktop and on Android; only the configured commands differ.
 
