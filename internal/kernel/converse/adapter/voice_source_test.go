@@ -9,15 +9,14 @@ import (
 	"github.com/ageneralai/maven/internal/kernel/converse"
 )
 
-func loudPCM(level float64) []byte {
+func tone(level float64, ms, sampleRate int) []byte {
+	n := sampleRate * ms / 1000
+	b := make([]byte, n*2)
 	v := int16(level * 32767)
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b, uint16(v))
+	for i := 0; i < n; i++ {
+		binary.LittleEndian.PutUint16(b[i*2:], uint16(v))
+	}
 	return b
-}
-
-func silentPCM() []byte {
-	return make([]byte, 2)
 }
 
 type fakeSTT struct {
@@ -67,7 +66,7 @@ func fakeOpener(frames ...[]byte) PCMOpener {
 func TestNewVoiceSource(t *testing.T) {
 	t.Parallel()
 	src := NewVoiceSource(VoiceSourceConfig{
-		Open: fakeOpener(silentPCM(), loudPCM(1.0)),
+		Open: fakeOpener(tone(0, 50, 16000), tone(1.0, 200, 16000)),
 		STT:  &fakeSTT{transcript: "hello"},
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

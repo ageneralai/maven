@@ -63,7 +63,7 @@ func (s *voiceSource) Listen(ctx context.Context) <-chan converse.Event {
 		go func() {
 			defer wg.Done()
 			for chunk := range pcmVAD {
-				if vad.Onset(chunk) {
+				if vad.Push(chunk) == voice.SpeechStart {
 					s.logDebug("voice vad interrupt", "rms", voice.RMS(chunk))
 					select {
 					case <-ctx.Done():

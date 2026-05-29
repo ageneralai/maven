@@ -8,9 +8,9 @@ import (
 )
 
 // directRoute runs the configured capture/playback commands verbatim with no
-// echo-cancel module and no forced device. Used on Android where PulseAudio
-// lacks a working module-echo-cancel; Ensure reconciles PulseAudio (single
-// daemon + mic source) before capture starts.
+// echo cancellation and no forced device: the explicit echoCancel="off" mode
+// (e.g. headphones). On Android, Ensure reconciles PulseAudio (single daemon +
+// mic source) before capture starts.
 type directRoute struct {
 	speech config.SpeechConfig
 	run    Runner

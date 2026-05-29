@@ -85,12 +85,11 @@ Re-run the `pactl load-module` line after each PulseAudio restart. A future Term
 
 #### 3. Config
 
-Set `speech.echoCancel` to **`"off"`**. Termux's `module-echo-cancel` does not have a reliable AEC backend — default `"pulse"` tries `webrtc` (fails) and exits before voice starts.
+Leave `speech.echoCancel` at the default **`"pulse"`**. On Termux `module-echo-cancel`'s `webrtc` backend fails to initialize, but the `speex` fallback loads and runs, so Maven gets working OS echo cancellation. Use `"off"` only to disable echo cancellation entirely (raw passthrough, e.g. with headphones).
 
 ```json
 {
   "speech": {
-    "echoCancel": "off",
     "sttProvider": "deepgram",
     "ttsProvider": "cartesia",
     "cartesia": {
@@ -120,7 +119,7 @@ See [Credentials](#credentials) for all providers and env fallbacks.
 maven agent --voice
 ```
 
-Use **headphones**. With `echoCancel: "off"`, speaker output feeds back into the mic and can trigger false barge-in.
+Use **headphones** for speaker-only use. The `speex` fallback on Termux suppresses only ~11 dB of echo — enough to calm the VAD against false barge-in, but not enough for clean speaker-only STT. (Linux's `webrtc` backend is much stronger and is genuinely clean speaker-only.)
 
 #### Termux checklist
 
@@ -130,14 +129,14 @@ Use **headphones**. With `echoCancel: "off"`, speaker output feeds back into the
 | Termux:API app + mic permission | Yes |
 | `pkg install pulseaudio termux-api` | Yes |
 | PulseAudio running + mic source loaded | Yes |
-| `speech.echoCancel: "off"` | Yes |
+| `speech.echoCancel: "pulse"` (default; speex fallback) | Yes |
 | `DEEPGRAM_API_KEY` + TTS provider key | Yes |
 | LLM `provider.apiKey` | Yes |
-| Headphones | Strongly recommended |
+| Headphones (clean speaker-only STT) | Strongly recommended |
 
 #### Echo cancellation on Termux
 
-`off` only disables echo cancellation and PulseAudio module management. Maven still runs `parec` / `pacat` for capture and playback — see the CLI diagram and PCM table below.
+Default `pulse` loads `module-echo-cancel`: `webrtc` fails to initialize on Termux, so Maven falls back to `speex`, which loads and runs (~11 dB suppression). Maven first reconciles PulseAudio (single daemon + mic source) so the module has a master source. `off` disables echo cancellation and PulseAudio module management entirely; Maven still runs `parec` / `pacat` for capture and playback — see the CLI diagram and PCM table below.
 
 Stock Termux PulseAudio may show only `auto_null` until you load a real sink/source module. `termux-microphone-record` writes files, not stdout — it is not a drop-in `parec` replacement without a wrapper script.
 
@@ -160,7 +159,7 @@ Audio device I/O is delegated to external processes that stream **raw PCM** over
 
 The low `--latency-msec` values are deliberate: small mic fragments let the VAD detect speech onset within ~50 ms, and a bounded playback buffer means killing `pacat` on barge-in silences the speaker near-instantly (matching the browser's queue flush). Without them, PulseAudio's default buffering delays both onset detection and the barge-in cut.
 
-Echo cancellation is selected by `speech.echoCancel`. Default `pulse` loads `module-echo-cancel` (webrtc, then speex) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit. `off` skips PulseAudio management and runs `speech.capture` / `speech.playback` (command + args) verbatim with no forced device — for Android/Termux and environments without a working AEC backend. PulseAudio provides `parec`, `pacat`, and `pactl`.
+Echo cancellation is selected by `speech.echoCancel`. Default `pulse` loads `module-echo-cancel` (webrtc, then speex) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit — recommended on all platforms, including Termux where it falls back to speex. `off` skips PulseAudio module management and runs `speech.capture` / `speech.playback` (command + args) verbatim with no forced device — the explicit no-AEC mode, e.g. with headphones. PulseAudio provides `parec`, `pacat`, and `pactl`.
 
 ```json
 {

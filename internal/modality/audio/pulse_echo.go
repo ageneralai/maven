@@ -3,6 +3,7 @@ package audio
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strconv"
 
 	"github.com/ageneralai/maven/internal/kernel/config"
@@ -41,6 +42,11 @@ func (r *echoRoute) WithRunner(run Runner) *echoRoute {
 // Ensure loads module-echo-cancel when maven's source is absent, trying each
 // AEC method until one initializes.
 func (r *echoRoute) Ensure(ctx context.Context) error {
+	if runtime.GOOS == "android" {
+		if err := ensureAndroidPulse(ctx, r.run); err != nil {
+			return err
+		}
+	}
 	out, err := r.run(ctx, "pactl", "list", "short", "sources")
 	if err != nil {
 		return &PulseUnavailableError{Err: err}
