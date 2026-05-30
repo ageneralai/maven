@@ -253,15 +253,15 @@ func TestDirectRoute_NoManagementNoDevice(t *testing.T) {
 
 func TestDirectRoute_UsesConfiguredCommands(t *testing.T) {
 	d := newDirectRoute(config.SpeechConfig{
-		Capture:  config.SpeechExecConfig{Command: "termux-mic", Args: []string{"--raw"}},
-		Playback: config.SpeechExecConfig{Command: "termux-spk", Args: []string{"--raw"}},
+		Capture:  config.SpeechExecConfig{Command: "device-mic", Args: []string{"--raw"}},
+		Playback: config.SpeechExecConfig{Command: "device-spk", Args: []string{"--raw"}},
 	})
 	cap := d.Capture().(*ExecCapture)
-	if cap.Command != "termux-mic" || !hasArg(cap.Args, "--raw") {
+	if cap.Command != "device-mic" || !hasArg(cap.Args, "--raw") {
 		t.Fatalf("capture did not honor config: %s %v", cap.Command, cap.Args)
 	}
 	play := d.Playback().(*ExecPlayback)
-	if play.Command != "termux-spk" || !hasArg(play.Args, "--raw") {
+	if play.Command != "device-spk" || !hasArg(play.Args, "--raw") {
 		t.Fatalf("playback did not honor config: %s %v", play.Command, play.Args)
 	}
 }

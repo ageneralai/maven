@@ -1,7 +1,7 @@
 //go:build android
 
 // Package dnsfix overrides net.DefaultResolver on Android builds.
-// Go's pure-Go DNS resolver reads Termux's resolv.conf which points to [::1]:53.
+// Go's pure-Go DNS resolver reads Android userland resolv.conf which points to [::1]:53.
 // Android's netd DNS proxy only listens on 127.0.0.1:53 (IPv4), so IPv6 UDP
 // queries fail with connection refused. This init wires a resolver that dials
 // Google's public DNS over IPv4 instead.

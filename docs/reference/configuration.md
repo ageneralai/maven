@@ -187,13 +187,13 @@ Post-turn shadow journal pass. See [Guides: Memory — Shadow journaler](../guid
 
 ## `speech`
 
-Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice](../guides/voice.md). For CLI `--voice`, `echoCancel` (default `pulse`) loads PulseAudio `module-echo-cancel` under internal device names and tears it down on exit — on Termux `webrtc` is unavailable but the `speex` fallback loads and runs; `off` skips the module and runs `capture`/`playback` verbatim (raw passthrough, e.g. headphones).
+Platform STT/TTS provider selection plus per-provider knobs. See [Guides: Voice](../guides/voice.md). For CLI `--voice`, `echoCancel` (default `pulse`) loads PulseAudio `module-echo-cancel` under internal device names and tears it down on exit — on Android `webrtc` is unavailable but the `speex` fallback loads and runs; `off` skips the module and runs `capture`/`playback` verbatim (raw passthrough, e.g. headphones).
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `sttProvider` | `deepgram` | Currently only `deepgram` is implemented. |
 | `ttsProvider` | `openai` | `openai` / `deepgram` / `elevenlabs` / `cartesia`. |
-| `echoCancel` | `pulse` | `pulse` loads `module-echo-cancel` (tries `webrtc` then `speex`) and routes through Maven's AEC devices; on Termux `webrtc` is unavailable but `speex` works. `off` disables echo cancellation entirely (raw passthrough, e.g. headphones); `capture`/`playback` run as configured with no forced `--device`. |
+| `echoCancel` | `pulse` | `pulse` loads `module-echo-cancel` (tries `webrtc` then `speex`) and routes through Maven's AEC devices; on Android `webrtc` is unavailable but `speex` works. `off` disables echo cancellation entirely (raw passthrough, e.g. headphones); `capture`/`playback` run as configured with no forced `--device`. |
 | `capture.command` | `parec` | Mic capture process for the CLI voice REPL. Must emit raw PCM s16le 16 kHz mono on stdout. With `echoCancel: pulse`, Maven appends the echo-cancel `--device`. |
 | `capture.args` | `["--format=s16le","--rate=16000","--channels=1","--latency-msec=50"]` | Arguments for the capture command. Low latency keeps mic fragments small so VAD detects speech onset promptly (fast barge-in). |
 | `playback.command` | `pacat` | Speaker playback process. Must accept raw PCM s16le 24 kHz mono on stdin. With `echoCancel: pulse`, Maven appends the echo-cancel `--device`. |

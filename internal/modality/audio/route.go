@@ -15,7 +15,7 @@ import (
 // Route prepares the platform's audio path for a voice session and yields the
 // mic capture and speaker playback bound to it. The desktop route manages a
 // PulseAudio echo-cancel module; the direct route runs the configured I/O
-// commands verbatim for platforms (Android/Termux) without WebRTC AEC.
+// commands verbatim for platforms (Android) without WebRTC AEC.
 type Route interface {
 	Ensure(ctx context.Context) error
 	Teardown(ctx context.Context) error

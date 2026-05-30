@@ -183,7 +183,7 @@ type SpeechConfig struct {
 }
 
 // EchoCancelDisabled reports whether CLI voice should skip PulseAudio
-// module-echo-cancel and run capture/playback as configured (Android/Termux).
+// module-echo-cancel and run capture/playback as configured (Android).
 func (s SpeechConfig) EchoCancelDisabled() bool {
 	return strings.EqualFold(strings.TrimSpace(s.EchoCancel), "off")
 }

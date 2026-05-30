@@ -31,44 +31,25 @@ Or in config (the `--wake-phrase` flag overrides it):
 
 The phrase is matched on normalized leading words. Say it alone ("hey maven") and the wake utterance is sent to the agent as a greeting so it responds; say it with a command in one breath ("hey maven what's the weather") and the wake words are stripped, sending just "what's the weather". Either way the conversation window opens and stays open until it idles out. The idle timer runs only **between** turns — it pauses while Maven is generating or playing a reply, so a long story cannot expire the window mid-speech. After Maven finishes, you get the full timeout to respond; barge-in while Maven is speaking always reaches the agent. While dormant, speech is ignored; the keyboard always works regardless of wake state. An empty phrase is stock always-on.
 
-### Android / Termux
+### Android
 
-Install Maven on Termux with the same script as other platforms — it detects `$TERMUX_VERSION`, downloads the **`android/arm64`** release binary (not `linux/arm64`), and prints voice next steps when done:
+Install the **`android/arm64`** release binary (not `linux/arm64`) with the same script as other platforms:
 
 ```bash
 curl -fsSL https://ageneral.ai/maven/install.sh | bash
 ```
 
-Then complete the voice setup below. Voice also needs a working LLM key in `~/.maven/config.json` (`provider.apiKey`) from `maven onboard` — same as desktop.
+Voice also needs a working LLM key in `~/.maven/config.json` (`provider.apiKey`) from `maven onboard` — same as desktop.
 
 #### 1. Packages and permissions
 
-```bash
-pkg install pulseaudio termux-api
-```
-
-Install the **Termux:API** companion app ([F-Droid](https://f-droid.org/en/packages/com.termux.api/)) and grant **Microphone** permission to it in Android Settings. The `termux-api` package alone is not enough — mic access is propagated through the companion app.
-
-Trigger the permission prompt once (optional sanity check):
-
-```bash
-termux-microphone-record -f /tmp/test.wav -l 1
-termux-microphone-record -q
-rm -f /tmp/test.wav
-```
+Install PulseAudio via your package manager and grant **Microphone** permission in Android Settings for your terminal app.
 
 #### 2. PulseAudio
 
-Termux ships PulseAudio with speaker modules (`module-aaudio-sink` or `module-sles-sink`) but **does not load a microphone source by default**. Without a source, `parec` captures silence.
+On first `--voice` run, Maven reconciles PulseAudio: one daemon, mic source (`module-sles-source`) when missing, then echo-cancel setup. No manual `pulseaudio --start` or `pactl load-module` required.
 
-Start PulseAudio and load the mic module:
-
-```bash
-pulseaudio --start --exit-idle-time=-1 --load=module-aaudio-sink
-pactl load-module module-sles-source
-```
-
-Verify:
+Verify after startup:
 
 ```bash
 pactl list sources short   # expect OpenSL_ES_source
@@ -81,11 +62,9 @@ Quick mic check (~1 s of PCM should be non-zero size):
 timeout 1 parec --format=s16le --rate=16000 --channels=1 | wc -c
 ```
 
-Re-run the `pactl load-module` line after each PulseAudio restart. A future Termux release may ship `module-aaudio-source` for devices where OpenSL ES input fails (Android 12+); until then, `module-sles-source` works on many phones including recent Samsung devices.
-
 #### 3. Config
 
-Leave `speech.echoCancel` at the default **`"pulse"`**. On Termux `module-echo-cancel`'s `webrtc` backend fails to initialize, but the `speex` fallback loads and runs, so Maven gets working OS echo cancellation. Use `"off"` only to disable echo cancellation entirely (raw passthrough, e.g. with headphones).
+Leave `speech.echoCancel` at the default **`"pulse"`**. On Android `module-echo-cancel`'s `webrtc` backend fails to initialize, but the `speex` fallback loads and runs, so Maven gets working OS echo cancellation. Use `"off"` only to disable echo cancellation entirely (raw passthrough, e.g. with headphones).
 
 ```json
 {
@@ -119,26 +98,23 @@ See [Credentials](#credentials) for all providers and env fallbacks.
 maven agent --voice
 ```
 
-Use **headphones** for speaker-only use. The `speex` fallback on Termux suppresses only ~11 dB of echo — enough to calm the VAD against false barge-in, but not enough for clean speaker-only STT. (Linux's `webrtc` backend is much stronger and is genuinely clean speaker-only.)
+Use **headphones** for speaker-only use. The `speex` fallback on Android suppresses only ~11 dB of echo — enough to calm the VAD against false barge-in, but not enough for clean speaker-only STT. (Linux's `webrtc` backend is much stronger and is genuinely clean speaker-only.)
 
-#### Termux checklist
+#### Android checklist
 
 | Step | Required for `--voice` |
 |------|------------------------|
 | `install.sh` or `maven-android-arm64` binary | Yes |
-| Termux:API app + mic permission | Yes |
-| `pkg install pulseaudio termux-api` | Yes |
-| PulseAudio running + mic source loaded | Yes |
+| Terminal app mic permission (Android Settings) | Yes |
+| PulseAudio installed | Yes |
 | `speech.echoCancel: "pulse"` (default; speex fallback) | Yes |
 | `DEEPGRAM_API_KEY` + TTS provider key | Yes |
 | LLM `provider.apiKey` | Yes |
 | Headphones (clean speaker-only STT) | Strongly recommended |
 
-#### Echo cancellation on Termux
+#### Echo cancellation on Android
 
-Default `pulse` loads `module-echo-cancel`: `webrtc` fails to initialize on Termux, so Maven falls back to `speex`, which loads and runs (~11 dB suppression). Maven first reconciles PulseAudio (single daemon + mic source) so the module has a master source. `off` disables echo cancellation and PulseAudio module management entirely; Maven still runs `parec` / `pacat` for capture and playback — see the CLI diagram and PCM table below.
-
-Stock Termux PulseAudio may show only `auto_null` until you load a real sink/source module. `termux-microphone-record` writes files, not stdout — it is not a drop-in `parec` replacement without a wrapper script.
+Default `pulse` loads `module-echo-cancel`: `webrtc` fails to initialize on Android, so Maven falls back to `speex`, which loads and runs (~11 dB suppression). Maven first reconciles PulseAudio (single daemon + mic source) so the module has a master source. `off` disables echo cancellation and PulseAudio module management entirely; Maven still runs `parec` / `pacat` for capture and playback — see the CLI diagram and PCM table below.
 
 ```mermaid
 flowchart LR
@@ -159,7 +135,7 @@ Audio device I/O is delegated to external processes that stream **raw PCM** over
 
 The low `--latency-msec` values are deliberate: small mic fragments let the VAD detect speech onset within ~50 ms, and a bounded playback buffer means killing `pacat` on barge-in silences the speaker near-instantly (matching the browser's queue flush). Without them, PulseAudio's default buffering delays both onset detection and the barge-in cut.
 
-Echo cancellation is selected by `speech.echoCancel`. Default `pulse` loads `module-echo-cancel` (webrtc, then speex) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit — recommended on all platforms, including Termux where it falls back to speex. `off` skips PulseAudio module management and runs `speech.capture` / `speech.playback` (command + args) verbatim with no forced device — the explicit no-AEC mode, e.g. with headphones. PulseAudio provides `parec`, `pacat`, and `pactl`.
+Echo cancellation is selected by `speech.echoCancel`. Default `pulse` loads `module-echo-cancel` (webrtc, then speex) under internal device names, routes capture/playback through it so the agent never hears itself, and unloads it on exit — recommended on all platforms, including Android where it falls back to speex. `off` skips PulseAudio module management and runs `speech.capture` / `speech.playback` (command + args) verbatim with no forced device — the explicit no-AEC mode, e.g. with headphones. PulseAudio provides `parec`, `pacat`, and `pactl`.
 
 ```json
 {
